@@ -142,11 +142,11 @@ jobs:
         id: get_version
         run: |
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            echo "VERSION=${{ github.event.inputs.tag }}" >> $GITHUB_ENV
+            echo "ref_name=${{ github.event.inputs.tag }}" >> $GITHUB_ENV
           else
-            VERSION=${GITHUB_REF/refs\/tags\//}
-            echo "VERSION=${VERSION}" >> $GITHUB_ENV
-        shell: bash
+            ref_name=${GITHUB_REF/refs\/tags\//}  # This strips the refs/tags/ prefix
+            echo "ref_name=${ref_name}" >> $GITHUB_ENV
+          fi
 
       - name: Create Release
         id: create_release
@@ -154,8 +154,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: ${{ env.VERSION }}
-          release_name: Release ${{ env.VERSION }}
+          tag_name: ${{ github.ref_name }}
+          release_name: Release ${{ github.ref_name }}
           draft: false
           prerelease: false
 
@@ -165,8 +165,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./artifacts/windows-installer/${{ matrix.installer-name }}
-          asset_name: crypto-monitor-${{ env.VERSION }}-windows-amd64-installer.exe
+          asset_path: ./artifacts/windows-installer/crypto-monitor-installer.exe
+          asset_name: crypto-monitor-${{ github.ref_name }}-windows-amd64-installer.exe
           asset_content_type: application/vnd.microsoft.portable-executable
 
       - name: Upload Windows Executable Asset
@@ -175,8 +175,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./artifacts/windows-executable/${{ matrix.executable-name }}
-          asset_name: crypto-monitor-${{ env.VERSION }}-windows-amd64.exe
+          asset_path: ./artifacts/windows-executable/crypto-monitor-windows-amd64.exe
+          asset_name: crypto-monitor-${{ github.ref_name }}-windows-amd64.exe
           asset_content_type: application/vnd.microsoft.portable-executable
 
       - name: Upload macOS Release Asset
@@ -185,8 +185,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./artifacts/macos-latest/${{ matrix.build-name }}.zip
-          asset_name: crypto-monitor-${{ env.VERSION }}-macos-universal.zip
+          asset_path: ./artifacts/macos-latest/crypto-monitor.zip
+          asset_name: crypto-monitor-${{ github.ref_name }}-macos-universal.zip
           asset_content_type: application/zip
 
       - name: Upload Linux Release Asset
@@ -195,6 +195,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./artifacts/ubuntu-latest/${{ matrix.build-name }}
-          asset_name: crypto-monitor-${{ env.VERSION }}-linux-amd64
+          asset_path: ./artifacts/ubuntu-latest/crypto-monitor
+          asset_name: crypto-monitor-${{ github.ref_name }}-linux-amd64
           asset_content_type: application/x-elf
