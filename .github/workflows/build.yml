@@ -12,92 +12,91 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            goos: linux
-            extension: ""
+            build-platform: linux/amd64
+            build-name: crypto-monitor
           - os: macos-latest
-            goos: darwin
-            extension: ".app"
+            build-platform: darwin/universal
+            build-name: crypto-monitor
           - os: windows-latest
-            goos: windows
-            extension: ".exe"
+            build-platform: windows/amd64
+            build-name: crypto-monitor.exe
+            nsis: "true"
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Set up Go
+      - name: Setup GoLang
         uses: actions/setup-go@v4
         with:
           go-version: "1.21"
 
-      - name: Add Go bin to PATH
-        run: echo "${{ github.workspace }}/go/bin" >> $GITHUB_PATH
-
-      - name: Set up Node.js
+      - name: Setup NodeJS
         uses: actions/setup-node@v3
         with:
           node-version: "18"
+
+      - name: Install Linux Wails deps
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install libgtk-3-0 libwebkit2gtk-4.0-dev gcc-aarch64-linux-gnu
+
+      - name: Install Wails
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+
+      - name: Install Go Dependencies
+        run: go mod tidy
 
       - name: Install frontend dependencies
         run: |
           cd frontend
           npm install
 
-      - name: Install Wails
-        run: |
-          go install github.com/wailsapp/wails/v2/cmd/wails@latest
-        env:
-          GOPATH: ${{ github.workspace }}/go
-
-      - name: Install Go Dependencies
-        run: |
-          go mod tidy
-        env:
-          GOPATH: ${{ github.workspace }}/go
-
       - name: Build Wails App
-        run: |
-          wails build -m release
+        run: wails build --platform ${{matrix.build-platform}} -webview2 download -o ${{matrix.build-name}}
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: "amd64"
+
+      - name: Build Windows Installer
+        if: runner.os == 'Windows' && matrix.nsis == 'true'
+        run: wails build --platform ${{matrix.build-platform}} -webview2 download -nsis -o ${{matrix.build-name}}
+
+      - name: Add macOS perms
+        if: runner.os == 'macOS'
+        run: chmod +x build/bin/*/Contents/MacOS/*
+
+      - name: Add Linux perms
+        if: runner.os == 'Linux'
+        run: chmod +x build/bin/*
 
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v3
         with:
           name: crypto-monitor-${{ matrix.os }}
-          path: |
-            build/bin/crypto-monitor${{ matrix.extension }}
+          path: build/bin/*
 
   release:
     needs: build
     runs-on: ubuntu-latest
+
     steps:
-      - name: Download Linux artifact
+      - name: Download Artifacts
         uses: actions/download-artifact@v3
         with:
-          name: crypto-monitor-ubuntu-latest
-          path: ./build/linux
+          path: ./artifacts
 
-      - name: Download macOS artifact
-        uses: actions/download-artifact@v3
-        with:
-          name: crypto-monitor-macos-latest
-          path: ./build/macos
+      - name: Get Version
+        id: get_version
+        run: echo ::set-output name=VERSION::${GITHUB_REF/refs\/tags\//}
 
-      - name: Download Windows artifact
-        uses: actions/download-artifact@v3
-        with:
-          name: crypto-monitor-windows-latest
-          path: ./build/windows
-
-      - name: Create GitHub Release
+      - name: Create Release
         id: create_release
         uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: ${{ github.ref_name }}
-          release_name: Release ${{ github.ref_name }}
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ steps.get_version.outputs.VERSION }}
           draft: false
           prerelease: false
 
@@ -107,26 +106,5 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./build/windows/crypto-monitor.exe
-          asset_name: crypto-monitor-windows-v${{ github.ref_name }}.exe
-          asset_content_type: application/vnd.microsoft.package
-
-      - name: Upload macOS Release Asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./build/macos/crypto-monitor.app
-          asset_name: crypto-monitor-macos-v${{ github.ref_name }}.app
-          asset_content_type: application/x-apple-app
-
-      - name: Upload Linux Release Asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./build/linux/crypto-monitor
-          asset_name: crypto-monitor-linux-v${{ github.ref_name }}
-          asset_content_type: application/octet-stream
+          asset_path: ./artifacts/crypto-monitor-windows-latest/crypto-monitor.exe
+          asset_name: crypto-monitor-${{ steps.get_version.outputs.VERSION }}-windows-amd64.exe
