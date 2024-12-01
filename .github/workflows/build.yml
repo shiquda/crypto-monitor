@@ -22,7 +22,7 @@ jobs:
             build-name: crypto-monitor
           - os: macos-latest
             build-platform: darwin/universal
-            build-name: crypto-monitor
+            build-name: crypto-monitor.app
           - os: windows-latest
             build-platform: windows/amd64
             installer-name: crypto-monitor-installer.exe
@@ -76,7 +76,7 @@ jobs:
       - name: List Build Directory
         run: |
           echo "Listing build directory:"
-          ls -al ./build/bin
+          ls -a -l ./build/bin
 
       - name: Upload Build Artifact (Non-Windows)
         if: runner.os != 'Windows'
