@@ -57,25 +57,21 @@ jobs:
           cd frontend
           npm install
 
-      - name: Create build/bin directory
-        if: runner.os == 'Windows'
-        run: mkdir build\bin
-
       - name: Build Wails App (Non-Windows)
         if: runner.os != 'Windows'
         run: |
-          wails build --platform ${{ matrix.build-platform }} -webview2 download -o build/bin/${{ matrix.build-name }}
-        working-directory: ./ # 确保在仓库根目录
+          wails build --platform ${{ matrix.build-platform }} -webview2 download -o ${{ matrix.build-name }}
+        working-directory: ./
 
       - name: Build Windows Installer
         if: runner.os == 'Windows'
         run: |
-          wails build --platform ${{ matrix.build-platform }} -webview2 download -nsis -o build/bin/${{ matrix.installer-name }}
+          wails build --platform ${{ matrix.build-platform }} -webview2 download -nsis -o ${{ matrix.installer-name }}
 
       - name: Build Windows Executable
         if: runner.os == 'Windows'
         run: |
-          wails build --platform ${{ matrix.build-platform }} -webview2 download -o build/bin/${{ matrix.executable-name }}
+          wails build --platform ${{ matrix.build-platform }} -webview2 download -o ${{ matrix.executable-name }}
 
       - name: List Build Directory
         run: |
