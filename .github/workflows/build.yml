@@ -29,6 +29,9 @@ jobs:
         with:
           go-version: "1.21"
 
+      - name: Add Go bin to PATH
+        run: echo "${{ github.workspace }}/go/bin" >> $GITHUB_PATH
+
       - name: Set up Node.js
         uses: actions/setup-node@v3
         with:
@@ -45,8 +48,11 @@ jobs:
         env:
           GOPATH: ${{ github.workspace }}/go
 
-      - name: Add Go bin to PATH
-        run: echo "${{ github.workspace }}/go/bin" >> $GITHUB_PATH
+      - name: Install Go Dependencies
+        run: |
+          go mod tidy
+        env:
+          GOPATH: ${{ github.workspace }}/go
 
       - name: Build Wails App
         run: |
@@ -102,7 +108,7 @@ jobs:
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: ./build/windows/crypto-monitor.exe
-          asset_name: crypto-monitor-windows-v${{ github.ref }}.exe
+          asset_name: crypto-monitor-windows-v${{ github.ref_name }}.exe
           asset_content_type: application/vnd.microsoft.package
 
       - name: Upload macOS Release Asset
@@ -112,7 +118,7 @@ jobs:
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: ./build/macos/crypto-monitor.app
-          asset_name: crypto-monitor-macos-v${{ github.ref }}.app
+          asset_name: crypto-monitor-macos-v${{ github.ref_name }}.app
           asset_content_type: application/x-apple-app
 
       - name: Upload Linux Release Asset
@@ -122,5 +128,5 @@ jobs:
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: ./build/linux/crypto-monitor
-          asset_name: crypto-monitor-linux-v${{ github.ref }}
+          asset_name: crypto-monitor-linux-v${{ github.ref_name }}
           asset_content_type: application/octet-stream
