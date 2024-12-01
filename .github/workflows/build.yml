@@ -34,15 +34,10 @@ jobs:
         with:
           node-version: "18"
 
-      - name: Install dependencies
+      - name: Install frontend dependencies
         run: |
           cd frontend
           npm install
-
-      - name: Build frontend
-        run: |
-          cd frontend
-          npm run build
 
       - name: Install Wails
         run: |
@@ -52,12 +47,6 @@ jobs:
 
       - name: Add Go bin to PATH
         run: echo "${{ github.workspace }}/go/bin" >> $GITHUB_PATH
-
-      - name: Install Go Dependencies
-        run: |
-          go mod tidy
-        env:
-          GOPATH: ${{ github.workspace }}/go
 
       - name: Build Wails App
         run: |
@@ -70,7 +59,6 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: crypto-monitor-${{ matrix.os }}
-          # 根据不同操作系统设置正确的构建产物路径和文件名
           path: |
             build/bin/crypto-monitor${{ matrix.extension }}
 
@@ -114,7 +102,7 @@ jobs:
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: ./build/windows/crypto-monitor.exe
-          asset_name: crypto-monitor-windows.exe
+          asset_name: crypto-monitor-windows-v${{ github.ref }}.exe
           asset_content_type: application/vnd.microsoft.package
 
       - name: Upload macOS Release Asset
@@ -124,7 +112,7 @@ jobs:
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: ./build/macos/crypto-monitor.app
-          asset_name: crypto-monitor-macos.app
+          asset_name: crypto-monitor-macos-v${{ github.ref }}.app
           asset_content_type: application/x-apple-app
 
       - name: Upload Linux Release Asset
@@ -134,5 +122,5 @@ jobs:
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: ./build/linux/crypto-monitor
-          asset_name: crypto-monitor-linux
+          asset_name: crypto-monitor-linux-v${{ github.ref }}
           asset_content_type: application/octet-stream
