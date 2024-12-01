@@ -80,11 +80,6 @@ jobs:
           cd build/bin
           zip -r "${{ matrix.build-name }}.zip" "${{ matrix.build-name }}.app"
 
-      - name: List Build Directory
-        run: |
-          echo "Listing build directory:"
-          ls -a -l ./build/bin
-
       - name: Upload Linux Build Artifact
         if: runner.os == 'linux'
         uses: actions/upload-artifact@v3
@@ -203,10 +198,3 @@ jobs:
           asset_path: ./artifacts/ubuntu-latest/${{ matrix.build-name }}
           asset_name: crypto-monitor-${{ env.VERSION }}-linux-amd64
           asset_content_type: application/x-elf
-
-      - name: List Artifacts Directories
-        run: |
-          echo "Listing Windows Installer Directory:"
-          ls -al ./artifacts/windows-installer/
-          echo "Listing Windows Executable Directory:"
-          ls -al ./artifacts/windows-executable/
