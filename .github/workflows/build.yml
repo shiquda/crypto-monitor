@@ -22,7 +22,7 @@ jobs:
             build-name: crypto-monitor
           - os: macos-latest
             build-platform: darwin/universal
-            build-name: crypto-monitor.app
+            build-name: crypto-monitor
           - os: windows-latest
             build-platform: windows/amd64
             installer-name: crypto-monitor-installer.exe
@@ -57,21 +57,28 @@ jobs:
           cd frontend
           npm install
 
+      # https://wails.io/docs/reference/cli/#build
       - name: Build Wails App (Non-Windows)
         if: runner.os != 'Windows'
         run: |
-          wails build --platform ${{ matrix.build-platform }} -webview2 download -o ${{ matrix.build-name }}
+          wails build --platform ${{ matrix.build-platform }} -o ${{ matrix.build-name }}
         working-directory: ./
 
       - name: Build Windows Installer
         if: runner.os == 'Windows'
         run: |
-          wails build --platform ${{ matrix.build-platform }} -webview2 download -nsis -o ${{ matrix.installer-name }}
+          wails build --platform ${{ matrix.build-platform }} -nsis -o ${{ matrix.installer-name }}
 
       - name: Build Windows Executable
         if: runner.os == 'Windows'
         run: |
-          wails build --platform ${{ matrix.build-platform }} -webview2 download -o ${{ matrix.executable-name }}
+          wails build --platform ${{ matrix.build-platform }} -o ${{ matrix.executable-name }}
+
+      - name: Package macOS .app
+        if: runner.os == 'macos-latest'
+        run: |
+          cd build/bin
+          zip -r "${{ matrix.build-name }}.zip" "${{ matrix.build-name }}"
 
       - name: List Build Directory
         run: |
@@ -173,12 +180,12 @@ jobs:
       - name: Upload macOS Release Asset
         uses: actions/upload-release-asset@v1
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./artifacts/macos-latest/${{ matrix.build-name }}
-          asset_name: crypto-monitor-${{ env.VERSION }}-macos-universal.app
-          asset_content_type: application/x-apple-app
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          with:
+            upload_url: ${{ steps.create_release.outputs.upload_url }}
+            asset_path: ./artifacts/macos-latest/${{ matrix.build-name }}.zip
+          asset_name: crypto-monitor-${{ env.VERSION }}-macos-universal.zip
+          asset_content_type: application/zip
 
       - name: Upload Linux Release Asset
         uses: actions/upload-release-asset@v1
