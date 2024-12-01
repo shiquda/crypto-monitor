@@ -75,7 +75,7 @@ jobs:
           wails build --platform ${{ matrix.build-platform }} -o ${{ matrix.executable-name }}
 
       - name: Package macOS .app
-        if: runner.os == 'macos-latest'
+        if: runner.os == 'macOS'
         run: |
           cd build/bin
           zip -r "${{ matrix.build-name }}.zip" "${{ matrix.build-name }}"
