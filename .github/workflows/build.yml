@@ -44,7 +44,7 @@ jobs:
 
       - name: Install Linux Wails deps
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install libgtk-3-0 libwebkit2gtk-4.0-dev gcc-aarch64-linux-gnu
+        run: sudo apt-get update && sudo apt-get install -y libgtk-3-0 libwebkit2gtk-4.0-dev gcc-aarch64-linux-gnu
 
       - name: Install Wails
         run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
@@ -59,36 +59,44 @@ jobs:
 
       - name: Build Wails App
         if: runner.os != 'Windows'
-        run: wails build --platform ${{matrix.build-platform}} -webview2 download -o ${{matrix.build-name}}
+        run: wails build --platform ${{ matrix.build-platform }} -webview2 download -o ${{ matrix.build-name }}
+        working-directory: ./
 
       - name: Build Windows Installer
         if: runner.os == 'Windows'
-        run: wails build --platform ${{matrix.build-platform}} -webview2 download -nsis -o ${{matrix.installer-name}}
+        run: wails build --platform ${{ matrix.build-platform }} -webview2 download -nsis -o ${{ matrix.installer-name }}
+        working-directory: ./build/bin
 
       - name: Build Windows Executable
         if: runner.os == 'Windows'
-        run: wails build --platform ${{matrix.build-platform}} -webview2 download -o ${{matrix.executable-name}}
+        run: wails build --platform ${{ matrix.build-platform }} -webview2 download -o ${{ matrix.executable-name }}
+        working-directory: ./build/bin
+
+      - name: List Build Directory
+        run: |
+          echo "Listing build directory:"
+          ls -al ./build/bin
 
       - name: Upload Build Artifact (Non-Windows)
         if: runner.os != 'Windows'
         uses: actions/upload-artifact@v3
         with:
           name: crypto-monitor-${{ matrix.os }}
-          path: ${{ matrix.build-name }}
+          path: ./build/bin/${{ matrix.build-name }}
 
       - name: Upload Windows Installer Artifact
         if: runner.os == 'Windows'
         uses: actions/upload-artifact@v3
         with:
           name: crypto-monitor-windows-installer
-          path: ${{ matrix.installer-name }}
+          path: ./build/bin/${{ matrix.installer-name }}
 
       - name: Upload Windows Executable Artifact
         if: runner.os == 'Windows'
         uses: actions/upload-artifact@v3
         with:
           name: crypto-monitor-windows-executable
-          path: ${{ matrix.executable-name }}
+          path: ./build/bin/${{ matrix.executable-name }}
 
   release:
     runs-on: ubuntu-latest
@@ -96,10 +104,29 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
 
     steps:
-      - name: Download Artifacts
+      - name: Download Non-Windows Ubuntu Artifact
         uses: actions/download-artifact@v3
         with:
-          path: ./artifacts
+          name: crypto-monitor-ubuntu-latest
+          path: ./artifacts/ubuntu-latest
+
+      - name: Download Non-Windows macOS Artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: crypto-monitor-macos-latest
+          path: ./artifacts/macos-latest
+
+      - name: Download Windows Installer Artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: crypto-monitor-windows-installer
+          path: ./artifacts/windows-installer
+
+      - name: Download Windows Executable Artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: crypto-monitor-windows-executable
+          path: ./artifacts/windows-executable
 
       - name: Get Version
         id: get_version
@@ -109,7 +136,7 @@ jobs:
           else
             VERSION=${GITHUB_REF/refs\/tags\//}
             echo "VERSION=${VERSION}" >> $GITHUB_ENV
-          fi
+        shell: bash
 
       - name: Create Release
         id: create_release
@@ -128,7 +155,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./artifacts/crypto-monitor-windows-installer/${{ matrix.installer-name }}
+          asset_path: ./artifacts/windows-installer/${{ matrix.installer-name }}
           asset_name: crypto-monitor-${{ env.VERSION }}-windows-amd64-installer.exe
           asset_content_type: application/vnd.microsoft.portable-executable
 
@@ -138,7 +165,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./artifacts/crypto-monitor-windows-executable/${{ matrix.executable-name }}
+          asset_path: ./artifacts/windows-executable/${{ matrix.executable-name }}
           asset_name: crypto-monitor-${{ env.VERSION }}-windows-amd64.exe
           asset_content_type: application/vnd.microsoft.portable-executable
 
@@ -148,8 +175,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./artifacts/crypto-monitor-macos-latest/${{ matrix.build-name }}
-          asset_name: crypto-monitor-${{ env.VERSION }}-macos-universal
+          asset_path: ./artifacts/macos-latest/${{ matrix.build-name }}
+          asset_name: crypto-monitor-${{ env.VERSION }}-macos-universal.app
           asset_content_type: application/x-apple-app
 
       - name: Upload Linux Release Asset
@@ -158,6 +185,13 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./artifacts/crypto-monitor-ubuntu-latest/${{ matrix.build-name }}
+          asset_path: ./artifacts/ubuntu-latest/${{ matrix.build-name }}
           asset_name: crypto-monitor-${{ env.VERSION }}-linux-amd64
           asset_content_type: application/x-elf
+
+      - name: List Artifacts Directories
+        run: |
+          echo "Listing Windows Installer Directory:"
+          ls -al ./artifacts/windows-installer/
+          echo "Listing Windows Executable Directory:"
+          ls -al ./artifacts/windows-executable/
