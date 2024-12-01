@@ -70,9 +70,22 @@ jobs:
         run: wails build --platform ${{matrix.build-platform}} -webview2 download -o ${{matrix.executable-name}}
 
       - uses: actions/upload-artifact@v3
+        if: runner.os != 'Windows'
         with:
           name: crypto-monitor-${{matrix.os}}
           path: ${{matrix.build-name}}
+
+      - uses: actions/upload-artifact@v3
+        if: runner.os == 'Windows'
+        with:
+          name: crypto-monitor-windows-installer
+          path: ${{matrix.installer-name}}
+
+      - uses: actions/upload-artifact@v3
+        if: runner.os == 'Windows'
+        with:
+          name: crypto-monitor-windows-executable
+          path: ${{matrix.executable-name}}
 
   release:
     runs-on: ubuntu-latest
