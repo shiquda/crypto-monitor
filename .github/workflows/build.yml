@@ -20,6 +20,9 @@ jobs:
           - os: windows-latest
             build-platform: windows/amd64
             build-name: crypto-monitor.exe
+          - os: windows-latest
+            build-platform: windows/amd64
+            build-name: crypto-monitor-windows-amd64.exe
             nsis: "true"
 
     steps:
@@ -108,3 +111,34 @@ jobs:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: ./artifacts/crypto-monitor-windows-latest/crypto-monitor.exe
           asset_name: crypto-monitor-${{ steps.get_version.outputs.VERSION }}-windows-amd64.exe
+          asset_content_type: application/vnd.microsoft.portable-executable
+
+      - name: Upload Windows Executable Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./artifacts/crypto-monitor-windows-latest/crypto-monitor-windows-amd64.exe
+          asset_name: crypto-monitor-${{ steps.get_version.outputs.VERSION }}-windows-amd64.exe
+          asset_content_type: application/vnd.microsoft.portable-executable
+
+      - name: Upload macOS Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./artifacts/crypto-monitor-macos-latest/crypto-monitor
+          asset_name: crypto-monitor-${{ steps.get_version.outputs.VERSION }}-macos-universal
+          asset_content_type: application/x-apple-app
+
+      - name: Upload Linux Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./artifacts/crypto-monitor-ubuntu-latest/crypto-monitor
+          asset_name: crypto-monitor-${{ steps.get_version.outputs.VERSION }}-linux-amd64
+          asset_content_type: application/x-elf
