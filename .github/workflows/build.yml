@@ -44,9 +44,9 @@ jobs:
           cd frontend
           npm run build
 
-      - name: Install Wails
+      - name: Install Dependencies
         run: |
-          go install github.com/wailsapp/wails/v2/cmd/wails@latest
+          go mod tidy
         env:
           GOPATH: ${{ github.workspace }}/go
 
