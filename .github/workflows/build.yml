@@ -85,12 +85,19 @@ jobs:
           echo "Listing build directory:"
           ls -a -l ./build/bin
 
-      - name: Upload Build Artifact (Non-Windows)
-        if: runner.os != 'Windows'
+      - name: Upload Linux Build Artifact
+        if: runner.os == 'linux'
         uses: actions/upload-artifact@v3
         with:
           name: crypto-monitor-${{ matrix.os }}
           path: ./build/bin/${{ matrix.build-name }}
+
+      - name: Upload macOS Build Artifact
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v3
+        with:
+          name: crypto-monitor-${{ matrix.os }}
+          path: ./build/bin/${{ matrix.build-name }}.zip
 
       - name: Upload Windows Installer Artifact
         if: runner.os == 'Windows'
