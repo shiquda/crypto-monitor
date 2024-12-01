@@ -78,7 +78,7 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           cd build/bin
-          zip -r "${{ matrix.build-name }}.zip" "${{ matrix.build-name }}"
+          zip -r "${{ matrix.build-name }}.zip" "${{ matrix.build-name }}.app"
 
       - name: List Build Directory
         run: |
