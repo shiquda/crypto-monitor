@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - "v*.*.*" # trigger when tag is vX.X.X
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to build and release"
+        required: true
+        default: "v0.0.0"
 
 jobs:
   build:
