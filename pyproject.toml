@@ -9,10 +9,16 @@ dependencies = [
     "python-okx>=0.3.0",
     "aiohttp>=3.9.0",
     "websockets>=12.0",
+    "pyqt6-fluent-widgets[full]",
 ]
 
 [project.scripts]
 crypto-monitor = "main:main"
+
+[project.optional-dependencies]
+fluent = [
+    "PyQt-Fluent-Widgets",
+]
 
 [tool.uv]
 dev-dependencies = [

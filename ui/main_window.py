@@ -1,5 +1,5 @@
 """
-Main application window.
+Main application window using Fluent Design.
 """
 
 import webbrowser
@@ -9,14 +9,14 @@ from PyQt6.QtWidgets import (
     QApplication
 )
 from PyQt6.QtCore import Qt, QPoint
-from PyQt6.QtGui import QMouseEvent, QIcon
+from PyQt6.QtGui import QIcon, QMouseEvent
+from qfluentwidgets import setTheme, Theme
 
 from ui.widgets.toolbar import Toolbar
 from ui.widgets.crypto_card import CryptoCard
 from ui.widgets.pagination import Pagination
 from ui.widgets.add_pair_dialog import AddPairDialog
 from ui.settings_window import SettingsWindow
-from ui.styles.theme import get_stylesheet
 
 from core.okx_client import OkxClientManager
 from core.price_tracker import PriceTracker
@@ -24,12 +24,16 @@ from config.settings import get_settings_manager
 
 
 class MainWindow(QMainWindow):
-    """Main application window."""
+    """Main application window with Fluent Design components."""
 
     ITEMS_PER_PAGE = 3
 
     def __init__(self):
         super().__init__()
+
+        # Set Fluent Design light theme
+        setTheme(Theme.LIGHT)
+
         self._drag_pos: Optional[QPoint] = None
         self._settings_window: Optional[SettingsWindow] = None
         self._cards: Dict[str, CryptoCard] = {}
@@ -45,20 +49,20 @@ class MainWindow(QMainWindow):
         self._load_pairs()
 
     def _setup_ui(self):
-        """Setup the main window UI."""
+        """Setup the main window UI with Fluent Design components."""
         # Window flags: frameless, stay on top optional
-        self.setWindowFlags(
-            Qt.WindowType.FramelessWindowHint |
-            Qt.WindowType.WindowStaysOnTopHint if self._settings_manager.settings.always_on_top
-            else Qt.WindowType.FramelessWindowHint
-        )
+        flags = Qt.WindowType.FramelessWindowHint
+        if self._settings_manager.settings.always_on_top:
+            flags |= Qt.WindowType.WindowStaysOnTopHint
+        self.setWindowFlags(flags)
 
-        # Window size
-        self.setFixedSize(160, 360)
-        self.setStyleSheet(get_stylesheet("main_window"))
+        # Enable translucent background for rounded corners
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 
-        # Set window icon for taskbar
+        # Window size and icon - 降低高度从 360 到 320
+        self.setFixedSize(160, 320)
         self.setWindowIcon(QIcon("assets/icons/crypto-monitor.png"))
+        self.setWindowTitle("Crypto Monitor")
 
         # Move to saved position
         self.move(
@@ -66,13 +70,18 @@ class MainWindow(QMainWindow):
             self._settings_manager.settings.window_y
         )
 
-        # Central widget
+        # Central widget with rounded corners
         central = QWidget()
-        central.setObjectName("centralWidget")
+        central.setStyleSheet("""
+            QWidget {
+                background-color: #FAFAFA;
+                border-radius: 8px;
+            }
+        """)
         self.setCentralWidget(central)
 
         layout = QVBoxLayout(central)
-        layout.setContentsMargins(5, 5, 5, 5)
+        layout.setContentsMargins(10, 8, 10, 8)  # 增加左右留白从 5 到 10
         layout.setSpacing(5)
 
         # Toolbar
@@ -89,7 +98,7 @@ class MainWindow(QMainWindow):
         self.cards_container = QWidget()
         self.cards_layout = QVBoxLayout(self.cards_container)
         self.cards_layout.setContentsMargins(0, 0, 0, 0)
-        self.cards_layout.setSpacing(5)
+        self.cards_layout.setSpacing(8)  # 增加卡片间距从 5 到 8
         self.cards_layout.addStretch()
 
         self.scroll_area.setWidget(self.cards_container)
@@ -277,3 +286,4 @@ class MainWindow(QMainWindow):
         """Handle mouse release."""
         self._drag_pos = None
         super().mouseReleaseEvent(event)
+

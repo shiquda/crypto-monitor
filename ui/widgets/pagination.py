@@ -51,24 +51,25 @@ class Pagination(QWidget):
 
         layout.addStretch()
 
-        # Apply styles
+        # Apply styles - 使用深色文字以适应浅色背景
         style = """
             QPushButton#pageButton {
                 background: transparent;
-                border: 1px solid #555;
+                border: 1px solid #CCCCCC;
                 border-radius: 4px;
-                color: #FFFFFF;
+                color: #333333;
                 font-size: 12px;
             }
             QPushButton#pageButton:hover {
-                background: rgba(255, 255, 255, 0.1);
+                background: rgba(0, 0, 0, 0.05);
+                border-color: #999999;
             }
             QPushButton#pageButton:disabled {
-                color: #555;
-                border-color: #333;
+                color: #CCCCCC;
+                border-color: #E0E0E0;
             }
             QLabel#pageLabel {
-                color: #FFFFFF;
+                color: #333333;
                 font-size: 12px;
             }
         """

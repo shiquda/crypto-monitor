@@ -1,14 +1,13 @@
 """
 通用表单字段组件。
 提供可复用的表单字段构建块。
+使用 QFluentWidgets 原生组件。
 """
 
 from typing import Optional, Union
-from PyQt6.QtWidgets import (
-    QWidget, QHBoxLayout, QLabel, QLineEdit, QSpinBox,
-    QComboBox, QCheckBox
-)
+from PyQt6.QtWidgets import QWidget, QHBoxLayout
 from PyQt6.QtCore import Qt
+from qfluentwidgets import LineEdit, ComboBox, SpinBox, BodyLabel
 
 
 class LabeledField(QWidget):
@@ -29,7 +28,6 @@ class LabeledField(QWidget):
         stretch_widget: int = 1,
         min_label_width: int = 80,
         min_widget_width: int = 200,
-        min_widget_height: int = 32,
         parent: Optional[QWidget] = None
     ):
         """
@@ -42,11 +40,10 @@ class LabeledField(QWidget):
             stretch_widget: 控件的拉伸因子
             min_label_width: 标签最小宽度
             min_widget_width: 控件最小宽度
-            min_widget_height: 控件最小高度
             parent: 父控件
         """
         super().__init__(parent)
-        self._setup_ui(label, widget, stretch_label, stretch_widget, min_label_width, min_widget_width, min_widget_height)
+        self._setup_ui(label, widget, stretch_label, stretch_widget, min_label_width, min_widget_width)
 
     def _setup_ui(
         self,
@@ -55,23 +52,21 @@ class LabeledField(QWidget):
         stretch_label: int,
         stretch_widget: int,
         min_label_width: int,
-        min_widget_width: int,
-        min_widget_height: int
+        min_widget_width: int
     ):
         """设置UI布局"""
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(10)
 
-        # 创建标签
-        label_widget = QLabel(f"{label}:")
+        # 创建标签 - 使用 QFluentWidgets 的 BodyLabel
+        label_widget = BodyLabel(f"{label}:")
         label_widget.setMinimumWidth(min_label_width)
 
         layout.addWidget(label_widget, stretch_label)
 
-        # 设置控件最小宽度和高度
+        # 设置控件最小宽度（高度由PyQt自动计算）
         widget.setMinimumWidth(min_widget_width)
-        widget.setMinimumHeight(min_widget_height)
 
         layout.addWidget(widget, stretch_widget)
 
@@ -90,14 +85,16 @@ class LabeledLineEdit(LabeledField):
         placeholder: str = "",
         is_password: bool = False,
         min_width: int = 250,
-        min_height: int = 32,
         parent: Optional[QWidget] = None
     ):
-        edit = QLineEdit()
+        # 使用 QFluentWidgets 的 LineEdit
+        edit = LineEdit()
         edit.setPlaceholderText(placeholder)
-        edit.setMinimumHeight(min_height)
+        edit.setClearButtonEnabled(True)
+
         if is_password:
-            edit.setEchoMode(QLineEdit.EchoMode.Password)
+            from PyQt6.QtWidgets import QLineEdit as QtLineEdit
+            edit.setEchoMode(QtLineEdit.EchoMode.Password)
 
         super().__init__(label, edit, min_widget_width=min_width, parent=parent)
 
@@ -120,13 +117,12 @@ class LabeledSpinBox(LabeledField):
         max_val: int,
         default: int,
         min_width: int = 150,
-        min_height: int = 32,
         parent: Optional[QWidget] = None
     ):
-        spin = QSpinBox()
+        # 使用 QFluentWidgets 的 SpinBox
+        spin = SpinBox()
         spin.setRange(min_val, max_val)
         spin.setValue(default)
-        spin.setMinimumHeight(min_height)
 
         super().__init__(label, spin, min_widget_width=min_width, parent=parent)
 
@@ -147,12 +143,11 @@ class LabeledComboBox(LabeledField):
         label: str,
         items: list,
         min_width: int = 150,
-        min_height: int = 32,
         parent: Optional[QWidget] = None
     ):
-        combo = QComboBox()
+        # 使用 QFluentWidgets 的 ComboBox
+        combo = ComboBox()
         combo.addItems(items)
-        combo.setMinimumHeight(min_height)
 
         super().__init__(label, combo, min_widget_width=min_width, parent=parent)
 
@@ -179,10 +174,13 @@ class LabeledCheckBox(QWidget):
 
     def _setup_ui(self, label: str, checked: bool):
         """设置UI"""
+        from qfluentwidgets import CheckBox
+
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
 
-        self.checkbox = QCheckBox(label)
+        # 使用 QFluentWidgets 的 CheckBox
+        self.checkbox = CheckBox(label)
         self.checkbox.setChecked(checked)
 
         layout.addWidget(self.checkbox)

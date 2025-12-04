@@ -21,18 +21,21 @@ class ProxyForm(QWidget):
         """Setup the proxy form UI using generic field components."""
         from PyQt6.QtWidgets import QVBoxLayout
         from .fields import LabeledComboBox, LabeledLineEdit, LabeledSpinBox
+        from PyQt6.QtCore import Qt
 
         # 创建布局
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(15)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(16)
 
-        # 创建字段（增加最小宽度到300px）
+        # 创建字段
         self.proxy_type_field = LabeledComboBox("Proxy Type", ["HTTP", "SOCKS5"], min_width=180)
         self.proxy_host_field = LabeledLineEdit("Host", "127.0.0.1", min_width=300)
         self.proxy_port_field = LabeledSpinBox("Port", 1, 65535, 7890, min_width=180)
         self.proxy_username_field = LabeledLineEdit("Username", "(optional)", min_width=300)
         self.proxy_password_field = LabeledLineEdit("Password", "(optional)", is_password=True, min_width=300)
+
+        # QFluentWidgets 组件已经有默认样式，不需要额外设置
 
         # 添加到布局
         layout.addWidget(self.proxy_type_field)
@@ -40,7 +43,7 @@ class ProxyForm(QWidget):
         layout.addWidget(self.proxy_port_field)
         layout.addWidget(self.proxy_username_field)
         layout.addWidget(self.proxy_password_field)
-        layout.addStretch()
+        # 不添加stretch，让高度紧凑但完整显示
 
     def get_values(self) -> dict:
         """Get all form values."""

@@ -110,8 +110,8 @@ class PriceTracker:
             # Red: hue = 0
             hue = 0
         else:
-            # White
-            return "hsl(0, 0%, 100%)"
+            # Black for no change
+            return "#333333"
 
         # Calculate lightness (50% to 80%)
         # Higher ratio = more saturated color = lower lightness

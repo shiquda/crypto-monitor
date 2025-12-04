@@ -1,10 +1,11 @@
 """
-Toolbar widget with window controls.
+Toolbar widget with window controls using Fluent Design.
 """
 
 from typing import Optional
-from PyQt6.QtWidgets import QWidget, QHBoxLayout, QPushButton
+from PyQt6.QtWidgets import QWidget, QHBoxLayout
 from PyQt6.QtCore import pyqtSignal, Qt
+from qfluentwidgets import TransparentToolButton, FluentIcon as FIF
 
 
 class Toolbar(QWidget):
@@ -22,73 +23,56 @@ class Toolbar(QWidget):
         self._setup_ui()
 
     def _setup_ui(self):
-        """Setup toolbar UI."""
+        """Setup toolbar UI with Fluent Design components."""
         layout = QHBoxLayout(self)
         layout.setContentsMargins(5, 5, 5, 5)
-        layout.setSpacing(10)
+        layout.setSpacing(4)
 
         # Center the buttons
         layout.addStretch()
 
-        # Settings button
-        self.settings_btn = QPushButton("⚙")
-        self.settings_btn.setObjectName("toolbarButton")
+        # Settings button - using Fluent Icon
+        self.settings_btn = TransparentToolButton(FIF.SETTING, self)
+        self.settings_btn.setFixedSize(24, 24)
         self.settings_btn.setToolTip("Settings")
         self.settings_btn.clicked.connect(self.settings_clicked)
         layout.addWidget(self.settings_btn)
 
-        # Add pair button
-        self.add_btn = QPushButton("+")
-        self.add_btn.setObjectName("toolbarButton")
+        # Add pair button - using Fluent Icon
+        self.add_btn = TransparentToolButton(FIF.ADD, self)
+        self.add_btn.setFixedSize(24, 24)
         self.add_btn.setToolTip("Add Pair")
         self.add_btn.clicked.connect(self.add_clicked)
         layout.addWidget(self.add_btn)
 
-        # Minimize button
-        self.minimize_btn = QPushButton("−")
-        self.minimize_btn.setObjectName("toolbarButton")
+        # Minimize button - using Fluent Icon
+        self.minimize_btn = TransparentToolButton(FIF.MINIMIZE, self)
+        self.minimize_btn.setFixedSize(24, 24)
         self.minimize_btn.setToolTip("Minimize")
         self.minimize_btn.clicked.connect(self.minimize_clicked)
         layout.addWidget(self.minimize_btn)
 
-        # Pin button
-        self.pin_btn = QPushButton("📌")
-        self.pin_btn.setObjectName("toolbarButton")
+        # Pin button - using Fluent Icon
+        self.pin_btn = TransparentToolButton(FIF.PIN, self)
+        self.pin_btn.setFixedSize(24, 24)
         self.pin_btn.setToolTip("Pin Window")
         self.pin_btn.clicked.connect(self._toggle_pin)
         layout.addWidget(self.pin_btn)
 
-        # Close button
-        self.close_btn = QPushButton("✕")
-        self.close_btn.setObjectName("toolbarButton")
+        # Close button - using Fluent Icon
+        self.close_btn = TransparentToolButton(FIF.CLOSE, self)
+        self.close_btn.setFixedSize(24, 24)
         self.close_btn.setToolTip("Close")
         self.close_btn.clicked.connect(self.close_clicked)
         layout.addWidget(self.close_btn)
 
         layout.addStretch()
 
-        # Style buttons
-        for btn in [self.settings_btn, self.add_btn, self.minimize_btn,
-                    self.pin_btn, self.close_btn]:
-            btn.setFixedSize(24, 24)
-            btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            btn.setStyleSheet("""
-                QPushButton#toolbarButton {
-                    background: transparent;
-                    border: none;
-                    color: #FFFFFF;
-                    font-size: 14px;
-                }
-                QPushButton#toolbarButton:hover {
-                    background: rgba(255, 255, 255, 0.1);
-                    border-radius: 4px;
-                }
-            """)
-
     def _toggle_pin(self):
         """Toggle pin state."""
         self._pinned = not self._pinned
-        self.pin_btn.setText("📍" if self._pinned else "📌")
+        # Update icon based on pin state
+        self.pin_btn.setIcon(FIF.UNPIN if self._pinned else FIF.PIN)
         self.pin_btn.setToolTip("Unpin Window" if self._pinned else "Pin Window")
         self.pin_clicked.emit(self._pinned)
 

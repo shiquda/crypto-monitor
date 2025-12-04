@@ -1,107 +1,70 @@
 """
-Dialog for adding a new crypto pair.
+Dialog for adding a new crypto pair using Fluent Design.
 """
 
 import re
 from typing import Optional
-from PyQt6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLineEdit,
-    QPushButton, QLabel, QWidget
-)
+from PyQt6.QtWidgets import QVBoxLayout, QWidget, QLabel
 from PyQt6.QtCore import Qt
+from qfluentwidgets import Dialog, LineEdit
 
 
-class AddPairDialog(QDialog):
-    """Dialog for adding a new cryptocurrency trading pair."""
+class AddPairDialog(Dialog):
+    """Fluent Design dialog for adding a new cryptocurrency trading pair."""
 
     def __init__(self, parent: Optional[QWidget] = None):
-        super().__init__(parent)
-        self._pair: Optional[str] = None
-        self._setup_ui()
-
-    def _setup_ui(self):
-        """Setup dialog UI."""
-        self.setWindowTitle("Add Trading Pair")
-        self.setMinimumSize(300, 180)
-        self.resize(300, 180)
-        self.setWindowFlags(
-            Qt.WindowType.Dialog |
-            Qt.WindowType.WindowCloseButtonHint
+        super().__init__(
+            title="Add Trading Pair",
+            content="",
+            parent=parent
         )
+        self._pair: Optional[str] = None
+        self._setup_content()
 
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(20, 20, 20, 20)
-        layout.setSpacing(12)
+        # Set dialog size
+        self.setFixedSize(400, 200)
+
+        # Make sure it's a top-level window
+        self.setWindowFlags(Qt.WindowType.Dialog | Qt.WindowType.WindowTitleHint | Qt.WindowType.WindowCloseButtonHint)
+
+    def _setup_content(self):
+        """Setup dialog content with input field."""
+        # Create container layout for the content
+        content_layout = QVBoxLayout()
+        content_layout.setSpacing(12)
 
         # Label
         label = QLabel("Enter trading pair (e.g., BTC-USDT):")
-        layout.addWidget(label)
+        label.setStyleSheet("font-size: 14px;")
+        content_layout.addWidget(label)
 
-        # Input field
-        self.input = QLineEdit()
+        # Input field - using Fluent LineEdit
+        self.input = LineEdit()
         self.input.setPlaceholderText("BTC-USDT")
+        self.input.setFixedHeight(36)
         self.input.textChanged.connect(self._validate_input)
         self.input.returnPressed.connect(self._on_confirm)
-        layout.addWidget(self.input)
+        content_layout.addWidget(self.input)
 
-        # Error label - height will be adjusted dynamically
+        # Error label
         self.error_label = QLabel()
-        self.error_label.setStyleSheet("color: #FF6666; font-size: 12px;")
+        self.error_label.setStyleSheet("color: #D13438; font-size: 12px;")
         self.error_label.setVisible(False)
-        layout.addWidget(self.error_label)
+        content_layout.addWidget(self.error_label)
 
-        # Buttons
-        btn_layout = QHBoxLayout()
-        btn_layout.addStretch()
+        # Add the content layout to the dialog's text layout
+        self.textLayout.addLayout(content_layout)
 
-        self.cancel_btn = QPushButton("Cancel")
-        self.cancel_btn.clicked.connect(self.reject)
-        btn_layout.addWidget(self.cancel_btn)
+        # Customize the built-in buttons
+        self.yesButton.setText("Add")
+        self.yesButton.setEnabled(False)
+        self.cancelButton.setText("Cancel")
 
-        self.confirm_btn = QPushButton("Add")
-        self.confirm_btn.setDefault(True)
-        self.confirm_btn.clicked.connect(self._on_confirm)
-        self.confirm_btn.setEnabled(False)
-        btn_layout.addWidget(self.confirm_btn)
-
-        layout.addLayout(btn_layout)
-
-        # Style
-        self.setStyleSheet("""
-            QDialog {
-                background-color: #1E2A38;
-            }
-            QLabel {
-                color: #FFFFFF;
-            }
-            QLineEdit {
-                background-color: #2A3A4A;
-                border: 1px solid #3A4A5A;
-                border-radius: 4px;
-                padding: 8px;
-                color: #FFFFFF;
-            }
-            QLineEdit:focus {
-                border-color: #5A8A5A;
-            }
-            QPushButton {
-                background-color: #3A4A5A;
-                border: none;
-                border-radius: 4px;
-                padding: 8px 16px;
-                color: #FFFFFF;
-            }
-            QPushButton:hover {
-                background-color: #4A5A6A;
-            }
-            QPushButton:disabled {
-                background-color: #2A3A4A;
-                color: #666666;
-            }
-        """)
+        # Connect the built-in yes button
+        self.yesButton.clicked.connect(self._on_confirm)
 
     def _validate_input(self, text: str):
-        """Validate the input text and adjust window height dynamically."""
+        """Validate the input text."""
         text = text.strip().upper()
 
         # Pattern: SYMBOL-SYMBOL (e.g., BTC-USDT)
@@ -109,36 +72,20 @@ class AddPairDialog(QDialog):
 
         if not text:
             self.error_label.setVisible(False)
-            self._adjust_height()
-            self.confirm_btn.setEnabled(False)
+            self.yesButton.setEnabled(False)
         elif re.match(pattern, text):
             self.error_label.setVisible(False)
-            self._adjust_height()
-            self.confirm_btn.setEnabled(True)
+            self.yesButton.setEnabled(True)
         else:
             self.error_label.setText("Invalid format. Use: SYMBOL-SYMBOL")
             self.error_label.setVisible(True)
-            self._adjust_height()
-            self.confirm_btn.setEnabled(False)
-
-    def _adjust_height(self):
-        """Dynamically adjust window height based on error label visibility."""
-        base_height = 180
-        error_height = 20
-
-        if self.error_label.isVisible():
-            new_height = base_height + error_height
-        else:
-            new_height = base_height
-
-        self.resize(300, new_height)
+            self.yesButton.setEnabled(False)
 
     def _on_confirm(self):
         """Handle confirm button click."""
         text = self.input.text().strip().upper()
         if re.match(r'^[A-Z0-9]+-[A-Z0-9]+$', text):
             self._pair = text
-            self.accept()
 
     def get_pair(self) -> Optional[str]:
         """Get the entered pair, or None if cancelled."""
@@ -153,6 +100,6 @@ class AddPairDialog(QDialog):
             The entered pair string, or None if cancelled.
         """
         dialog = AddPairDialog(parent)
-        if dialog.exec() == QDialog.DialogCode.Accepted:
+        if dialog.exec():
             return dialog.get_pair()
         return None
