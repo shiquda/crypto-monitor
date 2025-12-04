@@ -22,15 +22,16 @@ class AddPairDialog(QDialog):
     def _setup_ui(self):
         """Setup dialog UI."""
         self.setWindowTitle("Add Trading Pair")
-        self.setFixedSize(300, 120)
+        self.setMinimumSize(300, 180)
+        self.resize(300, 180)
         self.setWindowFlags(
             Qt.WindowType.Dialog |
             Qt.WindowType.WindowCloseButtonHint
         )
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(15, 15, 15, 15)
-        layout.setSpacing(10)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(12)
 
         # Label
         label = QLabel("Enter trading pair (e.g., BTC-USDT):")
@@ -43,9 +44,9 @@ class AddPairDialog(QDialog):
         self.input.returnPressed.connect(self._on_confirm)
         layout.addWidget(self.input)
 
-        # Error label
+        # Error label - height will be adjusted dynamically
         self.error_label = QLabel()
-        self.error_label.setStyleSheet("color: #FF6666;")
+        self.error_label.setStyleSheet("color: #FF6666; font-size: 12px;")
         self.error_label.setVisible(False)
         layout.addWidget(self.error_label)
 
@@ -100,7 +101,7 @@ class AddPairDialog(QDialog):
         """)
 
     def _validate_input(self, text: str):
-        """Validate the input text."""
+        """Validate the input text and adjust window height dynamically."""
         text = text.strip().upper()
 
         # Pattern: SYMBOL-SYMBOL (e.g., BTC-USDT)
@@ -108,14 +109,29 @@ class AddPairDialog(QDialog):
 
         if not text:
             self.error_label.setVisible(False)
+            self._adjust_height()
             self.confirm_btn.setEnabled(False)
         elif re.match(pattern, text):
             self.error_label.setVisible(False)
+            self._adjust_height()
             self.confirm_btn.setEnabled(True)
         else:
             self.error_label.setText("Invalid format. Use: SYMBOL-SYMBOL")
             self.error_label.setVisible(True)
+            self._adjust_height()
             self.confirm_btn.setEnabled(False)
+
+    def _adjust_height(self):
+        """Dynamically adjust window height based on error label visibility."""
+        base_height = 180
+        error_height = 20
+
+        if self.error_label.isVisible():
+            new_height = base_height + error_height
+        else:
+            new_height = base_height
+
+        self.resize(300, new_height)
 
     def _on_confirm(self):
         """Handle confirm button click."""

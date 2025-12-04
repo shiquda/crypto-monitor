@@ -29,7 +29,8 @@ class SettingsWindow(QMainWindow):
     def _setup_ui(self):
         """Setup the settings window UI."""
         self.setWindowTitle("Settings")
-        self.setFixedSize(400, 450)
+        self.setMinimumSize(400, 440)
+        self.resize(400, 440)
         self.setWindowFlags(
             Qt.WindowType.Window |
             Qt.WindowType.WindowCloseButtonHint
@@ -99,7 +100,7 @@ class SettingsWindow(QMainWindow):
         self.test_btn.clicked.connect(self._test_connection)
         proxy_layout.addWidget(self.test_btn)
 
-        # Status label
+        # Status label - height will be adjusted dynamically
         self.status_label = QLabel()
         self.status_label.setObjectName("statusLabel")
         self.status_label.setVisible(False)
@@ -209,7 +210,7 @@ class SettingsWindow(QMainWindow):
             self._show_status(f"Error: {e}", "error")
 
     def _show_status(self, message: str, status_type: str):
-        """Show status message."""
+        """Show status message and adjust window height dynamically."""
         self.status_label.setText(message)
         self.status_label.setVisible(True)
 
@@ -226,3 +227,18 @@ class SettingsWindow(QMainWindow):
             self.status_label.setStyleSheet(
                 "background-color: #E3F2FD; color: #1976D2; padding: 10px; border-radius: 4px;"
             )
+
+        # Dynamically adjust window height
+        self._adjust_height()
+
+    def _adjust_height(self):
+        """Dynamically adjust window height based on status label visibility."""
+        base_height = 440
+        status_height = 50  # Account for padding and multi-line text
+
+        if self.status_label.isVisible():
+            new_height = base_height + status_height
+        else:
+            new_height = base_height
+
+        self.resize(400, new_height)
