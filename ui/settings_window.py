@@ -133,7 +133,7 @@ class SettingsWindow(QMainWindow):
         pairs = self.pairs_card.get_pairs()
         self._settings_manager.update_pairs(pairs)
 
-        # Show success message
+        # Show success message FIRST (before emitting signals)
         InfoBar.success(
             title="Settings Saved",
             content="Your settings have been saved successfully",
@@ -144,9 +144,10 @@ class SettingsWindow(QMainWindow):
             parent=self
         )
 
-        # Emit signals
-        self.proxy_changed.emit()
-        self.pairs_changed.emit()
+        # Emit signals AFTER showing InfoBar (using QTimer to defer heavy operations)
+        from PyQt6.QtCore import QTimer
+        QTimer.singleShot(100, lambda: self.proxy_changed.emit())
+        QTimer.singleShot(100, lambda: self.pairs_changed.emit())
 
     def _reset_settings(self):
         """Reset settings to defaults."""
