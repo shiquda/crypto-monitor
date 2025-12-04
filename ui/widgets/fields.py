@@ -29,6 +29,7 @@ class LabeledField(QWidget):
         stretch_widget: int = 1,
         min_label_width: int = 80,
         min_widget_width: int = 200,
+        min_widget_height: int = 32,
         parent: Optional[QWidget] = None
     ):
         """
@@ -41,10 +42,11 @@ class LabeledField(QWidget):
             stretch_widget: 控件的拉伸因子
             min_label_width: 标签最小宽度
             min_widget_width: 控件最小宽度
+            min_widget_height: 控件最小高度
             parent: 父控件
         """
         super().__init__(parent)
-        self._setup_ui(label, widget, stretch_label, stretch_widget, min_label_width, min_widget_width)
+        self._setup_ui(label, widget, stretch_label, stretch_widget, min_label_width, min_widget_width, min_widget_height)
 
     def _setup_ui(
         self,
@@ -53,7 +55,8 @@ class LabeledField(QWidget):
         stretch_label: int,
         stretch_widget: int,
         min_label_width: int,
-        min_widget_width: int
+        min_widget_width: int,
+        min_widget_height: int
     ):
         """设置UI布局"""
         layout = QHBoxLayout(self)
@@ -66,8 +69,9 @@ class LabeledField(QWidget):
 
         layout.addWidget(label_widget, stretch_label)
 
-        # 设置控件最小宽度
+        # 设置控件最小宽度和高度
         widget.setMinimumWidth(min_widget_width)
+        widget.setMinimumHeight(min_widget_height)
 
         layout.addWidget(widget, stretch_widget)
 
@@ -86,10 +90,12 @@ class LabeledLineEdit(LabeledField):
         placeholder: str = "",
         is_password: bool = False,
         min_width: int = 250,
+        min_height: int = 32,
         parent: Optional[QWidget] = None
     ):
         edit = QLineEdit()
         edit.setPlaceholderText(placeholder)
+        edit.setMinimumHeight(min_height)
         if is_password:
             edit.setEchoMode(QLineEdit.EchoMode.Password)
 
@@ -114,11 +120,13 @@ class LabeledSpinBox(LabeledField):
         max_val: int,
         default: int,
         min_width: int = 150,
+        min_height: int = 32,
         parent: Optional[QWidget] = None
     ):
         spin = QSpinBox()
         spin.setRange(min_val, max_val)
         spin.setValue(default)
+        spin.setMinimumHeight(min_height)
 
         super().__init__(label, spin, min_widget_width=min_width, parent=parent)
 
@@ -139,10 +147,12 @@ class LabeledComboBox(LabeledField):
         label: str,
         items: list,
         min_width: int = 150,
+        min_height: int = 32,
         parent: Optional[QWidget] = None
     ):
         combo = QComboBox()
         combo.addItems(items)
+        combo.setMinimumHeight(min_height)
 
         super().__init__(label, combo, min_widget_width=min_width, parent=parent)
 

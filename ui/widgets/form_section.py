@@ -5,7 +5,7 @@
 
 from typing import Optional, List
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QGroupBox, QWidget
+    QWidget, QVBoxLayout, QGroupBox, QLabel
 )
 from PyQt6.QtCore import Qt
 
