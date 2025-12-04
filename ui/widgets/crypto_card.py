@@ -82,9 +82,31 @@ class CryptoCard(CardWidget):
         url = self.ICON_URL_TEMPLATE.format(symbol=symbol)
 
         self._network_manager = QNetworkAccessManager(self)
+
+        # Configure proxy if needed
+        from config.settings import get_settings_manager
+        settings = get_settings_manager().settings
+        if settings.proxy.enabled:
+            from PyQt6.QtNetwork import QNetworkProxy
+            proxy = QNetworkProxy()
+            if settings.proxy.type.lower() == 'http':
+                proxy.setType(QNetworkProxy.ProxyType.HttpProxy)
+            else:
+                proxy.setType(QNetworkProxy.ProxyType.Socks5Proxy)
+            proxy.setHostName(settings.proxy.host)
+            proxy.setPort(settings.proxy.port)
+            if settings.proxy.username:
+                proxy.setUser(settings.proxy.username)
+            if settings.proxy.password:
+                proxy.setPassword(settings.proxy.password)
+            self._network_manager.setProxy(proxy)
+
         self._network_manager.finished.connect(self._on_icon_loaded)
 
         request = QNetworkRequest(QUrl(url))
+        # Set a user agent to avoid being blocked
+        request.setHeader(QNetworkRequest.KnownHeaders.UserAgentHeader, "Mozilla/5.0")
+
         self._network_manager.get(request)
 
     def _on_icon_loaded(self, reply: QNetworkReply):
@@ -92,8 +114,12 @@ class CryptoCard(CardWidget):
         if reply.error() == QNetworkReply.NetworkError.NoError:
             data = reply.readAll()
             # Load SVG data into the QSvgWidget
-            # QSvgWidget.load() expects bytes, convert QByteArray to bytes
-            self.icon_widget.load(bytes(data))
+            if len(data) > 0:
+                if not self.icon_widget.load(data):
+                    # If SVG loading fails, hide the icon
+                    self.icon_widget.hide()
+            else:
+                self.icon_widget.hide()
         else:
             # If icon fails to load, hide the icon widget
             self.icon_widget.hide()
