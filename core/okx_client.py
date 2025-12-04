@@ -153,7 +153,7 @@ class OkxWebSocketWorker(QThread):
     def stop(self):
         """Stop the WebSocket connection."""
         self._running = False
-        self.wait()
+        self.wait(5000)  # Wait max 5 seconds to avoid blocking UI
 
     def update_pairs(self, pairs: list[str]):
         """Update subscription pairs (requires reconnection)."""
@@ -180,9 +180,28 @@ class OkxClientManager(QObject):
 
         # Stop existing worker if any
         if self._worker is not None:
-            self._worker.stop()
+            # Signal the worker to stop
+            self._worker._running = False
 
-        # Create new worker
+            # Store old worker reference
+            old_worker = self._worker
+            self._worker = None
+
+            # Wait for thread to finish in background using QTimer
+            from PyQt6.QtCore import QTimer
+
+            def check_and_cleanup():
+                if old_worker.isRunning():
+                    # Still running, check again in 100ms
+                    QTimer.singleShot(100, check_and_cleanup)
+                else:
+                    # Thread finished, safe to delete
+                    old_worker.deleteLater()
+
+            # Start checking after 100ms
+            QTimer.singleShot(100, check_and_cleanup)
+
+        # Create new worker immediately (don't wait for old one)
         self._worker = OkxWebSocketWorker(pairs, self)
         self._worker.ticker_updated.connect(self.ticker_updated)
         self._worker.connection_status.connect(self.connection_status)
