@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"sync"
@@ -31,6 +32,37 @@ func NewApp() *App {
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 	runtime.EventsOn(ctx, "crypto_pairs_changed", a.handleCryptoPairsChanged)
+	runtime.EventsOn(ctx, "update_proxy_settings", a.handleProxySettings)
+}
+
+// handleProxySettings 处理代理配置更新
+func (a *App) handleProxySettings(data ...interface{}) {
+	if len(data) < 1 {
+		fmt.Println("未接收到代理配置数据")
+		return
+	}
+
+	proxyJSON, ok := data[0].(string)
+	if !ok {
+		fmt.Println("代理配置数据格式错误")
+		return
+	}
+
+	var proxyConfig backend.ProxyConfig
+	if err := json.Unmarshal([]byte(proxyJSON), &proxyConfig); err != nil {
+		fmt.Printf("代理配置解析失败: %v\n", err)
+		return
+	}
+
+	backend.SetGlobalProxyConfig(proxyConfig)
+
+	fmt.Printf("代理配置已更新: %+v\n", proxyConfig)
+
+	// 通知前端配置已更新
+	runtime.EventsEmit(a.ctx, "proxy_config_updated", map[string]interface{}{
+		"success": true,
+		"message": "代理配置已更新",
+	})
 }
 
 // handleCryptoPairsChanged 是包装后的事件处理函数

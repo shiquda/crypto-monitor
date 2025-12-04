@@ -1,10 +1,6 @@
-<script setup>
-	import Home from "./views/Home.vue";
-</script>
-
 <template>
 	<div id="app">
-		<Home />
+		<RouterView />
 	</div>
 </template>
 

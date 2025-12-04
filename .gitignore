@@ -3,3 +3,7 @@ node_modules
 frontend/dist
 frontend/pkg
 /build
+
+# Davia
+.davia/
+.claude\skills\davia-documentation\SKILL.md
