@@ -9,6 +9,7 @@ from PyQt6.QtWidgets import (
     QCheckBox, QPushButton, QFormLayout
 )
 from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtGui import QIcon
 
 from ui.styles.theme import get_stylesheet
 from config.settings import SettingsManager, ProxyConfig
@@ -34,6 +35,7 @@ class SettingsWindow(QMainWindow):
             Qt.WindowType.WindowCloseButtonHint
         )
         self.setStyleSheet(get_stylesheet("settings_window"))
+        self.setWindowIcon(QIcon("assets/icons/crypto-monitor.png"))
 
         # Central widget
         central = QWidget()

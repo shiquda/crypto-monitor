@@ -1,0 +1,2 @@
+Remove-Item -Recurse -Force build, dist -ErrorAction SilentlyContinue
+uv run pyinstaller --onedir --windowed --name="crypto-monitor" --icon=assets\icons\crypto-monitor.ico --add-data="assets;assets" --add-data="imgs;imgs" main.py

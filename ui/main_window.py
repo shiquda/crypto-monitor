@@ -9,7 +9,7 @@ from PyQt6.QtWidgets import (
     QApplication
 )
 from PyQt6.QtCore import Qt, QPoint
-from PyQt6.QtGui import QMouseEvent
+from PyQt6.QtGui import QMouseEvent, QIcon
 
 from ui.widgets.toolbar import Toolbar
 from ui.widgets.crypto_card import CryptoCard
@@ -56,6 +56,9 @@ class MainWindow(QMainWindow):
         # Window size
         self.setFixedSize(160, 360)
         self.setStyleSheet(get_stylesheet("main_window"))
+
+        # Set window icon for taskbar
+        self.setWindowIcon(QIcon("assets/icons/crypto-monitor.png"))
 
         # Move to saved position
         self.move(
