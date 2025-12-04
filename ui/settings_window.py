@@ -31,8 +31,8 @@ class SettingsWindow(QMainWindow):
     def _setup_ui(self):
         """Setup the settings window UI."""
         self.setWindowTitle("Settings")
-        self.setMinimumSize(550, 600)
-        self.resize(550, 600)
+        self.setMinimumSize(650, 600)
+        self.resize(650, 600)
         self.setWindowFlags(
             Qt.WindowType.Window |
             Qt.WindowType.WindowCloseButtonHint
@@ -277,7 +277,7 @@ class SettingsWindow(QMainWindow):
         else:
             new_height = base_height
 
-        self.resize(550, new_height)
+        self.resize(650, new_height)
 
     def _load_pairs_list(self):
         """Load crypto pairs into the list."""

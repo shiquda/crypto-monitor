@@ -1,13 +1,13 @@
 """
 Proxy configuration form widget.
 A reusable component for proxy configuration.
+Uses generic field components for better reusability.
 """
 
 from typing import Optional
-from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QLineEdit, QSpinBox, QComboBox
-)
+from PyQt6.QtWidgets import QWidget
+
+from .fields import LabeledComboBox, LabeledLineEdit, LabeledSpinBox
 
 
 class ProxyForm(QWidget):
@@ -18,104 +18,52 @@ class ProxyForm(QWidget):
         self._setup_ui()
 
     def _setup_ui(self):
-        """Setup the proxy form UI."""
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(12)
+        """Setup the proxy form UI using generic field components."""
+        from .form_section import FormSection
 
-        # Proxy Type
-        type_layout = self._create_labeled_widget("Proxy Type", self._create_combo_box(["HTTP", "SOCKS5"]))
-        layout.addLayout(type_layout)
+        # 创建表单区域
+        section = FormSection("", show_border=False, spacing=15)
+        self.setLayout(section.get_container().layout())
 
-        # Host
-        host_layout = self._create_labeled_widget("Host", self._create_line_edit("127.0.0.1"))
-        layout.addLayout(host_layout)
+        # 创建字段（增加最小宽度到300px）
+        self.proxy_type_field = LabeledComboBox("Proxy Type", ["HTTP", "SOCKS5"], min_width=180)
+        self.proxy_host_field = LabeledLineEdit("Host", "127.0.0.1", min_width=300)
+        self.proxy_port_field = LabeledSpinBox("Port", 1, 65535, 7890, min_width=180)
+        self.proxy_username_field = LabeledLineEdit("Username", "(optional)", min_width=300)
+        self.proxy_password_field = LabeledLineEdit("Password", "(optional)", is_password=True, min_width=300)
 
-        # Port
-        port_layout = self._create_labeled_widget("Port", self._create_spin_box(1, 65535, 7890))
-        layout.addLayout(port_layout)
-
-        # Username (optional)
-        username_layout = self._create_labeled_widget("Username", self._create_line_edit("(optional)"))
-        layout.addLayout(username_layout)
-
-        # Password (optional)
-        password_layout = self._create_labeled_widget("Password", self._create_line_edit("(optional)", is_password=True))
-        layout.addLayout(password_layout)
-
-        layout.addStretch()
-
-    def _create_labeled_widget(self, label: str, widget: QWidget) -> QHBoxLayout:
-        """
-        Create a labeled widget with horizontal layout.
-
-        Args:
-            label: The label text
-            widget: The widget to add
-
-        Returns:
-            Horizontal layout with label and widget
-        """
-        layout = QHBoxLayout()
-        label_widget = QLabel(f"{label}:")
-        label_widget.setMinimumWidth(80)
-
-        layout.addWidget(label_widget, 0)
-        layout.addWidget(widget, 1)
-
-        return layout
-
-    def _create_combo_box(self, items: list) -> QComboBox:
-        """Create a styled combo box."""
-        combo = QComboBox()
-        combo.addItems(items)
-        combo.setMinimumWidth(200)
-        return combo
-
-    def _create_line_edit(self, placeholder: str = "", is_password: bool = False) -> QLineEdit:
-        """Create a styled line edit."""
-        edit = QLineEdit()
-        edit.setPlaceholderText(placeholder)
-        if is_password:
-            edit.setEchoMode(QLineEdit.EchoMode.Password)
-        edit.setMinimumWidth(250)
-        return edit
-
-    def _create_spin_box(self, min_val: int, max_val: int, default: int) -> QSpinBox:
-        """Create a styled spin box."""
-        spin = QSpinBox()
-        spin.setRange(min_val, max_val)
-        spin.setValue(default)
-        spin.setMinimumWidth(200)
-        return spin
+        # 添加到区域
+        section.add_field(self.proxy_type_field)
+        section.add_field(self.proxy_host_field)
+        section.add_field(self.proxy_port_field)
+        section.add_field(self.proxy_username_field)
+        section.add_field(self.proxy_password_field)
+        section.add_stretch()
 
     def get_values(self) -> dict:
         """Get all form values."""
-        layouts = [self.layout().itemAt(i).layout() for i in range(self.layout().count() - 1)]
-
         return {
-            'type': layouts[0].itemAt(1).widget().currentText().lower(),
-            'host': layouts[1].itemAt(1).widget().text(),
-            'port': layouts[2].itemAt(1).widget().value(),
-            'username': layouts[3].itemAt(1).widget().text(),
-            'password': layouts[4].itemAt(1).widget().text()
+            'type': self.proxy_type_field.current_text().lower(),
+            'host': self.proxy_host_field.text(),
+            'port': self.proxy_port_field.value(),
+            'username': self.proxy_username_field.text(),
+            'password': self.proxy_password_field.text()
         }
 
     def set_values(self, values: dict):
         """Set all form values."""
-        layouts = [self.layout().itemAt(i).layout() for i in range(self.layout().count() - 1)]
+        self.proxy_type_field.set_current_text(values.get('type', 'http').upper())
+        self.proxy_host_field.set_text(values.get('host', ''))
+        self.proxy_port_field.set_value(values.get('port', 7890))
+        self.proxy_username_field.set_text(values.get('username', ''))
+        self.proxy_password_field.set_text(values.get('password', ''))
 
-        # Proxy type
-        layouts[0].itemAt(1).widget().setCurrentText(values.get('type', 'http').upper())
+    def setEnabled(self, enabled: bool):
+        """重写setEnabled以同时启用/禁用所有子组件"""
+        super().setEnabled(enabled)
+        self.proxy_type_field.setEnabled(enabled)
+        self.proxy_host_field.setEnabled(enabled)
+        self.proxy_port_field.setEnabled(enabled)
+        self.proxy_username_field.setEnabled(enabled)
+        self.proxy_password_field.setEnabled(enabled)
 
-        # Host
-        layouts[1].itemAt(1).widget().setText(values.get('host', ''))
-
-        # Port
-        layouts[2].itemAt(1).widget().setValue(values.get('port', 7890))
-
-        # Username
-        layouts[3].itemAt(1).widget().setText(values.get('username', ''))
-
-        # Password
-        layouts[4].itemAt(1).widget().setText(values.get('password', ''))
