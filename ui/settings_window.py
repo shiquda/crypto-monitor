@@ -6,12 +6,13 @@ from typing import Optional
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QGroupBox, QLabel, QLineEdit, QSpinBox, QComboBox,
-    QCheckBox, QPushButton, QFormLayout
+    QCheckBox, QPushButton, QFormLayout, QListWidget
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QIcon
 
 from ui.styles.theme import get_stylesheet
+from ui.widgets.add_pair_dialog import AddPairDialog
 from config.settings import SettingsManager, ProxyConfig
 
 
@@ -19,6 +20,7 @@ class SettingsWindow(QMainWindow):
     """Independent settings window."""
 
     proxy_changed = pyqtSignal()  # Emitted when proxy settings change
+    pairs_changed = pyqtSignal()  # Emitted when crypto pairs change
 
     def __init__(self, settings_manager: SettingsManager, parent: Optional[QWidget] = None):
         super().__init__(parent)
@@ -29,8 +31,8 @@ class SettingsWindow(QMainWindow):
     def _setup_ui(self):
         """Setup the settings window UI."""
         self.setWindowTitle("Settings")
-        self.setMinimumSize(400, 440)
-        self.resize(400, 440)
+        self.setMinimumSize(500, 600)
+        self.resize(500, 600)
         self.setWindowFlags(
             Qt.WindowType.Window |
             Qt.WindowType.WindowCloseButtonHint
@@ -64,32 +66,38 @@ class SettingsWindow(QMainWindow):
         self.proxy_fields = QWidget()
         proxy_fields_layout = QFormLayout(self.proxy_fields)
         proxy_fields_layout.setContentsMargins(0, 10, 0, 0)
+        proxy_fields_layout.setHorizontalSpacing(10)
 
         # Proxy type
         self.proxy_type = QComboBox()
         self.proxy_type.addItems(["HTTP", "SOCKS5"])
+        self.proxy_type.setMinimumWidth(120)
         proxy_fields_layout.addRow("Proxy Type:", self.proxy_type)
 
         # Host
         self.proxy_host = QLineEdit()
         self.proxy_host.setPlaceholderText("127.0.0.1")
+        self.proxy_host.setMinimumWidth(200)
         proxy_fields_layout.addRow("Host:", self.proxy_host)
 
         # Port
         self.proxy_port = QSpinBox()
         self.proxy_port.setRange(1, 65535)
         self.proxy_port.setValue(7890)
+        self.proxy_port.setMinimumWidth(120)
         proxy_fields_layout.addRow("Port:", self.proxy_port)
 
         # Username (optional)
         self.proxy_username = QLineEdit()
         self.proxy_username.setPlaceholderText("(optional)")
+        self.proxy_username.setMinimumWidth(200)
         proxy_fields_layout.addRow("Username:", self.proxy_username)
 
         # Password (optional)
         self.proxy_password = QLineEdit()
         self.proxy_password.setPlaceholderText("(optional)")
         self.proxy_password.setEchoMode(QLineEdit.EchoMode.Password)
+        self.proxy_password.setMinimumWidth(200)
         proxy_fields_layout.addRow("Password:", self.proxy_password)
 
         proxy_layout.addWidget(self.proxy_fields)
@@ -108,6 +116,52 @@ class SettingsWindow(QMainWindow):
         proxy_layout.addWidget(self.status_label)
 
         layout.addWidget(proxy_group)
+
+        # Crypto pairs management group
+        pairs_group = QGroupBox("Crypto Pairs Management")
+        pairs_layout = QHBoxLayout(pairs_group)
+
+        # Crypto pairs list
+        self.pairs_list = QListWidget()
+        self.pairs_list.setSelectionMode(QListWidget.SelectionMode.SingleSelection)
+        self.pairs_list.itemSelectionChanged.connect(self._on_pair_selection_changed)
+        pairs_layout.addWidget(self.pairs_list, 1)
+
+        # Control buttons container
+        btn_container = QWidget()
+        btn_container_layout = QVBoxLayout(btn_container)
+
+        # Buttons
+        self.add_pair_btn = QPushButton("Add")
+        self.add_pair_btn.setObjectName("pairButton")
+        self.add_pair_btn.clicked.connect(self._add_pair)
+        btn_container_layout.addWidget(self.add_pair_btn)
+
+        self.remove_pair_btn = QPushButton("Delete")
+        self.remove_pair_btn.setObjectName("pairButton")
+        self.remove_pair_btn.setEnabled(False)
+        self.remove_pair_btn.clicked.connect(self._remove_pair)
+        btn_container_layout.addWidget(self.remove_pair_btn)
+
+        btn_container_layout.addSpacing(10)
+
+        self.move_up_btn = QPushButton("↑ Up")
+        self.move_up_btn.setObjectName("pairButton")
+        self.move_up_btn.setEnabled(False)
+        self.move_up_btn.clicked.connect(self._move_pair_up)
+        btn_container_layout.addWidget(self.move_up_btn)
+
+        self.move_down_btn = QPushButton("↓ Down")
+        self.move_down_btn.setObjectName("pairButton")
+        self.move_down_btn.setEnabled(False)
+        self.move_down_btn.clicked.connect(self._move_pair_down)
+        btn_container_layout.addWidget(self.move_down_btn)
+
+        btn_container_layout.addStretch()
+
+        pairs_layout.addWidget(btn_container, 0)
+
+        layout.addWidget(pairs_group)
 
         # Spacer
         layout.addStretch()
@@ -141,6 +195,9 @@ class SettingsWindow(QMainWindow):
 
         self._on_proxy_enabled_changed(proxy.enabled)
 
+        # Load crypto pairs
+        self._load_pairs_list()
+
     def _on_proxy_enabled_changed(self, state):
         """Handle proxy enabled checkbox change."""
         enabled = bool(state)
@@ -160,8 +217,12 @@ class SettingsWindow(QMainWindow):
 
         self._settings_manager.update_proxy(proxy)
 
+        # Save crypto pairs
+        self._save_pairs_list()
+
         self._show_status("Settings saved", "success")
         self.proxy_changed.emit()
+        self.pairs_changed.emit()
 
     def _reset_settings(self):
         """Reset settings to defaults."""
@@ -233,7 +294,7 @@ class SettingsWindow(QMainWindow):
 
     def _adjust_height(self):
         """Dynamically adjust window height based on status label visibility."""
-        base_height = 440
+        base_height = 600
         status_height = 50  # Account for padding and multi-line text
 
         if self.status_label.isVisible():
@@ -241,4 +302,53 @@ class SettingsWindow(QMainWindow):
         else:
             new_height = base_height
 
-        self.resize(400, new_height)
+        self.resize(500, new_height)
+
+    def _load_pairs_list(self):
+        """Load crypto pairs into the list."""
+        self.pairs_list.clear()
+        pairs = self._settings_manager.settings.crypto_pairs
+        for pair in pairs:
+            self.pairs_list.addItem(pair)
+
+    def _save_pairs_list(self):
+        """Save crypto pairs from the list."""
+        pairs = []
+        for i in range(self.pairs_list.count()):
+            pairs.append(self.pairs_list.item(i).text())
+        self._settings_manager.update_pairs(pairs)
+
+    def _on_pair_selection_changed(self):
+        """Handle selection change in pairs list."""
+        has_selection = self.pairs_list.currentItem() is not None
+        self.remove_pair_btn.setEnabled(has_selection)
+        self.move_up_btn.setEnabled(has_selection)
+        self.move_down_btn.setEnabled(has_selection)
+
+    def _add_pair(self):
+        """Add a new crypto pair."""
+        pair = AddPairDialog.get_new_pair(self)
+        if pair:
+            self.pairs_list.addItem(pair)
+
+    def _remove_pair(self):
+        """Remove the selected crypto pair."""
+        current_row = self.pairs_list.currentRow()
+        if current_row >= 0:
+            self.pairs_list.takeItem(current_row)
+
+    def _move_pair_up(self):
+        """Move selected pair up."""
+        current_row = self.pairs_list.currentRow()
+        if current_row > 0:
+            item = self.pairs_list.takeItem(current_row)
+            self.pairs_list.insertItem(current_row - 1, item)
+            self.pairs_list.setCurrentRow(current_row - 1)
+
+    def _move_pair_down(self):
+        """Move selected pair down."""
+        current_row = self.pairs_list.currentRow()
+        if current_row >= 0 and current_row < self.pairs_list.count() - 1:
+            item = self.pairs_list.takeItem(current_row)
+            self.pairs_list.insertItem(current_row + 1, item)
+            self.pairs_list.setCurrentRow(current_row + 1)

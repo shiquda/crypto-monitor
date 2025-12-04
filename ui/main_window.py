@@ -182,6 +182,7 @@ class MainWindow(QMainWindow):
         if self._settings_window is None or not self._settings_window.isVisible():
             self._settings_window = SettingsWindow(self._settings_manager)
             self._settings_window.proxy_changed.connect(self._on_proxy_changed)
+            self._settings_window.pairs_changed.connect(self._on_pairs_changed)
             self._settings_window.show()
         else:
             self._settings_window.activateWindow()
@@ -191,6 +192,11 @@ class MainWindow(QMainWindow):
         """Handle proxy configuration change."""
         # Reconnect with new proxy settings
         self._okx_client.reconnect()
+
+    def _on_pairs_changed(self):
+        """Handle crypto pairs change."""
+        # Reload pairs and resubscribe
+        self._load_pairs()
 
     def _toggle_edit_mode(self):
         """Toggle edit mode (add/remove pairs)."""
