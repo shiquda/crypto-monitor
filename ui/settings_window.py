@@ -12,7 +12,7 @@ from qfluentwidgets import (
     FluentIcon, InfoBar, InfoBarPosition, Theme, setTheme
 )
 
-from ui.widgets.setting_cards import ProxySettingCard, PairsSettingCard
+from ui.widgets.setting_cards import ProxySettingCard, PairsSettingCard, ThemeSettingCard
 from config.settings import SettingsManager, ProxyConfig
 
 
@@ -21,13 +21,18 @@ class SettingsWindow(QMainWindow):
 
     proxy_changed = pyqtSignal()  # Emitted when proxy settings change
     pairs_changed = pyqtSignal()  # Emitted when crypto pairs change
+    theme_changed = pyqtSignal()  # Emitted when theme settings change
 
     def __init__(self, settings_manager: SettingsManager, parent: Optional[QWidget] = None):
         super().__init__(parent)
         self._settings_manager = settings_manager
 
-        # Force light theme for settings window
-        setTheme(Theme.LIGHT)
+        # Apply theme based on settings
+        theme_mode = settings_manager.settings.theme_mode
+        setTheme(Theme.DARK if theme_mode == "dark" else Theme.LIGHT)
+
+        # Store theme mode for UI setup
+        self._theme_mode = theme_mode
 
         self._setup_ui()
         self._load_settings()
@@ -43,12 +48,14 @@ class SettingsWindow(QMainWindow):
         )
         self.setWindowIcon(QIcon("assets/icons/crypto-monitor.png"))
 
-        # Set light theme background color
-        self.setStyleSheet("QMainWindow { background-color: rgb(249, 249, 249); }")
+        # Set theme-based background color
+        bg_color = "rgb(32, 32, 32)" if self._theme_mode == "dark" else "rgb(249, 249, 249)"
+
+        self.setStyleSheet(f"QMainWindow {{ background-color: {bg_color}; }}")
 
         # Central widget
         central = QWidget()
-        central.setStyleSheet("QWidget { background-color: rgb(249, 249, 249); }")
+        central.setStyleSheet(f"QWidget {{ background-color: {bg_color}; }}")
         self.setCentralWidget(central)
 
         # Main layout
@@ -59,11 +66,11 @@ class SettingsWindow(QMainWindow):
         # Scroll area for settings content
         scroll_area = ScrollArea()
         scroll_area.setWidgetResizable(True)
-        scroll_area.setStyleSheet("QScrollArea { border: none; background-color: rgb(249, 249, 249); }")
+        scroll_area.setStyleSheet(f"QScrollArea {{ border: none; background-color: {bg_color}; }}")
 
         # Content widget inside scroll area
         content_widget = QWidget()
-        content_widget.setStyleSheet("QWidget { background-color: rgb(249, 249, 249); }")
+        content_widget.setStyleSheet(f"QWidget {{ background-color: {bg_color}; }}")
         content_layout = QVBoxLayout(content_widget)
         content_layout.setContentsMargins(30, 30, 30, 30)
         content_layout.setSpacing(20)
@@ -72,6 +79,12 @@ class SettingsWindow(QMainWindow):
         from qfluentwidgets import TitleLabel
         title = TitleLabel("Settings")
         content_layout.addWidget(title)
+
+        # Appearance settings group
+        appearance_group = SettingCardGroup("Appearance", content_widget)
+        self.theme_card = ThemeSettingCard(appearance_group)
+        appearance_group.addSettingCard(self.theme_card)
+        content_layout.addWidget(appearance_group)
 
         # Proxy configuration group
         proxy_group = SettingCardGroup("Network Configuration", content_widget)
@@ -95,7 +108,7 @@ class SettingsWindow(QMainWindow):
 
         # Bottom button bar
         btn_bar = QWidget()
-        btn_bar.setStyleSheet("QWidget { background-color: rgb(249, 249, 249); }")
+        btn_bar.setStyleSheet(f"QWidget {{ background-color: {bg_color}; }}")
         btn_layout = QHBoxLayout(btn_bar)
         btn_layout.setContentsMargins(30, 15, 30, 20)
         btn_layout.setSpacing(10)
@@ -115,6 +128,10 @@ class SettingsWindow(QMainWindow):
 
     def _load_settings(self):
         """Load current settings into UI."""
+        # Load theme mode
+        theme_mode = self._settings_manager.settings.theme_mode
+        self.theme_card.set_theme_mode(theme_mode)
+
         # Load proxy configuration
         proxy = self._settings_manager.settings.proxy
         self.proxy_card.set_proxy_config(proxy)
@@ -125,6 +142,14 @@ class SettingsWindow(QMainWindow):
 
     def _save_settings(self):
         """Save settings."""
+        # Check if theme changed
+        old_theme = self._settings_manager.settings.theme_mode
+        new_theme = self.theme_card.get_theme_mode()
+        theme_changed = old_theme != new_theme
+
+        # Get theme mode from card
+        self._settings_manager.update_theme(new_theme)
+
         # Get proxy configuration from card
         proxy = self.proxy_card.get_proxy_config()
         self._settings_manager.update_proxy(proxy)
@@ -133,21 +158,34 @@ class SettingsWindow(QMainWindow):
         pairs = self.pairs_card.get_pairs()
         self._settings_manager.update_pairs(pairs)
 
-        # Show success message FIRST (before emitting signals)
-        InfoBar.success(
-            title="Settings Saved",
-            content="Your settings have been saved successfully",
-            orient=0,  # Qt.Horizontal
-            isClosable=True,
-            position=InfoBarPosition.TOP,
-            duration=2000,
-            parent=self
-        )
+        # Show success message with restart hint if theme changed
+        if theme_changed:
+            InfoBar.success(
+                title="Settings Saved",
+                content="Please restart the application for theme changes to take effect",
+                orient=0,  # Qt.Horizontal
+                isClosable=True,
+                position=InfoBarPosition.TOP,
+                duration=4000,
+                parent=self
+            )
+        else:
+            InfoBar.success(
+                title="Settings Saved",
+                content="Your settings have been saved successfully",
+                orient=0,  # Qt.Horizontal
+                isClosable=True,
+                position=InfoBarPosition.TOP,
+                duration=2000,
+                parent=self
+            )
 
         # Emit signals AFTER showing InfoBar (using QTimer to defer heavy operations)
         from PyQt6.QtCore import QTimer
         QTimer.singleShot(100, lambda: self.proxy_changed.emit())
         QTimer.singleShot(100, lambda: self.pairs_changed.emit())
+        if theme_changed:
+            QTimer.singleShot(100, lambda: self.theme_changed.emit())
 
     def _reset_settings(self):
         """Reset settings to defaults."""

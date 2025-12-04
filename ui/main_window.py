@@ -31,9 +31,6 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
 
-        # Set Fluent Design light theme
-        setTheme(Theme.LIGHT)
-
         self._drag_pos: Optional[QPoint] = None
         self._settings_window: Optional[SettingsWindow] = None
         self._cards: Dict[str, CryptoCard] = {}
@@ -43,6 +40,10 @@ class MainWindow(QMainWindow):
         self._settings_manager = get_settings_manager()
         self._okx_client = OkxClientManager(self)
         self._price_tracker = PriceTracker()
+
+        # Apply theme based on settings
+        theme_mode = self._settings_manager.settings.theme_mode
+        setTheme(Theme.DARK if theme_mode == "dark" else Theme.LIGHT)
 
         self._setup_ui()
         self._connect_signals()
@@ -72,11 +73,14 @@ class MainWindow(QMainWindow):
 
         # Central widget with rounded corners
         central = QWidget()
-        central.setStyleSheet("""
-            QWidget {
-                background-color: #FAFAFA;
+        # Apply theme-based background color
+        theme_mode = self._settings_manager.settings.theme_mode
+        bg_color = "#1B2636" if theme_mode == "dark" else "#FAFAFA"
+        central.setStyleSheet(f"""
+            QWidget {{
+                background-color: {bg_color};
                 border-radius: 8px;
-            }
+            }}
         """)
         self.setCentralWidget(central)
 
@@ -192,6 +196,7 @@ class MainWindow(QMainWindow):
             self._settings_window = SettingsWindow(self._settings_manager)
             self._settings_window.proxy_changed.connect(self._on_proxy_changed)
             self._settings_window.pairs_changed.connect(self._on_pairs_changed)
+            self._settings_window.theme_changed.connect(self._on_theme_changed)
             self._settings_window.show()
         else:
             self._settings_window.activateWindow()
@@ -206,6 +211,12 @@ class MainWindow(QMainWindow):
         """Handle crypto pairs change."""
         # Reload pairs and resubscribe
         self._load_pairs()
+
+    def _on_theme_changed(self):
+        """Handle theme change."""
+        # Theme change requires application restart
+        # This is just a placeholder for future enhancements
+        pass
 
     def _toggle_edit_mode(self):
         """Toggle edit mode (add/remove pairs)."""

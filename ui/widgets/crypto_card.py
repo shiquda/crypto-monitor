@@ -37,6 +37,18 @@ class CryptoCard(CardWidget):
         self.setBorderRadius(8)
         self.setMinimumWidth(100)
 
+        # Get theme mode for color selection
+        from config.settings import get_settings_manager
+        theme_mode = get_settings_manager().settings.theme_mode
+
+        # Define colors based on theme
+        if theme_mode == "dark":
+            text_color = "#FFFFFF"
+            secondary_color = "#AAAAAA"
+        else:
+            text_color = "#333333"
+            secondary_color = "#666666"
+
         # Main layout
         layout = QVBoxLayout(self)
         layout.setContentsMargins(10, 10, 10, 10)
@@ -54,12 +66,12 @@ class CryptoCard(CardWidget):
         # Symbol name
         symbol = self.pair.split("-")[0]
         self.symbol_label = QLabel(symbol)
-        self.symbol_label.setStyleSheet("font-weight: bold; font-size: 12px; color: #333333;")
+        self.symbol_label.setStyleSheet(f"font-weight: bold; font-size: 12px; color: {text_color};")
         header_layout.addWidget(self.symbol_label)
 
         # Percentage
         self.percentage_label = QLabel("0.00%")
-        self.percentage_label.setStyleSheet("font-size: 11px; color: #666666;")
+        self.percentage_label.setStyleSheet(f"font-size: 11px; color: {secondary_color};")
         header_layout.addWidget(self.percentage_label)
 
         header_layout.addStretch()

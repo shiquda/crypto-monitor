@@ -36,7 +36,7 @@ class ProxyConfig:
 @dataclass
 class AppSettings:
     """Application settings."""
-    theme: str = "dark"
+    theme_mode: str = "light"  # "light", "dark", or "auto" (auto for future)
     opacity: int = 100
     crypto_pairs: list = field(default_factory=lambda: ["BTC-USDT", "ETH-USDT"])
     proxy: ProxyConfig = field(default_factory=ProxyConfig)
@@ -117,6 +117,11 @@ class SettingsManager:
             self.save()
             return True
         return False
+
+    def update_theme(self, theme_mode: str) -> None:
+        """Update theme mode."""
+        self.settings.theme_mode = theme_mode
+        self.save()
 
     def _apply_proxy_env(self) -> None:
         """Apply proxy settings to environment variables."""

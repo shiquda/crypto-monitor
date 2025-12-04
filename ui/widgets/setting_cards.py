@@ -9,7 +9,7 @@ from PyQt6.QtCore import pyqtSignal
 from qfluentwidgets import (
     ExpandGroupSettingCard, FluentIcon, SwitchButton,
     PrimaryPushButton, InfoBar, InfoBarPosition,
-    BodyLabel, PushButton, ToolButton
+    BodyLabel, PushButton, ToolButton, ComboBox
 )
 
 from .proxy_form import ProxyForm
@@ -29,8 +29,7 @@ class ProxySettingCard(ExpandGroupSettingCard):
             "Configure network proxy settings for WebSocket connections",
             parent
         )
-        # Set description text color to black for light theme
-        self.card.contentLabel.setStyleSheet("QLabel { color: rgb(0, 0, 0); }")
+        # Description text color adapts to theme automatically via QFluentWidgets
 
         self._setup_ui()
         # Expand the card by default
@@ -147,8 +146,7 @@ class PairsSettingCard(ExpandGroupSettingCard):
             "Add, remove, and reorder cryptocurrency trading pairs",
             parent
         )
-        # Set description text color to black for light theme
-        self.card.contentLabel.setStyleSheet("QLabel { color: rgb(0, 0, 0); }")
+        # Description text color adapts to theme automatically via QFluentWidgets
 
         self._setup_ui()
         # Expand the card by default
@@ -260,3 +258,72 @@ class PairsSettingCard(ExpandGroupSettingCard):
         self.pairs_list.clear()
         for pair in pairs:
             self.pairs_list.addItem(pair)
+
+
+class ThemeSettingCard(ExpandGroupSettingCard):
+    """Expandable setting card for theme configuration."""
+
+    theme_changed = pyqtSignal(str)  # Emitted when theme changes
+
+    def __init__(self, parent: Optional[QWidget] = None):
+        super().__init__(
+            FluentIcon.BRUSH,
+            "Theme Settings",
+            "Choose between light and dark theme",
+            parent
+        )
+        # Description text color adapts to theme automatically via QFluentWidgets
+
+        self._setup_ui()
+        # Expand the card by default
+        self.toggleExpand()
+
+    def _setup_ui(self):
+        """Setup the theme configuration UI."""
+        # Main container
+        container = QWidget()
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(48, 18, 48, 18)
+        layout.setSpacing(16)
+
+        # Theme selection
+        theme_container = QWidget()
+        theme_layout = QHBoxLayout(theme_container)
+        theme_layout.setContentsMargins(0, 0, 0, 0)
+
+        self.theme_label = BodyLabel("Theme Mode")
+        self.theme_combo = ComboBox()
+        self.theme_combo.addItems(["Light Theme", "Dark Theme"])
+        self.theme_combo.setPlaceholderText("Select theme")
+        self.theme_combo.currentTextChanged.connect(self._on_theme_changed)
+
+        theme_layout.addWidget(self.theme_label)
+        theme_layout.addStretch(1)
+        theme_layout.addWidget(self.theme_combo)
+
+        layout.addWidget(theme_container)
+
+        # Info label - color adapts to theme automatically
+        info_label = BodyLabel("Note: Application restart required for theme changes to take effect")
+        info_label.setStyleSheet("QLabel { font-size: 12px; opacity: 0.6; }")
+        layout.addWidget(info_label)
+
+        # Add container to card
+        self.addGroupWidget(container)
+
+    def _on_theme_changed(self, text: str):
+        """Handle theme selection change."""
+        theme_mode = "light" if text == "Light Theme" else "dark"
+        self.theme_changed.emit(theme_mode)
+
+    def get_theme_mode(self) -> str:
+        """Get current theme mode."""
+        text = self.theme_combo.currentText()
+        return "light" if text == "Light Theme" else "dark"
+
+    def set_theme_mode(self, theme_mode: str):
+        """Set theme mode."""
+        if theme_mode == "dark":
+            self.theme_combo.setCurrentText("Dark Theme")
+        else:
+            self.theme_combo.setCurrentText("Light Theme")
