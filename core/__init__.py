@@ -1,0 +1,1 @@
+# Crypto Monitor Core Module

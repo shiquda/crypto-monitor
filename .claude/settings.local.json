@@ -1,9 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Skill(davia-documentation)"
-    ],
-    "deny": [],
-    "ask": []
-  }
-}
