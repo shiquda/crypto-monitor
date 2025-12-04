@@ -5,14 +5,14 @@ Settings window - independent window for configuration.
 from typing import Optional
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QGroupBox, QLabel, QLineEdit, QSpinBox, QComboBox,
-    QCheckBox, QPushButton, QFormLayout, QListWidget
+    QGroupBox, QLabel, QCheckBox, QPushButton, QListWidget
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QIcon
 
 from ui.styles.theme import get_stylesheet
 from ui.widgets.add_pair_dialog import AddPairDialog
+from ui.widgets.proxy_form import ProxyForm
 from config.settings import SettingsManager, ProxyConfig
 
 
@@ -31,8 +31,8 @@ class SettingsWindow(QMainWindow):
     def _setup_ui(self):
         """Setup the settings window UI."""
         self.setWindowTitle("Settings")
-        self.setMinimumSize(500, 600)
-        self.resize(500, 600)
+        self.setMinimumSize(550, 600)
+        self.resize(550, 600)
         self.setWindowFlags(
             Qt.WindowType.Window |
             Qt.WindowType.WindowCloseButtonHint
@@ -62,45 +62,9 @@ class SettingsWindow(QMainWindow):
         self.proxy_enabled.stateChanged.connect(self._on_proxy_enabled_changed)
         proxy_layout.addWidget(self.proxy_enabled)
 
-        # Proxy fields container
-        self.proxy_fields = QWidget()
-        proxy_fields_layout = QFormLayout(self.proxy_fields)
-        proxy_fields_layout.setContentsMargins(0, 10, 0, 0)
-        proxy_fields_layout.setHorizontalSpacing(10)
-
-        # Proxy type
-        self.proxy_type = QComboBox()
-        self.proxy_type.addItems(["HTTP", "SOCKS5"])
-        self.proxy_type.setMinimumWidth(120)
-        proxy_fields_layout.addRow("Proxy Type:", self.proxy_type)
-
-        # Host
-        self.proxy_host = QLineEdit()
-        self.proxy_host.setPlaceholderText("127.0.0.1")
-        self.proxy_host.setMinimumWidth(200)
-        proxy_fields_layout.addRow("Host:", self.proxy_host)
-
-        # Port
-        self.proxy_port = QSpinBox()
-        self.proxy_port.setRange(1, 65535)
-        self.proxy_port.setValue(7890)
-        self.proxy_port.setMinimumWidth(120)
-        proxy_fields_layout.addRow("Port:", self.proxy_port)
-
-        # Username (optional)
-        self.proxy_username = QLineEdit()
-        self.proxy_username.setPlaceholderText("(optional)")
-        self.proxy_username.setMinimumWidth(200)
-        proxy_fields_layout.addRow("Username:", self.proxy_username)
-
-        # Password (optional)
-        self.proxy_password = QLineEdit()
-        self.proxy_password.setPlaceholderText("(optional)")
-        self.proxy_password.setEchoMode(QLineEdit.EchoMode.Password)
-        self.proxy_password.setMinimumWidth(200)
-        proxy_fields_layout.addRow("Password:", self.proxy_password)
-
-        proxy_layout.addWidget(self.proxy_fields)
+        # Proxy form
+        self.proxy_form = ProxyForm()
+        proxy_layout.addWidget(self.proxy_form)
 
         # Test connection button
         self.test_btn = QPushButton("Test Connection")
@@ -187,11 +151,15 @@ class SettingsWindow(QMainWindow):
         proxy = self._settings_manager.settings.proxy
 
         self.proxy_enabled.setChecked(proxy.enabled)
-        self.proxy_type.setCurrentText(proxy.type.upper())
-        self.proxy_host.setText(proxy.host)
-        self.proxy_port.setValue(proxy.port)
-        self.proxy_username.setText(proxy.username)
-        self.proxy_password.setText(proxy.password)
+
+        # Use proxy form to set values
+        self.proxy_form.set_values({
+            'type': proxy.type,
+            'host': proxy.host,
+            'port': proxy.port,
+            'username': proxy.username,
+            'password': proxy.password
+        })
 
         self._on_proxy_enabled_changed(proxy.enabled)
 
@@ -201,18 +169,20 @@ class SettingsWindow(QMainWindow):
     def _on_proxy_enabled_changed(self, state):
         """Handle proxy enabled checkbox change."""
         enabled = bool(state)
-        self.proxy_fields.setEnabled(enabled)
+        self.proxy_form.setEnabled(enabled)
         self.test_btn.setEnabled(enabled)
 
     def _save_settings(self):
         """Save settings."""
+        proxy_values = self.proxy_form.get_values()
+
         proxy = ProxyConfig(
             enabled=self.proxy_enabled.isChecked(),
-            type=self.proxy_type.currentText().lower(),
-            host=self.proxy_host.text() or "127.0.0.1",
-            port=self.proxy_port.value(),
-            username=self.proxy_username.text(),
-            password=self.proxy_password.text()
+            type=proxy_values['type'],
+            host=proxy_values['host'] or "127.0.0.1",
+            port=proxy_values['port'],
+            username=proxy_values['username'],
+            password=proxy_values['password']
         )
 
         self._settings_manager.update_proxy(proxy)
@@ -229,11 +199,15 @@ class SettingsWindow(QMainWindow):
         default_proxy = ProxyConfig()
 
         self.proxy_enabled.setChecked(default_proxy.enabled)
-        self.proxy_type.setCurrentText(default_proxy.type.upper())
-        self.proxy_host.setText(default_proxy.host)
-        self.proxy_port.setValue(default_proxy.port)
-        self.proxy_username.setText(default_proxy.username)
-        self.proxy_password.setText(default_proxy.password)
+
+        # Use proxy form to set values
+        self.proxy_form.set_values({
+            'type': default_proxy.type,
+            'host': default_proxy.host,
+            'port': default_proxy.port,
+            'username': default_proxy.username,
+            'password': default_proxy.password
+        })
 
         self._settings_manager.update_proxy(default_proxy)
         self._show_status("Settings reset to defaults", "info")
@@ -244,13 +218,14 @@ class SettingsWindow(QMainWindow):
         self._show_status("Testing connection...", "info")
 
         # Build proxy config
+        proxy_values = self.proxy_form.get_values()
         proxy = ProxyConfig(
             enabled=True,
-            type=self.proxy_type.currentText().lower(),
-            host=self.proxy_host.text() or "127.0.0.1",
-            port=self.proxy_port.value(),
-            username=self.proxy_username.text(),
-            password=self.proxy_password.text()
+            type=proxy_values['type'],
+            host=proxy_values['host'] or "127.0.0.1",
+            port=proxy_values['port'],
+            username=proxy_values['username'],
+            password=proxy_values['password']
         )
 
         # Test connection (simple check)
@@ -302,7 +277,7 @@ class SettingsWindow(QMainWindow):
         else:
             new_height = base_height
 
-        self.resize(500, new_height)
+        self.resize(550, new_height)
 
     def _load_pairs_list(self):
         """Load crypto pairs into the list."""
