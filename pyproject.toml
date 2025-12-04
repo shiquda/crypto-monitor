@@ -9,7 +9,7 @@ dependencies = [
     "python-okx>=0.3.0",
     "aiohttp>=3.9.0",
     "websockets>=12.0",
-    "pyqt6-fluent-widgets[full]",
+    "pyqt6-fluent-widgets>=1.0.0",  # Remove [full] to avoid numpy/scipy
 ]
 
 [project.scripts]
