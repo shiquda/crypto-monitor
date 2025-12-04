@@ -2,6 +2,7 @@
 Crypto card widget for displaying a single cryptocurrency pair using Fluent Design.
 """
 
+import os
 from typing import Optional
 from PyQt6.QtWidgets import QVBoxLayout, QHBoxLayout, QLabel, QWidget
 from PyQt6.QtCore import Qt, pyqtSignal, QByteArray
@@ -25,6 +26,8 @@ class CryptoCard(CardWidget):
         super().__init__(parent)
         self.pair = pair
         self._edit_mode = False
+        self._icon_retry_count = 0
+        self._max_retries = 3
         self._setup_ui()
         self._load_icon()
 
@@ -76,8 +79,33 @@ class CryptoCard(CardWidget):
         self.price_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.price_label)
 
+    def _get_cache_path(self) -> str:
+        """Get the cache file path for this icon."""
+        from config.settings import get_settings_manager
+        settings_manager = get_settings_manager()
+        cache_dir = settings_manager.config_dir / 'icon_cache'
+        cache_dir.mkdir(exist_ok=True)
+
+        symbol = self.pair.split("-")[0].lower()
+        return str(cache_dir / f"{symbol}.svg")
+
     def _load_icon(self):
-        """Load crypto icon from CDN."""
+        """Load crypto icon from cache or CDN."""
+        cache_path = self._get_cache_path()
+
+        # Try to load from cache first
+        if os.path.exists(cache_path):
+            try:
+                self.icon_widget.load(cache_path)
+                renderer = self.icon_widget.renderer()
+                if renderer and renderer.isValid():
+                    # Successfully loaded from cache
+                    return
+            except Exception:
+                # Cache file corrupted, will download again
+                pass
+
+        # Load from CDN if cache miss or invalid
         symbol = self.pair.split("-")[0].lower()
         url = self.ICON_URL_TEMPLATE.format(symbol=symbol)
 
@@ -113,16 +141,46 @@ class CryptoCard(CardWidget):
         """Handle icon download completion."""
         if reply.error() == QNetworkReply.NetworkError.NoError:
             data = reply.readAll()
+
             # Load SVG data into the QSvgWidget
             if len(data) > 0:
-                if not self.icon_widget.load(data):
-                    # If SVG loading fails, hide the icon
-                    self.icon_widget.hide()
+                # Load the SVG data
+                self.icon_widget.load(data)
+
+                # Check if renderer is valid to verify successful load
+                renderer = self.icon_widget.renderer()
+                is_valid = renderer.isValid() if renderer else False
+
+                if is_valid:
+                    # Save to cache for future use
+                    try:
+                        cache_path = self._get_cache_path()
+                        with open(cache_path, 'wb') as f:
+                            f.write(bytes(data))
+                    except Exception as e:
+                        print(f"Failed to cache icon for {self.pair}: {e}")
+
+                    self._icon_retry_count = 0  # Reset retry count on success
+                else:
+                    # If SVG loading fails, retry or hide
+                    if self._icon_retry_count < self._max_retries:
+                        self._icon_retry_count += 1
+                        # Retry after a short delay
+                        from PyQt6.QtCore import QTimer
+                        QTimer.singleShot(1000, self._load_icon)
+                    else:
+                        self.icon_widget.hide()
             else:
                 self.icon_widget.hide()
         else:
-            # If icon fails to load, hide the icon widget
-            self.icon_widget.hide()
+            # If icon fails to load, retry or hide
+            if self._icon_retry_count < self._max_retries:
+                self._icon_retry_count += 1
+                # Retry after a short delay
+                from PyQt6.QtCore import QTimer
+                QTimer.singleShot(2000, self._load_icon)
+            else:
+                self.icon_widget.hide()
         reply.deleteLater()
 
     def update_price(self, price: str, trend: str, color: str):
