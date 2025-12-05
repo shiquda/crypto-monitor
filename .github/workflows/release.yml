@@ -16,13 +16,13 @@ jobs:
       matrix:
         include:
           - os: windows-latest
-            artifact_name: crypto-monitor-windows.exe
+            artifact_name: crypto-monitor-windows-x64
             asset_name: crypto-monitor-windows-x64.exe
           - os: ubuntu-latest
-            artifact_name: crypto-monitor
+            artifact_name: crypto-monitor-linux-x64
             asset_name: crypto-monitor-linux-x64
           - os: macos-latest
-            artifact_name: crypto-monitor
+            artifact_name: crypto-monitor-macos-x64
             asset_name: crypto-monitor-macos-x64
 
     steps:
