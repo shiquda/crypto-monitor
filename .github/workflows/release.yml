@@ -62,19 +62,19 @@ jobs:
           } else {
             $iconParam = ""
           }
-          uv run pyinstaller --onefile --windowed --name="crypto-monitor" $iconParam --add-data="assets;assets" --add-data="imgs;imgs" main.py
+          uv run pyinstaller --onefile --windowed --name="${{ matrix.asset_name }}" $iconParam --add-data="assets;assets" --add-data="imgs;imgs" main.py
 
       - name: Build on Linux
         if: matrix.os == 'ubuntu-latest'
         run: |
           rm -rf build dist
-          uv run pyinstaller --onefile --windowed --name="crypto-monitor" --add-data="assets:assets" --add-data="imgs:imgs" main.py
+          uv run pyinstaller --onefile --windowed --name="${{ matrix.asset_name }}" --add-data="assets:assets" --add-data="imgs:imgs" main.py
 
       - name: Build on macOS
         if: matrix.os == 'macos-latest'
         run: |
           rm -rf build dist
-          uv run pyinstaller --onefile --windowed --name="crypto-monitor" --add-data="assets:assets" --add-data="imgs:imgs" main.py
+          uv run pyinstaller --onefile --windowed --name="${{ matrix.asset_name }}" --add-data="assets:assets" --add-data="imgs:imgs" main.py
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
