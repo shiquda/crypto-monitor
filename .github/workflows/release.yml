@@ -1,0 +1,188 @@
+name: Release
+
+'on':
+  push:
+    tags:
+      - 'v*'
+
+env:
+  PYTHON_VERSION: '3.13.2'
+
+jobs:
+  build:
+    name: Build for ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            artifact_name: crypto-monitor-windows.exe
+            asset_name: crypto-monitor-windows-x64.exe
+          - os: ubuntu-latest
+            artifact_name: crypto-monitor
+            asset_name: crypto-monitor-linux-x64
+          - os: macos-latest
+            artifact_name: crypto-monitor
+            asset_name: crypto-monitor-macos-x64
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: latest
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: ${{ runner.os }}-uv-${{ hashFiles('pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-uv-
+
+      - name: Install dependencies
+        run: |
+          uv sync --frozen
+          uv run pip install pyinstaller>=6.0.0
+
+      - name: Build on Windows
+        if: matrix.os == 'windows-latest'
+        run: |
+          Remove-Item -Recurse -Force build, dist -ErrorAction SilentlyContinue
+          $iconPath = Resolve-Path "assets\icons\crypto-monitor.ico" -ErrorAction SilentlyContinue
+          if ($iconPath) {
+            $iconParam = "--icon=$($iconPath.Path)"
+          } else {
+            $iconParam = ""
+          }
+          uv run pyinstaller --onefile --windowed --name="crypto-monitor" $iconParam --add-data="assets;assets" --add-data="imgs;imgs" main.py
+
+      - name: Build on Linux
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          rm -rf build dist
+          uv run pyinstaller --onefile --windowed --name="crypto-monitor" --add-data="assets:assets" --add-data="imgs:imgs" main.py
+
+      - name: Build on macOS
+        if: matrix.os == 'macos-latest'
+        run: |
+          rm -rf build dist
+          uv run pyinstaller --onefile --windowed --name="crypto-monitor" --add-data="assets:assets" --add-data="imgs:imgs" main.py
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: dist/${{ matrix.artifact_name }}
+          if-no-files-found: error
+          retention-days: 1
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      attestations: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: latest
+
+      - name: Get version from tag
+        id: tag
+        run: |
+          echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          echo "name=$(echo ${{ github.ref_name }} | sed 's/^v//')" >> $GITHUB_OUTPUT
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p release
+          find artifacts -type f -name "crypto-monitor*" -exec mv {} release/ \;
+          ls -la release/
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # 获取上一个标签
+          PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [ -z "$PREVIOUS_TAG" ]; then
+            PREVIOUS_TAG="HEAD"
+          fi
+
+          # 生成变更日志
+          echo "## Changes" > CHANGELOG.md
+          echo "" >> CHANGELOG.md
+          git log --pretty=format:"- %s" $PREVIOUS_TAG..HEAD >> CHANGELOG.md
+          echo "" >> CHANGELOG.md
+          echo "" >> CHANGELOG.md
+
+          # 设置环境变量供后续步骤使用
+          {
+            echo 'changelog<<EOF'
+            cat CHANGELOG.md
+            echo EOF
+          } >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ steps.tag.outputs.version }}
+          body: |
+            ## 📦 Release ${{ steps.tag.outputs.version }}
+
+            ### Changes
+            ${{ steps.changelog.outputs.changelog }}
+
+            ### Downloads
+            - Windows: crypto-monitor-windows-x64.exe
+            - Linux: crypto-monitor-linux-x64
+            - macOS: crypto-monitor-macos-x64
+
+            ### Installation
+            **Windows:**
+            1. Download `crypto-monitor-windows-x64.exe`
+            2. Run the installer
+            3. Launch crypto-monitor from Start menu
+
+            **Linux:**
+            1. Download `crypto-monitor-linux-x64`
+            2. Make it executable: `chmod +x crypto-monitor-linux-x64`
+            3. Run: `./crypto-monitor-linux-x64`
+
+            **macOS:**
+            1. Download `crypto-monitor-macos-x64`
+            2. Make it executable: `chmod +x crypto-monitor-macos-x64`
+            3. Run: `./crypto-monitor-macos-x64`
+            4. If you see a security warning, go to System Preferences > Security & Privacy and allow the app
+
+            For more information, visit the [project repository](https://github.com/${{ github.repository }}).
+          files: |
+            release/*
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
