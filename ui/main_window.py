@@ -6,16 +6,16 @@ import webbrowser
 from typing import Optional, Dict
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QScrollArea,
-    QApplication
+    QApplication, QGraphicsOpacityEffect
 )
-from PyQt6.QtCore import Qt, QPoint
-from PyQt6.QtGui import QIcon, QMouseEvent
+from PyQt6.QtCore import Qt, QPoint, QTimer, QPropertyAnimation, QEasingCurve
+from PyQt6.QtGui import QIcon, QMouseEvent, QWheelEvent
 from qfluentwidgets import setTheme, Theme
 
 from ui.widgets.toolbar import Toolbar
 from ui.widgets.crypto_card import CryptoCard
 from ui.widgets.pagination import Pagination
-from ui.widgets.add_pair_dialog import AddPairDialog
+from ui.widgets.compact_controls import CompactControls
 from ui.settings_window import SettingsWindow
 
 from core.okx_client import OkxClientManager
@@ -27,6 +27,9 @@ class MainWindow(QMainWindow):
     """Main application window with Fluent Design components."""
 
     ITEMS_PER_PAGE = 3
+    COMPACT_WIDTH = 160
+    COMPACT_HEIGHT_MINIMAL = 85   # Compact mode without toolbar
+    COMPACT_HEIGHT_EXPANDED = 170  # Compact mode with toolbar
 
     def __init__(self):
         super().__init__()
@@ -35,6 +38,13 @@ class MainWindow(QMainWindow):
         self._settings_window: Optional[SettingsWindow] = None
         self._cards: Dict[str, CryptoCard] = {}
         self._edit_mode = False
+
+        # Compact mode state
+        self._compact_mode = False
+        self._current_compact_index = 0
+        self._auto_scroll_timer = QTimer(self)
+        self._auto_scroll_timer.timeout.connect(self._auto_scroll_next)
+        self._fade_animation = None
 
         # Core components
         self._settings_manager = get_settings_manager()
@@ -48,6 +58,12 @@ class MainWindow(QMainWindow):
         self._setup_ui()
         self._connect_signals()
         self._load_pairs()
+
+        # Apply initial mode based on settings
+        if self._settings_manager.settings.compact_mode:
+            self._switch_to_compact_mode()
+        else:
+            self._switch_to_normal_mode()
 
     def _setup_ui(self):
         """Setup the main window UI with Fluent Design components."""
@@ -112,17 +128,25 @@ class MainWindow(QMainWindow):
         self.pagination = Pagination()
         layout.addWidget(self.pagination)
 
+        # Compact controls (hidden by default)
+        self.compact_controls = CompactControls()
+        self.compact_controls.setVisible(False)
+        layout.addWidget(self.compact_controls)
+
     def _connect_signals(self):
         """Connect signals to slots."""
         # Toolbar signals
         self.toolbar.settings_clicked.connect(self._open_settings)
-        self.toolbar.add_clicked.connect(self._toggle_edit_mode)
-        self.toolbar.minimize_clicked.connect(self.showMinimized)
         self.toolbar.pin_clicked.connect(self._toggle_always_on_top)
         self.toolbar.close_clicked.connect(self._close_app)
+        self.toolbar.compact_mode_toggled.connect(self._on_toolbar_mode_toggled)
 
         # Pagination
         self.pagination.page_changed.connect(self._on_page_changed)
+
+        # Compact controls
+        self.compact_controls.prev_clicked.connect(self._show_prev_pair)
+        self.compact_controls.next_clicked.connect(self._show_next_pair)
 
         # OKX client signals
         self._okx_client.ticker_updated.connect(self._on_ticker_update)
@@ -197,6 +221,7 @@ class MainWindow(QMainWindow):
             self._settings_window.proxy_changed.connect(self._on_proxy_changed)
             self._settings_window.pairs_changed.connect(self._on_pairs_changed)
             self._settings_window.theme_changed.connect(self._on_theme_changed)
+            self._settings_window.compact_mode_changed.connect(self._on_compact_mode_changed)
             self._settings_window.show()
         else:
             self._settings_window.activateWindow()
@@ -218,23 +243,24 @@ class MainWindow(QMainWindow):
         # This is just a placeholder for future enhancements
         pass
 
-    def _toggle_edit_mode(self):
-        """Toggle edit mode (add/remove pairs)."""
-        if self._edit_mode:
-            # Exit edit mode
-            self._edit_mode = False
-            for card in self._cards.values():
-                card.set_edit_mode(False)
+    def _on_compact_mode_changed(self):
+        """Handle compact mode change from settings."""
+        if self._settings_manager.settings.compact_mode:
+            self._switch_to_compact_mode()
         else:
-            # Show add pair dialog
-            pair = AddPairDialog.get_new_pair(self)
-            if pair:
-                self._add_pair(pair)
+            self._switch_to_normal_mode()
 
-    def _add_pair(self, pair: str):
-        """Add a new trading pair."""
-        if self._settings_manager.add_pair(pair):
-            self._load_pairs()
+    def _on_toolbar_mode_toggled(self, to_compact: bool):
+        """Handle mode toggle from toolbar button."""
+        # Update settings
+        self._settings_manager.settings.compact_mode = to_compact
+        self._settings_manager.save()
+
+        # Switch mode
+        if to_compact:
+            self._switch_to_compact_mode()
+        else:
+            self._switch_to_normal_mode()
 
     def _remove_pair(self, pair: str):
         """Remove a trading pair."""
@@ -298,3 +324,226 @@ class MainWindow(QMainWindow):
         self._drag_pos = None
         super().mouseReleaseEvent(event)
 
+    # Compact mode methods
+    def _switch_to_compact_mode(self):
+        """Switch to compact mode."""
+        self._compact_mode = True
+
+        # Save current window position (normal mode)
+        if not self._settings_manager.settings.compact_mode:
+            pos = self.pos()
+            self._settings_manager.settings.window_x = pos.x()
+            self._settings_manager.settings.window_y = pos.y()
+
+        # Hide toolbar and pagination by default (minimal state)
+        self.toolbar.hide()
+        self.toolbar.set_compact_mode(True)
+        self.pagination.hide()
+
+        # Hide compact controls initially
+        self.compact_controls.hide()
+
+        # Adjust window size to minimal
+        self.setFixedSize(self.COMPACT_WIDTH, self.COMPACT_HEIGHT_MINIMAL)
+
+        # Move to compact mode position
+        self.move(
+            self._settings_manager.settings.compact_window_x,
+            self._settings_manager.settings.compact_window_y
+        )
+
+        # Clear all cards from layout first
+        while self.cards_layout.count() > 1:  # Keep the stretch
+            item = self.cards_layout.takeAt(0)
+            if item.widget():
+                item.widget().setParent(None)
+
+        # Display first pair
+        self._current_compact_index = 0
+        self._update_compact_display()
+
+        # Start auto-scroll if enabled
+        self._start_auto_scroll()
+
+    def _switch_to_normal_mode(self):
+        """Switch to normal mode."""
+        self._compact_mode = False
+
+        # Save current window position (compact mode)
+        if self._settings_manager.settings.compact_mode:
+            pos = self.pos()
+            self._settings_manager.settings.compact_window_x = pos.x()
+            self._settings_manager.settings.compact_window_y = pos.y()
+
+        # Stop auto-scroll
+        self._stop_auto_scroll()
+
+        # Hide compact controls
+        self.compact_controls.hide()
+
+        # Show components
+        self.toolbar.show()
+        self.toolbar.set_compact_mode(False)
+        if self.pagination.total_pages() > 1:
+            self.pagination.show()
+
+        # Adjust window size
+        self.setFixedSize(160, 320)
+
+        # Move to normal mode position
+        self.move(
+            self._settings_manager.settings.window_x,
+            self._settings_manager.settings.window_y
+        )
+
+        # Update cards display
+        self._update_cards_display()
+
+    def _update_compact_display(self):
+        """Update the displayed card in compact mode (no animation)."""
+        pairs = self._settings_manager.settings.crypto_pairs
+        if not pairs:
+            return
+
+        # Ensure index is valid
+        self._current_compact_index = max(0, min(self._current_compact_index, len(pairs) - 1))
+
+        # Clear existing cards from layout
+        while self.cards_layout.count() > 1:  # Keep the stretch
+            item = self.cards_layout.takeAt(0)
+            if item.widget():
+                item.widget().setParent(None)
+
+        # Show only the current pair
+        pair = pairs[self._current_compact_index]
+        if pair not in self._cards:
+            card = CryptoCard(pair)
+            card.double_clicked.connect(self._on_card_double_click)
+            self._cards[pair] = card
+
+        card = self._cards[pair]
+        self.cards_layout.insertWidget(0, card)
+
+    def _update_compact_display_with_animation(self):
+        """Update the displayed card in compact mode with fade animation."""
+        pairs = self._settings_manager.settings.crypto_pairs
+        if not pairs:
+            return
+
+        # Ensure index is valid
+        self._current_compact_index = max(0, min(self._current_compact_index, len(pairs) - 1))
+
+        # Clear existing cards from layout
+        while self.cards_layout.count() > 1:  # Keep the stretch
+            item = self.cards_layout.takeAt(0)
+            if item.widget():
+                item.widget().setParent(None)
+
+        # Show only the current pair
+        pair = pairs[self._current_compact_index]
+        if pair not in self._cards:
+            card = CryptoCard(pair)
+            card.double_clicked.connect(self._on_card_double_click)
+            self._cards[pair] = card
+
+        card = self._cards[pair]
+        self.cards_layout.insertWidget(0, card)
+
+        # Apply fade animation
+        self._apply_fade_animation(card)
+
+    def _apply_fade_animation(self, widget):
+        """Apply fade in/out animation to a widget."""
+        # Create opacity effect
+        effect = QGraphicsOpacityEffect(widget)
+        widget.setGraphicsEffect(effect)
+
+        # Create fade out animation
+        self._fade_animation = QPropertyAnimation(effect, b"opacity")
+        self._fade_animation.setDuration(150)
+        self._fade_animation.setStartValue(1.0)
+        self._fade_animation.setEndValue(0.0)
+        self._fade_animation.setEasingCurve(QEasingCurve.Type.OutCubic)
+
+        # Create fade in animation
+        fade_in = QPropertyAnimation(effect, b"opacity")
+        fade_in.setDuration(150)
+        fade_in.setStartValue(0.0)
+        fade_in.setEndValue(1.0)
+        fade_in.setEasingCurve(QEasingCurve.Type.OutCubic)
+
+        # Chain animations: fade out -> fade in
+        self._fade_animation.finished.connect(lambda: fade_in.start())
+        fade_in.finished.connect(lambda: widget.setGraphicsEffect(None))
+
+        # Start fade out
+        self._fade_animation.start()
+
+    def _show_prev_pair(self):
+        """Show previous pair in compact mode with fade animation."""
+        pairs = self._settings_manager.settings.crypto_pairs
+        if not pairs:
+            return
+
+        self._current_compact_index = (self._current_compact_index - 1) % len(pairs)
+        self._update_compact_display_with_animation()
+
+    def _show_next_pair(self):
+        """Show next pair in compact mode with fade animation."""
+        pairs = self._settings_manager.settings.crypto_pairs
+        if not pairs:
+            return
+
+        self._current_compact_index = (self._current_compact_index + 1) % len(pairs)
+        self._update_compact_display_with_animation()
+
+    def _auto_scroll_next(self):
+        """Auto-scroll to next pair."""
+        self._show_next_pair()
+
+    def _start_auto_scroll(self):
+        """Start auto-scroll timer."""
+        if self._settings_manager.settings.compact_auto_scroll:
+            interval = self._settings_manager.settings.compact_scroll_interval * 1000
+            self._auto_scroll_timer.start(interval)
+
+    def _stop_auto_scroll(self):
+        """Stop auto-scroll timer."""
+        self._auto_scroll_timer.stop()
+
+    def wheelEvent(self, event: QWheelEvent):
+        """Handle mouse wheel for pair switching in compact mode."""
+        if self._compact_mode:
+            delta = event.angleDelta().y()
+            if delta > 0:
+                self._show_prev_pair()
+            elif delta < 0:
+                self._show_next_pair()
+            # Accept the event to prevent it from propagating to parent widgets
+            event.accept()
+            return
+        super().wheelEvent(event)
+
+    def enterEvent(self, event):
+        """Pause auto-scroll and show controls when mouse enters window."""
+        if self._compact_mode:
+            # Pause auto-scroll
+            self._stop_auto_scroll()
+            # Expand to show toolbar and controls
+            self.setFixedSize(self.COMPACT_WIDTH, self.COMPACT_HEIGHT_EXPANDED)
+            self.toolbar.show()
+            self.compact_controls.show()
+            self.compact_controls.show_controls()
+        super().enterEvent(event)
+
+    def leaveEvent(self, event):
+        """Resume auto-scroll and hide controls when mouse leaves window."""
+        if self._compact_mode:
+            # Resume auto-scroll
+            self._start_auto_scroll()
+            # Collapse to minimal state
+            self.toolbar.hide()
+            self.compact_controls.hide()
+            self.compact_controls.hide_controls()
+            self.setFixedSize(self.COMPACT_WIDTH, self.COMPACT_HEIGHT_MINIMAL)
+        super().leaveEvent(event)

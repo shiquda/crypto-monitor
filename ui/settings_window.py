@@ -12,7 +12,7 @@ from qfluentwidgets import (
     FluentIcon, InfoBar, InfoBarPosition, Theme, setTheme
 )
 
-from ui.widgets.setting_cards import ProxySettingCard, PairsSettingCard, ThemeSettingCard
+from ui.widgets.setting_cards import ProxySettingCard, PairsSettingCard, ThemeSettingCard, CompactModeSettingCard
 from config.settings import SettingsManager, ProxyConfig
 
 
@@ -22,6 +22,7 @@ class SettingsWindow(QMainWindow):
     proxy_changed = pyqtSignal()  # Emitted when proxy settings change
     pairs_changed = pyqtSignal()  # Emitted when crypto pairs change
     theme_changed = pyqtSignal()  # Emitted when theme settings change
+    compact_mode_changed = pyqtSignal()  # Emitted when compact mode settings change
 
     def __init__(self, settings_manager: SettingsManager, parent: Optional[QWidget] = None):
         super().__init__(parent)
@@ -72,7 +73,7 @@ class SettingsWindow(QMainWindow):
         content_widget = QWidget()
         content_widget.setStyleSheet(f"QWidget {{ background-color: {bg_color}; }}")
         content_layout = QVBoxLayout(content_widget)
-        content_layout.setContentsMargins(30, 30, 30, 30)
+        content_layout.setContentsMargins(60, 30, 60, 30)
         content_layout.setSpacing(20)
 
         # Title label
@@ -83,7 +84,9 @@ class SettingsWindow(QMainWindow):
         # Appearance settings group
         appearance_group = SettingCardGroup("Appearance", content_widget)
         self.theme_card = ThemeSettingCard(appearance_group)
+        self.compact_mode_card = CompactModeSettingCard(appearance_group)
         appearance_group.addSettingCard(self.theme_card)
+        appearance_group.addSettingCard(self.compact_mode_card)
         content_layout.addWidget(appearance_group)
 
         # Proxy configuration group
@@ -110,7 +113,7 @@ class SettingsWindow(QMainWindow):
         btn_bar = QWidget()
         btn_bar.setStyleSheet(f"QWidget {{ background-color: {bg_color}; }}")
         btn_layout = QHBoxLayout(btn_bar)
-        btn_layout.setContentsMargins(30, 15, 30, 20)
+        btn_layout.setContentsMargins(60, 15, 60, 20)
         btn_layout.setSpacing(10)
 
         self.reset_btn = PushButton(FluentIcon.SYNC, "Reset to Defaults")
@@ -132,6 +135,14 @@ class SettingsWindow(QMainWindow):
         theme_mode = self._settings_manager.settings.theme_mode
         self.theme_card.set_theme_mode(theme_mode)
 
+        # Load compact mode settings
+        compact_config = {
+            'enabled': self._settings_manager.settings.compact_mode,
+            'auto_scroll': self._settings_manager.settings.compact_auto_scroll,
+            'scroll_interval': self._settings_manager.settings.compact_scroll_interval
+        }
+        self.compact_mode_card.set_compact_mode_config(compact_config)
+
         # Load proxy configuration
         proxy = self._settings_manager.settings.proxy
         self.proxy_card.set_proxy_config(proxy)
@@ -147,8 +158,19 @@ class SettingsWindow(QMainWindow):
         new_theme = self.theme_card.get_theme_mode()
         theme_changed = old_theme != new_theme
 
+        # Check if compact mode changed
+        old_compact_mode = self._settings_manager.settings.compact_mode
+        compact_config = self.compact_mode_card.get_compact_mode_config()
+        compact_mode_changed = old_compact_mode != compact_config['enabled']
+
         # Get theme mode from card
         self._settings_manager.update_theme(new_theme)
+
+        # Get compact mode configuration from card
+        self._settings_manager.settings.compact_mode = compact_config['enabled']
+        self._settings_manager.settings.compact_auto_scroll = compact_config['auto_scroll']
+        self._settings_manager.settings.compact_scroll_interval = compact_config['scroll_interval']
+        self._settings_manager.save()
 
         # Get proxy configuration from card
         proxy = self.proxy_card.get_proxy_config()
@@ -186,6 +208,8 @@ class SettingsWindow(QMainWindow):
         QTimer.singleShot(100, lambda: self.pairs_changed.emit())
         if theme_changed:
             QTimer.singleShot(100, lambda: self.theme_changed.emit())
+        if compact_mode_changed:
+            QTimer.singleShot(100, lambda: self.compact_mode_changed.emit())
 
     def _reset_settings(self):
         """Reset settings to defaults."""

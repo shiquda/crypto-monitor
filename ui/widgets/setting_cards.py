@@ -5,11 +5,11 @@ Uses QFluentWidgets components for a modern Fluent Design interface.
 
 from typing import Optional
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout
-from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtCore import pyqtSignal, Qt
 from qfluentwidgets import (
     ExpandGroupSettingCard, FluentIcon, SwitchButton,
     PrimaryPushButton, InfoBar, InfoBarPosition,
-    BodyLabel, PushButton, ToolButton, ComboBox
+    BodyLabel, PushButton, ToolButton, ComboBox, Slider
 )
 
 from .proxy_form import ProxyForm
@@ -327,3 +327,122 @@ class ThemeSettingCard(ExpandGroupSettingCard):
             self.theme_combo.setCurrentText("Dark Theme")
         else:
             self.theme_combo.setCurrentText("Light Theme")
+
+
+class CompactModeSettingCard(ExpandGroupSettingCard):
+    """Expandable setting card for compact mode configuration."""
+
+    compact_mode_changed = pyqtSignal()  # Emitted when compact mode settings change
+
+    def __init__(self, parent: Optional[QWidget] = None):
+        super().__init__(
+            FluentIcon.MINIMIZE,
+            "Compact Mode Settings",
+            "Configure compact mode behavior and auto-scroll settings",
+            parent
+        )
+        self._setup_ui()
+        # Expand the card by default
+        self.toggleExpand()
+
+    def _setup_ui(self):
+        """Setup the compact mode configuration UI."""
+        # Main container
+        container = QWidget()
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(48, 18, 48, 18)
+        layout.setSpacing(16)
+
+        # Enable compact mode switch
+        compact_container = QWidget()
+        compact_layout = QHBoxLayout(compact_container)
+        compact_layout.setContentsMargins(0, 0, 0, 0)
+
+        self.compact_label = BodyLabel("Enable Compact Mode")
+        self.compact_switch = SwitchButton()
+        self.compact_switch.setOffText("Off")
+        self.compact_switch.setOnText("On")
+        self.compact_switch.checkedChanged.connect(self._on_compact_mode_changed)
+
+        compact_layout.addWidget(self.compact_label)
+        compact_layout.addStretch(1)
+        compact_layout.addWidget(self.compact_switch)
+
+        layout.addWidget(compact_container)
+
+        # Auto-scroll switch
+        auto_scroll_container = QWidget()
+        auto_scroll_layout = QHBoxLayout(auto_scroll_container)
+        auto_scroll_layout.setContentsMargins(0, 0, 0, 0)
+
+        self.auto_scroll_label = BodyLabel("Auto-Scroll")
+        self.auto_scroll_switch = SwitchButton()
+        self.auto_scroll_switch.setOffText("Off")
+        self.auto_scroll_switch.setOnText("On")
+
+        auto_scroll_layout.addWidget(self.auto_scroll_label)
+        auto_scroll_layout.addStretch(1)
+        auto_scroll_layout.addWidget(self.auto_scroll_switch)
+
+        layout.addWidget(auto_scroll_container)
+
+        # Scroll interval slider
+        interval_container = QWidget()
+        interval_layout = QVBoxLayout(interval_container)
+        interval_layout.setContentsMargins(0, 0, 0, 0)
+        interval_layout.setSpacing(8)
+
+        interval_header = QHBoxLayout()
+        self.interval_label = BodyLabel("Scroll Interval")
+        self.interval_value_label = BodyLabel("5 seconds")
+        interval_header.addWidget(self.interval_label)
+        interval_header.addStretch(1)
+        interval_header.addWidget(self.interval_value_label)
+
+        interval_layout.addLayout(interval_header)
+
+        self.interval_slider = Slider(Qt.Orientation.Horizontal)
+        self.interval_slider.setMinimum(1)
+        self.interval_slider.setMaximum(30)
+        self.interval_slider.setValue(5)
+        self.interval_slider.valueChanged.connect(self._on_interval_changed)
+
+        interval_layout.addWidget(self.interval_slider)
+
+        layout.addWidget(interval_container)
+
+        # Info label
+        info_label = BodyLabel("Note: Compact mode shows one crypto pair at a time with navigation controls")
+        info_label.setStyleSheet("QLabel { font-size: 12px; opacity: 0.6; }")
+        layout.addWidget(info_label)
+
+        # Add container to card
+        self.addGroupWidget(container)
+
+        # Set initial state
+        self._on_compact_mode_changed(False)
+
+    def _on_compact_mode_changed(self, enabled: bool):
+        """Handle compact mode enabled state change."""
+        self.auto_scroll_switch.setEnabled(enabled)
+        self.interval_slider.setEnabled(enabled and self.auto_scroll_switch.isChecked())
+
+    def _on_interval_changed(self, value: int):
+        """Handle interval slider value change."""
+        self.interval_value_label.setText(f"{value} seconds")
+
+    def get_compact_mode_config(self) -> dict:
+        """Get current compact mode configuration."""
+        return {
+            'enabled': self.compact_switch.isChecked(),
+            'auto_scroll': self.auto_scroll_switch.isChecked(),
+            'scroll_interval': self.interval_slider.value()
+        }
+
+    def set_compact_mode_config(self, config: dict):
+        """Set compact mode configuration."""
+        self.compact_switch.setChecked(config.get('enabled', False))
+        self.auto_scroll_switch.setChecked(config.get('auto_scroll', True))
+        self.interval_slider.setValue(config.get('scroll_interval', 5))
+        self._on_compact_mode_changed(config.get('enabled', False))
+        self._on_interval_changed(config.get('scroll_interval', 5))

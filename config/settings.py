@@ -44,6 +44,13 @@ class AppSettings:
     window_y: int = 100
     always_on_top: bool = False
 
+    # Compact mode settings
+    compact_mode: bool = False  # Enable compact mode
+    compact_auto_scroll: bool = True  # Enable auto-scroll in compact mode
+    compact_scroll_interval: int = 5  # Auto-scroll interval in seconds
+    compact_window_x: int = 100  # Compact mode window X position
+    compact_window_y: int = 100  # Compact mode window Y position
+
 
 class SettingsManager:
     """Manages application settings persistence."""

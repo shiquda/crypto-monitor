@@ -12,14 +12,14 @@ class Toolbar(QWidget):
     """Toolbar with application control buttons."""
 
     settings_clicked = pyqtSignal()
-    add_clicked = pyqtSignal()
-    minimize_clicked = pyqtSignal()
     pin_clicked = pyqtSignal(bool)  # Emits new pin state
     close_clicked = pyqtSignal()
+    compact_mode_toggled = pyqtSignal(bool)  # Emits when compact mode is toggled
 
     def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(parent)
         self._pinned = False
+        self._compact_mode = False
         self._setup_ui()
 
     def _setup_ui(self):
@@ -38,19 +38,12 @@ class Toolbar(QWidget):
         self.settings_btn.clicked.connect(self.settings_clicked)
         layout.addWidget(self.settings_btn)
 
-        # Add pair button - using Fluent Icon
-        self.add_btn = TransparentToolButton(FIF.ADD, self)
-        self.add_btn.setFixedSize(24, 24)
-        self.add_btn.setToolTip("Add Pair")
-        self.add_btn.clicked.connect(self.add_clicked)
-        layout.addWidget(self.add_btn)
-
-        # Minimize button - using Fluent Icon
-        self.minimize_btn = TransparentToolButton(FIF.MINIMIZE, self)
-        self.minimize_btn.setFixedSize(24, 24)
-        self.minimize_btn.setToolTip("Minimize")
-        self.minimize_btn.clicked.connect(self.minimize_clicked)
-        layout.addWidget(self.minimize_btn)
+        # Compact/Normal mode toggle button
+        self.mode_btn = TransparentToolButton(FIF.MINIMIZE, self)
+        self.mode_btn.setFixedSize(24, 24)
+        self.mode_btn.setToolTip("Switch to Compact Mode")
+        self.mode_btn.clicked.connect(self._toggle_mode)
+        layout.addWidget(self.mode_btn)
 
         # Pin button - using Fluent Icon
         self.pin_btn = TransparentToolButton(FIF.PIN, self)
@@ -75,6 +68,28 @@ class Toolbar(QWidget):
         self.pin_btn.setIcon(FIF.UNPIN if self._pinned else FIF.PIN)
         self.pin_btn.setToolTip("Unpin Window" if self._pinned else "Pin Window")
         self.pin_clicked.emit(self._pinned)
+
+    def _toggle_mode(self):
+        """Toggle between compact and normal mode."""
+        self._compact_mode = not self._compact_mode
+        # Update icon and tooltip based on mode
+        if self._compact_mode:
+            self.mode_btn.setIcon(FIF.UP)
+            self.mode_btn.setToolTip("Switch to Normal Mode")
+        else:
+            self.mode_btn.setIcon(FIF.MINIMIZE)
+            self.mode_btn.setToolTip("Switch to Compact Mode")
+        self.compact_mode_toggled.emit(self._compact_mode)
+
+    def set_compact_mode(self, enabled: bool):
+        """Set the compact mode state."""
+        self._compact_mode = enabled
+        if enabled:
+            self.mode_btn.setIcon(FIF.UP)
+            self.mode_btn.setToolTip("Switch to Normal Mode")
+        else:
+            self.mode_btn.setIcon(FIF.MINIMIZE)
+            self.mode_btn.setToolTip("Switch to Compact Mode")
 
     def is_pinned(self) -> bool:
         """Check if window is pinned."""
