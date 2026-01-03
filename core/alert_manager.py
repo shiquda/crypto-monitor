@@ -43,7 +43,8 @@ class AlertManager(QObject):
         except (ValueError, AttributeError):
             return
 
-        # Store current price for reference
+        # Store previous price for reference
+        previous_price = self._current_prices.get(pair)
         self._current_prices[pair] = current_price
 
         # Get enabled alerts for this pair
@@ -54,7 +55,7 @@ class AlertManager(QObject):
                 continue
 
             if self._should_trigger(alert, current_price):
-                self._trigger_alert(alert, current_price)
+                self._trigger_alert(alert, current_price, previous_price)
 
     def _should_trigger(self, alert: PriceAlert, current_price: float) -> bool:
         """
@@ -87,18 +88,29 @@ class AlertManager(QObject):
 
         return False
 
-    def _trigger_alert(self, alert: PriceAlert, current_price: float):
+    def _trigger_alert(self, alert: PriceAlert, current_price: float, previous_price: Optional[float] = None):
         """
         Trigger an alert notification.
 
         Args:
             alert: The alert configuration
             current_price: Current price that triggered the alert
+            previous_price: Price before update (optional)
         """
+        # Determine notification type
+        notif_alert_type = alert.alert_type
+        
+        # Infer direction for touch alerts
+        if alert.alert_type == "price_touch" and previous_price is not None:
+            if current_price > previous_price:
+                notif_alert_type = "price_above"  # Treated as crossing above
+            elif current_price < previous_price:
+                notif_alert_type = "price_below"  # Treated as crossing below
+        
         # Send notification
         self._notification_service.send_price_alert(
             pair=alert.pair,
-            alert_type=alert.alert_type,
+            alert_type=notif_alert_type,
             target_price=alert.target_price,
             current_price=current_price
         )
