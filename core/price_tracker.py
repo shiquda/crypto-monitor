@@ -67,18 +67,23 @@ class PriceTracker:
         state.current_price = current_price
         state.percentage = percentage
 
-        # Calculate difference and trend
-        difference = current_price - state.average_price
-
-        if difference > 0:
+        # Calculate color based on intraday percentage (as requested by user)
+        if percentage.startswith('+'):
+            state.color = "#4CAF50"  # Green
+        elif percentage.startswith('-'):
+            state.color = "#F44336"  # Red
+        else:
+            state.color = "#FFFFFF"  # White
+        
+        # We can still keep the trend (up/down arrow) based on moving average 
+        # as it provides additional micro-trend info, or align it with percentage.
+        # Let's align trend with percentage for consistency.
+        if percentage.startswith('+'):
             state.trend = "↑"
-        elif difference < 0:
+        elif percentage.startswith('-'):
             state.trend = "↓"
         else:
             state.trend = ""
-
-        # Calculate color
-        state.color = self._calculate_color(difference, state.average_price)
 
         return state
 
