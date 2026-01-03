@@ -147,13 +147,13 @@ class NotificationService(QObject):
         symbol = pair.split("-")[0]
 
         if alert_type == "price_above":
-            title = f"{symbol} Price Alert"
+            title = f"{symbol} 📈 Crossed Above Target"
             message = f"Price rose above ${target_price:,.2f}\nCurrent: ${current_price:,.2f}"
         elif alert_type == "price_below":
-            title = f"{symbol} Price Alert"
+            title = f"{symbol} 📉 Crossed Below Target"
             message = f"Price fell below ${target_price:,.2f}\nCurrent: ${current_price:,.2f}"
         else:  # price_touch
-            title = f"{symbol} Price Alert"
+            title = f"{symbol} 🎯 Price Touched Target"
             message = f"Price reached ${target_price:,.2f}\nCurrent: ${current_price:,.2f}"
 
         # Schedule usage on the background loop
