@@ -13,6 +13,7 @@ from qfluentwidgets import (
 )
 
 from ui.widgets.setting_cards import ProxySettingCard, PairsSettingCard, ThemeSettingCard
+from ui.widgets.alert_setting_card import AlertSettingCard
 from config.settings import SettingsManager, ProxyConfig
 
 
@@ -98,6 +99,12 @@ class SettingsWindow(QMainWindow):
         self.pairs_card = PairsSettingCard(pairs_group)
         pairs_group.addSettingCard(self.pairs_card)
         content_layout.addWidget(pairs_group)
+
+        # Price alerts group
+        alerts_group = SettingCardGroup("Notifications", content_widget)
+        self.alerts_card = AlertSettingCard(alerts_group)
+        alerts_group.addSettingCard(self.alerts_card)
+        content_layout.addWidget(alerts_group)
 
         # Add stretch to push content to top
         content_layout.addStretch(1)

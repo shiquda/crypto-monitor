@@ -22,12 +22,14 @@ class ConfigVersion(Enum):
     - V1_0_0: Initial version without explicit version field
     - V2_0_0: Added compact_mode configuration and version field
     - V2_1_0: Added WebSocket reconnection settings
+    - V2_2_0: Added price alerts configuration
     - V3_0_0: Future version for multi-source support
     """
 
     V1_0_0 = "1.0.0"
     V2_0_0 = "2.0.0"
     V2_1_0 = "2.1.0"
+    V2_2_0 = "2.2.0"
     V3_0_0 = "3.0.0"
 
     @classmethod
@@ -182,6 +184,39 @@ class MigrationV2ToV21(BaseMigration):
 
         # Update version
         config['version'] = '2.1.0'
+
+        return config
+
+
+class MigrationV21ToV22(BaseMigration):
+    """
+    Migration from V2.1.0 to V2.2.0.
+
+    Changes:
+    - Update version field to 2.2.0
+    - Add alerts configuration (empty list)
+    """
+
+    @property
+    def from_version(self) -> ConfigVersion:
+        return ConfigVersion.V2_1_0
+
+    @property
+    def to_version(self) -> ConfigVersion:
+        return ConfigVersion.V2_2_0
+
+    def validate(self, config: Dict[str, Any]) -> bool:
+        """Validate that this is a V2.1.0 config."""
+        return config.get('version') == '2.1.0'
+
+    def migrate(self, config: Dict[str, Any]) -> Dict[str, Any]:
+        """Perform V2.1.0 → V2.2.0 migration."""
+        # Add alerts configuration (empty list)
+        if 'alerts' not in config:
+            config['alerts'] = []
+
+        # Update version
+        config['version'] = '2.2.0'
 
         return config
 
@@ -366,6 +401,7 @@ class MigrationManager:
         """Register all built-in migration handlers."""
         self.register_migration(MigrationV1ToV2())
         self.register_migration(MigrationV2ToV21())
+        self.register_migration(MigrationV21ToV22())
 
     def register_migration(self, migration: BaseMigration):
         """

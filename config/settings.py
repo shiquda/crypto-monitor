@@ -6,6 +6,8 @@ Enhanced with automatic migration support.
 
 import json
 import os
+import time
+import uuid
 from dataclasses import dataclass, field, asdict
 from typing import Optional, Dict, Any, List
 from pathlib import Path
@@ -58,10 +60,46 @@ class WebSocketConfig:
 
 
 @dataclass
+class PriceAlert:
+    """Price alert configuration."""
+    id: str = ""                           # Unique identifier (UUID)
+    pair: str = ""                         # Trading pair, e.g., "BTC-USDT"
+    alert_type: str = "price_above"        # "price_above" | "price_below" | "price_touch"
+    target_price: float = 0.0              # Target price
+    repeat_mode: str = "once"              # "once" | "repeat"
+    enabled: bool = True                   # Whether the alert is enabled
+    cooldown_seconds: int = 60             # Cooldown time (only for repeat mode)
+    last_triggered: Optional[float] = None # Last triggered timestamp
+    created_at: float = 0.0                # Creation timestamp
+
+    def __post_init__(self):
+        """Initialize default values if not set."""
+        if not self.id:
+            self.id = str(uuid.uuid4())
+        if self.created_at == 0.0:
+            self.created_at = time.time()
+
+    @staticmethod
+    def from_dict(data: Dict[str, Any]) -> 'PriceAlert':
+        """Create PriceAlert from dictionary."""
+        return PriceAlert(
+            id=data.get('id', str(uuid.uuid4())),
+            pair=data.get('pair', ''),
+            alert_type=data.get('alert_type', 'price_above'),
+            target_price=data.get('target_price', 0.0),
+            repeat_mode=data.get('repeat_mode', 'once'),
+            enabled=data.get('enabled', True),
+            cooldown_seconds=data.get('cooldown_seconds', 60),
+            last_triggered=data.get('last_triggered'),
+            created_at=data.get('created_at', time.time())
+        )
+
+
+@dataclass
 class AppSettings:
     """Application settings."""
     # Current version
-    version: str = "2.1.0"
+    version: str = "2.2.0"
 
     # Basic settings
     theme_mode: str = "light"  # "light", "dark", or "auto"
@@ -78,12 +116,15 @@ class AppSettings:
     # V2.1.0 features
     websocket: WebSocketConfig = field(default_factory=WebSocketConfig)
 
+    # V2.2.0 features
+    alerts: List[PriceAlert] = field(default_factory=list)
+
 
 class SettingsManager:
     """Manages application settings persistence with automatic migration support."""
 
     # Current application configuration version
-    CURRENT_VERSION = ConfigVersion.V2_1_0
+    CURRENT_VERSION = ConfigVersion.V2_2_0
 
     def __init__(self, config_dir: Optional[Path] = None):
         if config_dir is None:
@@ -147,6 +188,12 @@ class SettingsManager:
                     websocket_data = {}
                 websocket_config = WebSocketConfig(**websocket_data)
 
+                # Parse alerts config (V2.2.0+)
+                alerts_data = data.pop('alerts', [])
+                if not isinstance(alerts_data, list):
+                    alerts_data = []
+                alerts_list = [PriceAlert.from_dict(a) for a in alerts_data if isinstance(a, dict)]
+
                 # Only keep recognized fields in data
                 recognized_fields = {
                     'version', 'theme_mode', 'opacity', 'crypto_pairs',
@@ -159,6 +206,7 @@ class SettingsManager:
                     proxy=proxy_config,
                     compact_mode=compact_mode_config,
                     websocket=websocket_config,
+                    alerts=alerts_list,
                     **filtered_data
                 )
             except (json.JSONDecodeError, TypeError, KeyError) as e:
@@ -208,6 +256,38 @@ class SettingsManager:
         """Update theme mode."""
         self.settings.theme_mode = theme_mode
         self.save()
+
+    # Alert management methods
+    def add_alert(self, alert: PriceAlert) -> None:
+        """Add a new price alert."""
+        self.settings.alerts.append(alert)
+        self.save()
+
+    def remove_alert(self, alert_id: str) -> bool:
+        """Remove a price alert by ID. Returns True if removed."""
+        for i, alert in enumerate(self.settings.alerts):
+            if alert.id == alert_id:
+                self.settings.alerts.pop(i)
+                self.save()
+                return True
+        return False
+
+    def update_alert(self, alert: PriceAlert) -> bool:
+        """Update an existing alert. Returns True if updated."""
+        for i, existing in enumerate(self.settings.alerts):
+            if existing.id == alert.id:
+                self.settings.alerts[i] = alert
+                self.save()
+                return True
+        return False
+
+    def get_alerts_for_pair(self, pair: str) -> List[PriceAlert]:
+        """Get all alerts for a specific trading pair."""
+        return [a for a in self.settings.alerts if a.pair == pair]
+
+    def get_enabled_alerts(self) -> List[PriceAlert]:
+        """Get all enabled alerts."""
+        return [a for a in self.settings.alerts if a.enabled]
 
     def _apply_proxy_env(self) -> None:
         """Apply proxy settings to environment variables."""
