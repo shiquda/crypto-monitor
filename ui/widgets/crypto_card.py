@@ -4,9 +4,9 @@ Crypto card widget for displaying a single cryptocurrency pair using Fluent Desi
 
 import os
 from typing import Optional
-from PyQt6.QtWidgets import QVBoxLayout, QHBoxLayout, QLabel, QWidget
+from PyQt6.QtWidgets import QVBoxLayout, QHBoxLayout, QLabel, QWidget, QMenu
 from PyQt6.QtCore import Qt, pyqtSignal, QByteArray
-from PyQt6.QtGui import QPixmap, QMouseEvent, QImage
+from PyQt6.QtGui import QPixmap, QMouseEvent, QImage, QAction, QContextMenuEvent
 from PyQt6.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
 from PyQt6.QtCore import QUrl
 from PyQt6.QtSvgWidgets import QSvgWidget
@@ -18,6 +18,8 @@ class CryptoCard(CardWidget):
 
     double_clicked = pyqtSignal(str)  # Emits pair name on double-click
     remove_clicked = pyqtSignal(str)  # Emits pair name when remove button clicked
+    add_alert_requested = pyqtSignal(str)  # Emits pair name when add alert is requested
+    view_alerts_requested = pyqtSignal(str)  # Emits pair name when view alerts is requested
 
     # Icon CDN URL
     ICON_URL_TEMPLATE = "https://cdn.jsdelivr.net/gh/vadimmalykhin/binance-icons/crypto/{symbol}.svg"
@@ -28,6 +30,7 @@ class CryptoCard(CardWidget):
         self._edit_mode = False
         self._icon_retry_count = 0
         self._max_retries = 3
+        self._current_percentage = "0.00%"  # Store current percentage
         self._setup_ui()
         self._load_icon()
 
@@ -203,8 +206,37 @@ class CryptoCard(CardWidget):
         # Set color with font size and weight - 增加字体粗细从 500 到 600
         self.price_label.setStyleSheet(f"font-size: 16px; font-weight: 600; color: {color};")
 
+    def set_connection_state(self, state: str):
+        """Update UI based on connection state."""
+        if state == "connected":
+            # Do nothing, wait for next price update
+            return
+        
+        # Determine color based on current intraday percentage
+        if self._current_percentage.startswith('+'):
+            display_color = "#4CAF50"  # Green
+        elif self._current_percentage.startswith('-'):
+            display_color = "#F44336"  # Red
+        else:
+            display_color = "#FFFFFF"  # White (as requested)
+        
+        # Define styles for states
+        style = f"font-size: 11px; font-weight: 500; color: {display_color};"
+        text = "Connecting..."
+
+        if state == "reconnecting":
+            text = "Reconnecting..."
+        elif state == "disconnected":
+            text = "Disconnected"
+        elif state == "failed":
+            text = "Connection Failed"
+
+        self.price_label.setText(text)
+        self.price_label.setStyleSheet(style)
+
     def update_percentage(self, percentage: str):
         """Update the percentage display."""
+        self._current_percentage = percentage
         self.percentage_label.setText(percentage)
 
         # Set color based on positive/negative
@@ -213,7 +245,7 @@ class CryptoCard(CardWidget):
         elif percentage.startswith('-'):
             self.percentage_label.setStyleSheet("font-size: 11px; color: #F44336;")
         else:
-            self.percentage_label.setStyleSheet("font-size: 11px; color: #666666;")
+            self.percentage_label.setStyleSheet("font-size: 11px; color: #FFFFFF;")
 
     def set_edit_mode(self, enabled: bool):
         """Enable/disable edit mode (shows remove button)."""
@@ -225,3 +257,19 @@ class CryptoCard(CardWidget):
         if event.button() == Qt.MouseButton.LeftButton:
             self.double_clicked.emit(self.pair)
         super().mouseDoubleClickEvent(event)
+
+    def contextMenuEvent(self, event: QContextMenuEvent):
+        """Handle right-click context menu."""
+        menu = QMenu(self)
+
+        # Add alert action
+        add_alert_action = QAction("Add Alert...", self)
+        add_alert_action.triggered.connect(lambda: self.add_alert_requested.emit(self.pair))
+        menu.addAction(add_alert_action)
+
+        # View alerts action
+        view_alerts_action = QAction("View Alerts", self)
+        view_alerts_action.triggered.connect(lambda: self.view_alerts_requested.emit(self.pair))
+        menu.addAction(view_alerts_action)
+
+        menu.exec(event.globalPos())

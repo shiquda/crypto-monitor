@@ -16,10 +16,12 @@ from ui.widgets.toolbar import Toolbar
 from ui.widgets.crypto_card import CryptoCard
 from ui.widgets.pagination import Pagination
 from ui.widgets.add_pair_dialog import AddPairDialog
+from ui.widgets.alert_dialog import AlertDialog
 from ui.settings_window import SettingsWindow
 
 from core.okx_client import OkxClientManager
 from core.price_tracker import PriceTracker
+from core.alert_manager import AlertManager
 from config.settings import get_settings_manager
 
 
@@ -40,6 +42,7 @@ class MainWindow(QMainWindow):
         self._settings_manager = get_settings_manager()
         self._okx_client = OkxClientManager(self)
         self._price_tracker = PriceTracker()
+        self._alert_manager = AlertManager(self)
 
         # Apply theme based on settings
         theme_mode = self._settings_manager.settings.theme_mode
@@ -127,6 +130,7 @@ class MainWindow(QMainWindow):
         # OKX client signals
         self._okx_client.ticker_updated.connect(self._on_ticker_update)
         self._okx_client.connection_status.connect(self._on_connection_status)
+        self._okx_client.connection_state_changed.connect(self._on_connection_state_changed)
 
     def _load_pairs(self):
         """Load pairs from settings and subscribe."""
@@ -166,6 +170,8 @@ class MainWindow(QMainWindow):
                 card = CryptoCard(pair)
                 card.double_clicked.connect(self._on_card_double_click)
                 card.remove_clicked.connect(self._remove_pair)
+                card.add_alert_requested.connect(self._on_add_alert_requested)
+                card.view_alerts_requested.connect(self._on_view_alerts_requested)
                 self._cards[pair] = card
 
             card = self._cards[pair]
@@ -186,9 +192,23 @@ class MainWindow(QMainWindow):
             self._cards[pair].update_price(price, state.trend, state.color)
             self._cards[pair].update_percentage(percentage)
 
+        # Check price alerts
+        self._alert_manager.check_alerts(pair, price)
+
     def _on_connection_status(self, connected: bool, message: str):
         """Handle connection status change."""
         print(f"Connection status: {connected}, {message}")
+
+    def _on_connection_state_changed(self, state: str, message: str, retry_count: int):
+        """
+        Handle detailed connection state change.
+        Updates UI to reflect connecting/reconnecting status.
+        """
+        print(f"Connection state: {state} ({message}) - Retry: {retry_count}")
+        
+        # Update all cards with connection state
+        for card in self._cards.values():
+            card.set_connection_state(state)
 
     def _open_settings(self):
         """Open settings window."""
@@ -251,6 +271,23 @@ class MainWindow(QMainWindow):
         formatted_pair = pair.lower()
         url = f"https://www.okx.com/trade-spot/{formatted_pair}"
         webbrowser.open(url)
+
+    def _on_add_alert_requested(self, pair: str):
+        """Handle add alert request from card context menu."""
+        current_price = self._alert_manager.get_current_price(pair)
+        alert = AlertDialog.create_alert(
+            parent=self,
+            pair=pair,
+            current_price=current_price,
+            available_pairs=self._settings_manager.settings.crypto_pairs
+        )
+        if alert:
+            self._settings_manager.add_alert(alert)
+
+    def _on_view_alerts_requested(self, pair: str):
+        """Handle view alerts request from card context menu."""
+        # Open settings window and focus on alerts
+        self._open_settings()
 
     def _toggle_always_on_top(self, pinned: bool):
         """Toggle always-on-top mode."""
