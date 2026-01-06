@@ -48,5 +48,5 @@ A modern, elegant, and cross-platform cryptocurrency price monitor built with Py
 
 ## Credits
 
-- [QFluentWidgets](https://github.com/zhiyiYo/QFluentWidgets) for the amazing UI components.
+- [QFluentWidgets](https://github.com/zhiyiYo/PyQt-Fluent-Widgets) for the amazing UI components.
 
