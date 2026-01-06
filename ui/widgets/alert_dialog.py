@@ -46,13 +46,16 @@ class AlertDialog(Dialog):
         self._setup_content()
         self._load_edit_values()
 
-        # Set dialog size
-        self.setFixedSize(420, 400)
-        self.setWindowFlags(
-            Qt.WindowType.Dialog |
-            Qt.WindowType.WindowTitleHint |
-            Qt.WindowType.WindowCloseButtonHint
-        )
+        # Set dialog size - Increased height to accommodate new radio buttons
+        self.setFixedSize(420, 520)
+        # Set window flags
+        flags = Qt.WindowType.Dialog | Qt.WindowType.WindowTitleHint | Qt.WindowType.WindowCloseButtonHint
+        
+        # Inherit AlwaysOnTop from parent if present
+        if parent and (parent.windowFlags() & Qt.WindowType.WindowStaysOnTopHint):
+            flags |= Qt.WindowType.WindowStaysOnTopHint
+            
+        self.setWindowFlags(flags)
 
     def _setup_content(self):
         """Setup dialog content."""
@@ -130,7 +133,7 @@ class AlertDialog(Dialog):
 
         self.mode_once = RadioButton("Once (disable after triggered)")
         self.mode_repeat = RadioButton("Repeat (with cooldown)")
-        self.mode_once.setChecked(True)
+        self.mode_repeat.setChecked(True) # Default to Repeat
         self.mode_repeat.toggled.connect(self._on_repeat_toggled)
 
         mode_layout.addWidget(self.mode_once)
@@ -145,7 +148,7 @@ class AlertDialog(Dialog):
         self.cooldown_spin.setValue(60)
         self.cooldown_spin.setSuffix(" sec")
         self.cooldown_spin.setFixedWidth(100)
-        self.cooldown_spin.setEnabled(False)
+        self.cooldown_spin.setEnabled(True) # Enabled by default for Repeat
         repeat_layout.addWidget(self.cooldown_spin)
         repeat_layout.addStretch()
 

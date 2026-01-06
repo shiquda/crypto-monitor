@@ -25,7 +25,10 @@ class AddPairDialog(Dialog):
         self.setFixedSize(400, 200)
 
         # Make sure it's a top-level window
-        self.setWindowFlags(Qt.WindowType.Dialog | Qt.WindowType.WindowTitleHint | Qt.WindowType.WindowCloseButtonHint)
+        flags = Qt.WindowType.Dialog | Qt.WindowType.WindowTitleHint | Qt.WindowType.WindowCloseButtonHint
+        if parent and (parent.windowFlags() & Qt.WindowType.WindowStaysOnTopHint):
+            flags |= Qt.WindowType.WindowStaysOnTopHint
+        self.setWindowFlags(flags)
 
     def _setup_content(self):
         """Setup dialog content with input field."""

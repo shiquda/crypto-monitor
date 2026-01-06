@@ -43,10 +43,10 @@ class SettingsWindow(QMainWindow):
         self.setWindowTitle("Settings")
         self.setMinimumSize(700, 650)
         self.resize(700, 650)
-        self.setWindowFlags(
-            Qt.WindowType.Window |
-            Qt.WindowType.WindowCloseButtonHint
-        )
+        flags = Qt.WindowType.Window | Qt.WindowType.WindowCloseButtonHint
+        if parent and (parent.windowFlags() & Qt.WindowType.WindowStaysOnTopHint):
+            flags |= Qt.WindowType.WindowStaysOnTopHint
+        self.setWindowFlags(flags)
         self.setWindowIcon(QIcon("assets/icons/crypto-monitor.png"))
 
         # Set theme-based background color
