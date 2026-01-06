@@ -152,9 +152,18 @@ class NotificationService(QObject):
         elif alert_type == "price_below":
             title = f"{symbol} 📉 Crossed Below Target"
             message = f"Price fell below ${target_price:,.2f}\nCurrent: ${current_price:,.2f}"
-        else:  # price_touch
+        elif alert_type == "price_touch":
             title = f"{symbol} 🎯 Price Touched Target"
             message = f"Price reached ${target_price:,.2f}\nCurrent: ${current_price:,.2f}"
+        elif alert_type == "price_multiple":
+            title = f"{symbol} 🔢 Price Step Reached"
+            message = f"Price hit multiple of ${target_price:,.0f}\nCurrent: ${current_price:,.2f}"
+        elif alert_type == "price_change_pct":
+            title = f"{symbol} 📊 Percentage Step Reached"
+            message = f"24h Change crossed {target_price:.2f}% step\nCurrent: ${current_price:,.2f}"
+        else:
+            title = f"{symbol} 🔔 Price Alert"
+            message = f"Target: {target_price}\nCurrent: ${current_price:,.2f}"
 
         # Schedule usage on the background loop
         loop = self._worker.get_loop()

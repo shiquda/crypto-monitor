@@ -89,23 +89,33 @@ class AlertDialog(Dialog):
         self.type_above = RadioButton("Price rises above target")
         self.type_below = RadioButton("Price falls below target")
         self.type_touch = RadioButton("Price touches target")
+        self.type_multiple = RadioButton("Price hits multiple of (Step)")
+        self.type_change = RadioButton("24h Change hits multiple of (Step %)")
+        
         self.type_above.setChecked(True)
+        self.type_above.toggled.connect(self._on_type_changed)
+        self.type_below.toggled.connect(self._on_type_changed)
+        self.type_touch.toggled.connect(self._on_type_changed)
+        self.type_multiple.toggled.connect(self._on_type_changed)
+        self.type_change.toggled.connect(self._on_type_changed)
 
         type_layout.addWidget(self.type_above)
         type_layout.addWidget(self.type_below)
         type_layout.addWidget(self.type_touch)
+        type_layout.addWidget(self.type_multiple)
+        type_layout.addWidget(self.type_change)
         content_layout.addWidget(type_container)
 
         # Target price input
         price_layout = QHBoxLayout()
-        price_label = BodyLabel("Target Price:")
-        price_label.setFixedWidth(100)
+        self.price_label = BodyLabel("Target Price:")
+        self.price_label.setFixedWidth(100)
         self.price_input = LineEdit()
         self.price_input.setPlaceholderText("0.00")
         if self._current_price is not None:
             self.price_input.setText(f"{self._current_price:.2f}")
         self.price_input.textChanged.connect(self._validate_input)
-        price_layout.addWidget(price_label)
+        price_layout.addWidget(self.price_label)
         price_layout.addWidget(self.price_input, 1)
         content_layout.addLayout(price_layout)
 
@@ -174,6 +184,10 @@ class AlertDialog(Dialog):
             self.type_above.setChecked(True)
         elif self._edit_alert.alert_type == "price_below":
             self.type_below.setChecked(True)
+        elif self._edit_alert.alert_type == "price_multiple":
+            self.type_multiple.setChecked(True)
+        elif self._edit_alert.alert_type == "price_change_pct":
+            self.type_change.setChecked(True)
         else:
             self.type_touch.setChecked(True)
 
@@ -191,6 +205,21 @@ class AlertDialog(Dialog):
         """Handle repeat mode toggle."""
         self.cooldown_spin.setEnabled(checked)
 
+    def _on_type_changed(self):
+        """Handle alert type change to update UI hints."""
+        if self.type_multiple.isChecked():
+            self.price_label.setText("Step Value:")
+            self.price_input.setPlaceholderText("e.g. 1000")
+            # If input is empty, clear it or set meaningful default? Keep as is.
+        elif self.type_change.isChecked():
+            self.price_label.setText("Step %:")
+            self.price_input.setPlaceholderText("e.g. 2.0")
+        else:
+            self.price_label.setText("Target Price:")
+            self.price_input.setPlaceholderText("0.00")
+            
+        self._validate_input()
+
     def _validate_input(self, text: str = None):
         """Validate the price input."""
         try:
@@ -201,15 +230,17 @@ class AlertDialog(Dialog):
                 return
 
             price = float(price_text.replace(',', ''))
+            
+            # Additional validation logic could go here
             if price <= 0:
-                self.error_label.setText("Price must be greater than 0")
+                self.error_label.setText("Value must be greater than 0")
                 self.error_label.setVisible(True)
                 self.yesButton.setEnabled(False)
             else:
                 self.error_label.setVisible(False)
                 self.yesButton.setEnabled(True)
         except ValueError:
-            self.error_label.setText("Invalid price format")
+            self.error_label.setText("Invalid format")
             self.error_label.setVisible(True)
             self.yesButton.setEnabled(False)
 
@@ -225,6 +256,10 @@ class AlertDialog(Dialog):
                 alert_type = "price_above"
             elif self.type_below.isChecked():
                 alert_type = "price_below"
+            elif self.type_multiple.isChecked():
+                alert_type = "price_multiple"
+            elif self.type_change.isChecked():
+                alert_type = "price_change_pct"
             else:
                 alert_type = "price_touch"
 

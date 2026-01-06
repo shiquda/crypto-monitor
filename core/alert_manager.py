@@ -30,22 +30,32 @@ class AlertManager(QObject):
         self._notification_service = get_notification_service()
         self._current_prices: Dict[str, float] = {}
 
-    def check_alerts(self, pair: str, price_str: str):
+    def check_alerts(self, pair: str, price_str: str, percentage_str: str = "0.00%"):
         """
         Check if any alerts should be triggered for the given price.
 
         Args:
             pair: Trading pair, e.g., "BTC-USDT"
             price_str: Current price as string
+            percentage_str: Current 24h change percentage as string
         """
         try:
             current_price = float(price_str.replace(',', ''))
+            # Parse percentage string (e.g., "+1.23%")
+            percentage_val = float(percentage_str.strip('%').replace('+', ''))
         except (ValueError, AttributeError):
             return
 
         # Store previous price for reference
         previous_price = self._current_prices.get(pair)
         self._current_prices[pair] = current_price
+        
+        # Store previous percentage (we can use a separate dict or just rely on stateless checks if previous is needed)
+        # For this feature, we need previous percentage for "change step" detection
+        if not hasattr(self, '_current_percentages'):
+            self._current_percentages = {}
+        previous_percentage = self._current_percentages.get(pair)
+        self._current_percentages[pair] = percentage_val
 
         # Get enabled alerts for this pair
         alerts = self._settings_manager.get_alerts_for_pair(pair)
@@ -54,19 +64,19 @@ class AlertManager(QObject):
             if not alert.enabled:
                 continue
 
-            if self._should_trigger(alert, current_price):
+            if self._should_trigger(alert, current_price, previous_price, percentage_val, previous_percentage):
                 self._trigger_alert(alert, current_price, previous_price)
 
-    def _should_trigger(self, alert: PriceAlert, current_price: float) -> bool:
+    def _should_trigger(
+        self, 
+        alert: PriceAlert, 
+        current_price: float, 
+        previous_price: Optional[float] = None,
+        current_pct: float = 0.0,
+        previous_pct: Optional[float] = None
+    ) -> bool:
         """
         Check if an alert should be triggered.
-
-        Args:
-            alert: The alert configuration
-            current_price: Current price
-
-        Returns:
-            True if alert should trigger
         """
         # Check cooldown for repeat mode
         if alert.repeat_mode == "repeat" and alert.last_triggered:
@@ -85,17 +95,32 @@ class AlertManager(QObject):
             # Check if price is within tolerance of target
             tolerance = alert.target_price * self.TOUCH_TOLERANCE
             return abs(current_price - alert.target_price) <= tolerance
+            
+        elif alert.alert_type == "price_multiple":
+            if previous_price is None or alert.target_price <= 0:
+                return False
+            # Check if we crossed a multiple of target_price (which acts as step here)
+            # Example: step=1000. Prev=95800, Curr=96100. 
+            # floor(95800/1000) = 95. floor(96100/1000) = 96. Changed -> Trigger.
+            import math
+            step = alert.target_price
+            return math.floor(previous_price / step) != math.floor(current_price / step)
+            
+        elif alert.alert_type == "price_change_pct":
+            if previous_pct is None or alert.target_price <= 0:
+                return False
+            # Check if percentage crossed a multiple of target_price (step)
+            # Example: step=2. Prev=1.9, Curr=2.1.
+            # floor(1.9/2) = 0. floor(2.1/2) = 1. Changed -> Trigger.
+            import math
+            step = alert.target_price
+            return math.floor(previous_pct / step) != math.floor(current_pct / step)
 
         return False
 
     def _trigger_alert(self, alert: PriceAlert, current_price: float, previous_price: Optional[float] = None):
         """
         Trigger an alert notification.
-
-        Args:
-            alert: The alert configuration
-            current_price: Current price that triggered the alert
-            previous_price: Price before update (optional)
         """
         # Determine notification type
         notif_alert_type = alert.alert_type

@@ -193,7 +193,7 @@ class MainWindow(QMainWindow):
             self._cards[pair].update_percentage(percentage)
 
         # Check price alerts
-        self._alert_manager.check_alerts(pair, price)
+        self._alert_manager.check_alerts(pair, price, percentage)
 
     def _on_connection_status(self, connected: bool, message: str):
         """Handle connection status change."""
