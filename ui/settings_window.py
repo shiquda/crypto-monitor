@@ -4,7 +4,7 @@ Refactored to use QFluentWidgets for a modern Fluent Design interface.
 """
 
 from typing import Optional
-from PyQt6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout
+from PyQt6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QIcon
 from qfluentwidgets import (
@@ -59,63 +59,142 @@ class SettingsWindow(QMainWindow):
         central.setStyleSheet(f"QWidget {{ background-color: {bg_color}; }}")
         self.setCentralWidget(central)
 
-        # Main layout
-        main_layout = QVBoxLayout(central)
-        main_layout.setContentsMargins(0, 0, 0, 0)
-        main_layout.setSpacing(0)
+        # Main layout (Horizontal: Sidebar | Content)
+        main_h_layout = QHBoxLayout(central)
+        main_h_layout.setContentsMargins(0, 0, 0, 0)
+        main_h_layout.setSpacing(0)
+
+        # 1. Sidebar
+        sidebar = QWidget()
+        sidebar.setFixedWidth(200)
+        sidebar.setStyleSheet(f"QWidget {{ background-color: {bg_color}; border-right: 1px solid #E0E0E0; }}")
+        if self._theme_mode == "dark":
+             sidebar.setStyleSheet(f"QWidget {{ background-color: {bg_color}; border-right: 1px solid #333333; }}")
+        
+        sidebar_layout = QVBoxLayout(sidebar)
+        sidebar_layout.setContentsMargins(10, 20, 10, 20)
+        sidebar_layout.setSpacing(5)
+
+        # Sidebar Title
+        from qfluentwidgets import TitleLabel, TransparentToolButton, BodyLabel
+        sidebar_title = TitleLabel("Settings")
+        title_color = "black" if self._theme_mode == "light" else "white"
+        sidebar_title.setStyleSheet(f"padding-left: 10px; margin-bottom: 10px; color: {title_color};")
+        sidebar_layout.addWidget(sidebar_title)
+
+        # Custom Navigation Item Widget
+        class NavItem(QWidget):
+            clicked = pyqtSignal()
+            
+            def __init__(self, text, icon, parent=None, is_dark=False):
+                super().__init__(parent)
+                self.is_dark = is_dark
+                self.setFixedHeight(40)
+                self.setCursor(Qt.CursorShape.PointingHandCursor)
+                
+                layout = QHBoxLayout(self)
+                layout.setContentsMargins(10, 0, 10, 0)
+                layout.setSpacing(12)
+                
+                # Icon
+                self.icon_label = QLabel()
+                params = Qt.GlobalColor.white if is_dark else Qt.GlobalColor.black
+                self.icon_label.setPixmap(icon.icon(params).pixmap(16, 16))
+                layout.addWidget(self.icon_label)
+                
+                # Text
+                self.text_label = BodyLabel(text)
+                text_color = "white" if is_dark else "black"
+                self.text_label.setStyleSheet(f"color: {text_color}; background: transparent; border: none;")
+                layout.addWidget(self.text_label)
+                
+                layout.addStretch()
+                
+            def enterEvent(self, event):
+                bg = "rgba(255, 255, 255, 0.1)" if self.is_dark else "rgba(0, 0, 0, 0.05)"
+                self.setStyleSheet(f"background-color: {bg}; border-radius: 5px;")
+                super().enterEvent(event)
+                
+            def leaveEvent(self, event):
+                self.setStyleSheet("background-color: transparent;")
+                super().leaveEvent(event)
+                
+            def mousePressEvent(self, event):
+                if event.button() == Qt.MouseButton.LeftButton:
+                    self.clicked.emit()
+                super().mousePressEvent(event)
+
+        # Navigation Buttons
+        self.nav_btns = []
+        is_dark = self._theme_mode == "dark"
+        
+        def create_nav_btn(text, icon, target_group):
+            btn = NavItem(text, icon, self, is_dark)
+            btn.clicked.connect(lambda: self._scroll_to_group(target_group))
+            sidebar_layout.addWidget(btn)
+            return btn
+
+        # 2. Right Content Area
+        content_container = QWidget()
+        content_layout = QVBoxLayout(content_container)
+        content_layout.setContentsMargins(0, 0, 0, 0)
+        content_layout.setSpacing(0)
 
         # Scroll area for settings content
-        scroll_area = ScrollArea()
-        scroll_area.setWidgetResizable(True)
-        scroll_area.setStyleSheet(f"QScrollArea {{ border: none; background-color: {bg_color}; }}")
+        self.scroll_area = ScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setStyleSheet(f"QScrollArea {{ border: none; background-color: {bg_color}; }}")
 
         # Content widget inside scroll area
         content_widget = QWidget()
         content_widget.setStyleSheet(f"QWidget {{ background-color: {bg_color}; }}")
-        content_layout = QVBoxLayout(content_widget)
-        content_layout.setContentsMargins(30, 30, 30, 30)
-        content_layout.setSpacing(20)
+        scroll_layout = QVBoxLayout(content_widget)
+        scroll_layout.setContentsMargins(30, 30, 30, 30)
+        scroll_layout.setSpacing(20)
 
-        # Title label
-        from qfluentwidgets import TitleLabel
-        title = TitleLabel("Settings")
-        content_layout.addWidget(title)
+        # Title for Content (optional, or kept as page title)
+        # We can remove the "Settings" title from here since it's on the sidebar now
+        # content_title = TitleLabel("Settings")
+        # scroll_layout.addWidget(content_title)
 
         # Appearance settings group
-        appearance_group = SettingCardGroup("Appearance", content_widget)
-        self.theme_card = ThemeSettingCard(appearance_group)
-        appearance_group.addSettingCard(self.theme_card)
-        content_layout.addWidget(appearance_group)
+        self.appearance_group = SettingCardGroup("Appearance", content_widget)
+        self.theme_card = ThemeSettingCard(self.appearance_group)
+        self.appearance_group.addSettingCard(self.theme_card)
+        scroll_layout.addWidget(self.appearance_group)
 
         # Proxy configuration group
-        proxy_group = SettingCardGroup("Network Configuration", content_widget)
-        self.proxy_card = ProxySettingCard(proxy_group)
+        self.proxy_group = SettingCardGroup("Network Configuration", content_widget)
+        self.proxy_card = ProxySettingCard(self.proxy_group)
         self.proxy_card.test_requested.connect(self._test_connection)
-        proxy_group.addSettingCard(self.proxy_card)
-        content_layout.addWidget(proxy_group)
+        self.proxy_group.addSettingCard(self.proxy_card)
+        scroll_layout.addWidget(self.proxy_group)
 
         # Crypto pairs management group
-        pairs_group = SettingCardGroup("Trading Pairs", content_widget)
-        self.pairs_card = PairsSettingCard(pairs_group)
-        pairs_group.addSettingCard(self.pairs_card)
-        content_layout.addWidget(pairs_group)
+        self.pairs_group = SettingCardGroup("Trading Pairs", content_widget)
+        self.pairs_card = PairsSettingCard(self.pairs_group)
+        self.pairs_group.addSettingCard(self.pairs_card)
+        scroll_layout.addWidget(self.pairs_group)
 
         # Price alerts group
-        alerts_group = SettingCardGroup("Notifications", content_widget)
-        self.alerts_card = AlertSettingCard(alerts_group)
-        alerts_group.addSettingCard(self.alerts_card)
-        content_layout.addWidget(alerts_group)
+        self.alerts_group = SettingCardGroup("Notifications", content_widget)
+        self.alerts_card = AlertSettingCard(self.alerts_group)
+        self.alerts_group.addSettingCard(self.alerts_card)
+        scroll_layout.addWidget(self.alerts_group)
 
         # Add stretch to push content to top
-        content_layout.addStretch(1)
+        scroll_layout.addStretch(1)
 
         # Set content widget to scroll area
-        scroll_area.setWidget(content_widget)
-        main_layout.addWidget(scroll_area)
+        self.scroll_area.setWidget(content_widget)
+        content_layout.addWidget(self.scroll_area)
 
         # Bottom button bar
         btn_bar = QWidget()
-        btn_bar.setStyleSheet(f"QWidget {{ background-color: {bg_color}; }}")
+        btn_bar.setStyleSheet(f"QWidget {{ background-color: {bg_color}; border-top: 1px solid #E0E0E0; }}")
+        if self._theme_mode == "dark":
+            btn_bar.setStyleSheet(f"QWidget {{ background-color: {bg_color}; border-top: 1px solid #333333; }}")
+            
         btn_layout = QHBoxLayout(btn_bar)
         btn_layout.setContentsMargins(30, 15, 30, 20)
         btn_layout.setSpacing(10)
@@ -131,7 +210,23 @@ class SettingsWindow(QMainWindow):
         self.save_btn.clicked.connect(self._save_settings)
         btn_layout.addWidget(self.save_btn)
 
-        main_layout.addWidget(btn_bar)
+        content_layout.addWidget(btn_bar)
+
+        # Add Sidebar items now that groups are created
+        create_nav_btn("Appearance", FluentIcon.BRUSH, self.appearance_group)
+        create_nav_btn("Network", FluentIcon.GLOBE, self.proxy_group)
+        create_nav_btn("Trading Pairs", FluentIcon.MARKET, self.pairs_group)
+        create_nav_btn("Notifications", FluentIcon.RINGER, self.alerts_group)
+        
+        sidebar_layout.addStretch(1)
+
+        # Add to main layout
+        main_h_layout.addWidget(sidebar)
+        main_h_layout.addWidget(content_container)
+
+    def _scroll_to_group(self, group_widget):
+        """Scroll to make the group widget visible."""
+        self.scroll_area.ensureWidgetVisible(group_widget)
 
     def _load_settings(self):
         """Load current settings into UI."""

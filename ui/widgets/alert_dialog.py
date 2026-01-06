@@ -57,6 +57,22 @@ class AlertDialog(Dialog):
             
         self.setWindowFlags(flags)
 
+        self._drag_pos = None
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._drag_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        if self._drag_pos is not None and event.buttons() & Qt.MouseButton.LeftButton:
+            self.move(event.globalPosition().toPoint() - self._drag_pos)
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        self._drag_pos = None
+        super().mouseReleaseEvent(event)
+
     def _setup_content(self):
         """Setup dialog content."""
         content_layout = QVBoxLayout()
@@ -77,7 +93,9 @@ class AlertDialog(Dialog):
         # Current price reference
         if self._current_price is not None:
             price_ref = BodyLabel(f"Current price: ${self._current_price:,.2f}")
-            price_ref.setStyleSheet("color: #666666; font-size: 12px;")
+            theme_mode = get_settings_manager().settings.theme_mode
+            ref_color = "#CCCCCC" if theme_mode == "dark" else "#666666"
+            price_ref.setStyleSheet(f"color: {ref_color}; font-size: 12px;")
             content_layout.addWidget(price_ref)
 
         # Alert type selection

@@ -43,6 +43,7 @@ class CryptoCard(CardWidget):
         # Get theme mode for color selection
         from config.settings import get_settings_manager
         theme_mode = get_settings_manager().settings.theme_mode
+        self._theme_mode = theme_mode
 
         # Define colors based on theme
         if theme_mode == "dark":
@@ -218,7 +219,7 @@ class CryptoCard(CardWidget):
         elif self._current_percentage.startswith('-'):
             display_color = "#F44336"  # Red
         else:
-            display_color = "#FFFFFF"  # White (as requested)
+            display_color = "#333333" if self._theme_mode == "light" else "#FFFFFF"
         
         # Define styles for states
         style = f"font-size: 11px; font-weight: 500; color: {display_color};"
@@ -245,7 +246,8 @@ class CryptoCard(CardWidget):
         elif percentage.startswith('-'):
             self.percentage_label.setStyleSheet("font-size: 11px; color: #F44336;")
         else:
-            self.percentage_label.setStyleSheet("font-size: 11px; color: #FFFFFF;")
+            neutral_color = "#333333" if self._theme_mode == "light" else "#FFFFFF"
+            self.percentage_label.setStyleSheet(f"font-size: 11px; color: {neutral_color};")
 
     def set_edit_mode(self, enabled: bool):
         """Enable/disable edit mode (shows remove button)."""
@@ -260,15 +262,16 @@ class CryptoCard(CardWidget):
 
     def contextMenuEvent(self, event: QContextMenuEvent):
         """Handle right-click context menu."""
-        menu = QMenu(self)
+        from qfluentwidgets import RoundMenu, Action
+        menu = RoundMenu(parent=self)
 
         # Add alert action
-        add_alert_action = QAction("Add Alert...", self)
+        add_alert_action = Action(FIF.RINGER, "Add Alert...", self)
         add_alert_action.triggered.connect(lambda: self.add_alert_requested.emit(self.pair))
         menu.addAction(add_alert_action)
 
         # View alerts action
-        view_alerts_action = QAction("View Alerts", self)
+        view_alerts_action = Action(FIF.VIEW, "View Alerts", self)
         view_alerts_action.triggered.connect(lambda: self.view_alerts_requested.emit(self.pair))
         menu.addAction(view_alerts_action)
 

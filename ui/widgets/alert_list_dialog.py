@@ -5,7 +5,7 @@ Dialog for managing alerts for a specific trading pair.
 from typing import List, Optional
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
-    QScrollArea, QFrame
+    QScrollArea, QFrame, QDialog
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 from qfluentwidgets import (
@@ -66,7 +66,9 @@ class AlertItem(CardWidget):
             desc_text += " • Once"
             
         desc_label = BodyLabel(desc_text)
-        desc_label.setStyleSheet("color: #666666; font-size: 12px;")
+        theme_mode = get_settings_manager().settings.theme_mode
+        desc_color = "#CCCCCC" if theme_mode == "dark" else "#666666"
+        desc_label.setStyleSheet(f"color: {desc_color}; font-size: 12px;")
         info_layout.addWidget(desc_label)
         
         layout.addLayout(info_layout, 1)
@@ -123,44 +125,99 @@ class AlertItem(CardWidget):
         return "Alert"
 
 
-class AlertListDialog(Dialog):
+class AlertListDialog(QDialog):
     """Dialog showing list of alerts for a pair."""
 
     def __init__(self, pair: str, parent=None):
-        super().__init__(title=f"Alerts for {pair}", content="", parent=parent)
+        super().__init__(parent)
         self.pair = pair
         self._settings_manager = get_settings_manager()
         self._alert_manager = get_alert_manager()
         
         # Setup window properties
-        self.setFixedWidth(600)
-        self.setMinimumHeight(450)
+        self.setFixedSize(600, 600)
         
-        # Z-order fix
-        flags = Qt.WindowType.Dialog | Qt.WindowType.WindowTitleHint | Qt.WindowType.WindowCloseButtonHint
+        # Frameless window with styling
+        flags = Qt.WindowType.FramelessWindowHint | Qt.WindowType.Dialog
         if parent and (parent.windowFlags() & Qt.WindowType.WindowStaysOnTopHint):
             flags |= Qt.WindowType.WindowStaysOnTopHint
         self.setWindowFlags(flags)
+        
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        
+        self._drag_pos = None
 
-        self._setup_content()
+        self._setup_ui()
         self._load_alerts()
 
-    def _setup_content(self):
-        # We replace the default content layout
-        layout = QVBoxLayout()
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._drag_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        if self._drag_pos is not None and event.buttons() & Qt.MouseButton.LeftButton:
+            self.move(event.globalPosition().toPoint() - self._drag_pos)
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        self._drag_pos = None
+        super().mouseReleaseEvent(event)
+
+    def _setup_ui(self):
+        # Main layout
+        layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(10)
         
-        # Add button bar
-        top_bar = QHBoxLayout()
-        top_bar.addStretch()
+        # Window frame (for background and border)
+        self.window_frame = QWidget()
+        self.window_frame.setObjectName("windowFrame")
         
+        # Theme handling
+        theme_mode = self._settings_manager.settings.theme_mode
+        bg_color = "#202020" if theme_mode == "dark" else "#F9F9F9"
+        text_color = "white" if theme_mode == "dark" else "black"
+        border_color = "#333333" if theme_mode == "dark" else "#E0E0E0"
+        
+        self.window_frame.setStyleSheet(f"""
+            #windowFrame {{
+                background-color: {bg_color};
+                border: 1px solid {border_color};
+                border-radius: 8px;
+            }}
+        """)
+        
+        layout.addWidget(self.window_frame)
+        
+        # Content layout inside frame
+        frame_layout = QVBoxLayout(self.window_frame)
+        frame_layout.setContentsMargins(24, 24, 24, 24)
+        frame_layout.setSpacing(20)
+        
+        # Title bar
+        title_layout = QHBoxLayout()
+        
+        # Title
+        from qfluentwidgets import TitleLabel, TransparentToolButton
+        title_label = TitleLabel(f"Alerts for {self.pair}")
+        title_label.setStyleSheet(f"color: {text_color};")
+        title_layout.addWidget(title_label)
+        
+        title_layout.addStretch()
+        
+        # Add Alert Button
         self.add_btn = PrimaryPushButton(FluentIcon.ADD, "Add Alert")
         self.add_btn.clicked.connect(self._on_add_clicked)
-        top_bar.addWidget(self.add_btn)
+        title_layout.addWidget(self.add_btn)
         
-        layout.addLayout(top_bar)
-
+        # Close Button
+        self.close_btn = TransparentToolButton(FluentIcon.CLOSE)
+        self.close_btn.setFixedSize(32, 32)
+        self.close_btn.clicked.connect(self.accept)
+        title_layout.addWidget(self.close_btn)
+        
+        frame_layout.addLayout(title_layout)
+        
         # Scroll area for alerts
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
@@ -170,17 +227,11 @@ class AlertListDialog(Dialog):
         self.container.setStyleSheet(".QWidget { background: transparent; }")
         self.list_layout = QVBoxLayout(self.container)
         self.list_layout.setSpacing(8)
+        self.list_layout.setContentsMargins(0, 0, 0, 0)
         self.list_layout.addStretch()
         
         self.scroll.setWidget(self.container)
-        layout.addWidget(self.scroll)
-
-        # Replace default text layout content
-        self.textLayout.addLayout(layout)
-        
-        # Hide default buttons (we just need close)
-        self.yesButton.hide()
-        self.cancelButton.setText("Close")
+        frame_layout.addWidget(self.scroll)
 
     def _load_alerts(self):
         """Reload the list of alerts."""
@@ -193,9 +244,14 @@ class AlertListDialog(Dialog):
         alerts = self._settings_manager.get_alerts_for_pair(self.pair)
         
         if not alerts:
+            from qfluentwidgets import BodyLabel
             empty_label = BodyLabel("No alerts set for this pair.")
             empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            empty_label.setStyleSheet("color: #999999; margin-top: 20px;")
+            
+            theme_mode = self._settings_manager.settings.theme_mode
+            empty_color = "#AAAAAA" if theme_mode == "dark" else "#999999"
+            empty_label.setStyleSheet(f"color: {empty_color}; margin-top: 20px;")
+            
             self.list_layout.insertWidget(0, empty_label)
         else:
             for alert in alerts:
@@ -219,6 +275,7 @@ class AlertListDialog(Dialog):
 
     def _on_delete_alert(self, alert_id: str):
         """Handle delete alert."""
+        # Confirm deletion? For now just delete
         if self._settings_manager.remove_alert(alert_id):
             self._load_alerts()
 
