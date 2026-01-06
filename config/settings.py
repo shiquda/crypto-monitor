@@ -377,6 +377,72 @@ class SettingsManager:
         self.save()
         print("✅ Configuration reset to defaults")
 
+    def export_to_file(self, filepath: str) -> None:
+        """Export settings to a specific file."""
+        data = asdict(self.settings)
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+
+    def import_from_file(self, filepath: str) -> None:
+        """Import settings from a specific file."""
+        with open(filepath, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+
+        # Basic validation by trying to load it like normal settings logic
+        # For simplicity, we can temporarily save it to the main config file location and reload,
+        # or parse it manually. Let's reuse the parsing logic in load() by updating self.settings using this data.
+        
+        # We can simulate loading by mocking the file read, but here we'll just replicate the parsing logic
+        # or slightly refactor. For safety and consistency with existing validation/parsing:
+        
+        # Parse proxy config
+        proxy_data = data.pop('proxy', {})
+        if not isinstance(proxy_data, dict):
+            proxy_data = {}
+        proxy_config = ProxyConfig(**proxy_data)
+
+        # Parse compact mode config
+        compact_mode_data = data.pop('compact_mode', {})
+        if not isinstance(compact_mode_data, dict):
+            compact_mode_data = {}
+        compact_mode_config = CompactModeConfig(**compact_mode_data)
+
+        # Parse websocket config
+        websocket_data = data.pop('websocket', {})
+        if not isinstance(websocket_data, dict):
+            websocket_data = {}
+        websocket_config = WebSocketConfig(**websocket_data)
+
+        # Parse alerts config
+        alerts_data = data.pop('alerts', [])
+        if not isinstance(alerts_data, list):
+            alerts_data = []
+        alerts_list = [PriceAlert.from_dict(a) for a in alerts_data if isinstance(a, dict)]
+
+        # Only keep recognized fields
+        recognized_fields = {
+            'version', 'theme_mode', 'opacity', 'crypto_pairs',
+            'window_x', 'window_y', 'always_on_top', 'language'
+        }
+        filtered_data = {k: v for k, v in data.items() if k in recognized_fields}
+
+        # Create new settings object
+        new_settings = AppSettings(
+            proxy=proxy_config,
+            compact_mode=compact_mode_config,
+            websocket=websocket_config,
+            alerts=alerts_list,
+            **filtered_data
+        )
+
+        # Upon successful parse, update current settings and save
+        self.settings = new_settings
+        self.save()
+        
+        # Apply immediate effects if needed (like load_language)
+        load_language(self.settings.language)
+        self._apply_proxy_env()
+
 
 # Global settings instance
 _settings_manager: Optional[SettingsManager] = None

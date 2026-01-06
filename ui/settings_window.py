@@ -4,6 +4,7 @@ Refactored to use QFluentWidgets for a modern Fluent Design interface.
 """
 
 from typing import Optional
+from datetime import datetime
 from PyQt6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QIcon
@@ -42,7 +43,7 @@ class SettingsWindow(QMainWindow):
 
     def _setup_ui(self):
         """Setup the settings window UI with QFluentWidgets."""
-        self.setWindowTitle("Settings")
+        self.setWindowTitle(_("Settings"))
         self.setMinimumSize(700, 650)
         self.resize(700, 650)
         flags = Qt.WindowType.Window | Qt.WindowType.WindowCloseButtonHint
@@ -79,6 +80,8 @@ class SettingsWindow(QMainWindow):
 
         # Sidebar Title
         from qfluentwidgets import TitleLabel, TransparentToolButton, BodyLabel
+        from PyQt6.QtWidgets import QStackedWidget
+
         sidebar_title = TitleLabel(_("Settings"))
         title_color = "black" if self._theme_mode == "light" else "white"
         sidebar_title.setStyleSheet(f"padding-left: 10px; margin-bottom: 10px; color: {title_color};")
@@ -91,6 +94,7 @@ class SettingsWindow(QMainWindow):
             def __init__(self, text, icon, parent=None, is_dark=False):
                 super().__init__(parent)
                 self.is_dark = is_dark
+                self.is_selected = False
                 self.setFixedHeight(40)
                 self.setCursor(Qt.CursorShape.PointingHandCursor)
                 
@@ -112,13 +116,25 @@ class SettingsWindow(QMainWindow):
                 
                 layout.addStretch()
                 
+            def set_selected(self, selected: bool):
+                self.is_selected = selected
+                self._update_style()
+                
+            def _update_style(self):
+                if self.is_selected:
+                    bg = "rgba(255, 255, 255, 0.1)" if self.is_dark else "rgba(0, 0, 0, 0.05)"
+                    self.setStyleSheet(f"background-color: {bg}; border-radius: 5px;")
+                else:
+                    self.setStyleSheet("background-color: transparent;")
+
             def enterEvent(self, event):
-                bg = "rgba(255, 255, 255, 0.1)" if self.is_dark else "rgba(0, 0, 0, 0.05)"
-                self.setStyleSheet(f"background-color: {bg}; border-radius: 5px;")
+                if not self.is_selected:
+                    bg = "rgba(255, 255, 255, 0.05)" if self.is_dark else "rgba(0, 0, 0, 0.03)"
+                    self.setStyleSheet(f"background-color: {bg}; border-radius: 5px;")
                 super().enterEvent(event)
                 
             def leaveEvent(self, event):
-                self.setStyleSheet("background-color: transparent;")
+                self._update_style()
                 super().leaveEvent(event)
                 
             def mousePressEvent(self, event):
@@ -126,77 +142,93 @@ class SettingsWindow(QMainWindow):
                     self.clicked.emit()
                 super().mousePressEvent(event)
 
-        # Navigation Buttons
+        # Navigation Buttons Container to keep track
         self.nav_btns = []
         is_dark = self._theme_mode == "dark"
-        
-        def create_nav_btn(text, icon, target_group):
-            btn = NavItem(text, icon, self, is_dark)
-            btn.clicked.connect(lambda: self._scroll_to_group(target_group))
-            sidebar_layout.addWidget(btn)
-            return btn
 
-        # 2. Right Content Area
+        # 2. Right Content Area (QStackedWidget)
         content_container = QWidget()
         content_layout = QVBoxLayout(content_container)
         content_layout.setContentsMargins(0, 0, 0, 0)
         content_layout.setSpacing(0)
+        
+        self.stack_widget = QStackedWidget()
+        self.stack_widget.setStyleSheet("background: transparent;")
+        
+        # Helper to create pages
+        def create_page(group_widget):
+            page_widget = QWidget()
+            page_layout = QVBoxLayout(page_widget)
+            page_layout.setContentsMargins(30, 30, 30, 30)
+            page_layout.setSpacing(20)
+            
+            # Use ScrollArea for the page content
+            scroll = ScrollArea()
+            scroll.setWidgetResizable(True)
+            scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+            
+            scroll_content = QWidget()
+            scroll_content.setStyleSheet("background: transparent;")
+            scroll_content_layout = QVBoxLayout(scroll_content)
+            scroll_content_layout.setContentsMargins(0, 0, 0, 0)
+            scroll_content_layout.setSpacing(20)
+            
+            scroll_content_layout.addWidget(group_widget)
+            scroll_content_layout.addStretch(1)
+            
+            scroll.setWidget(scroll_content)
+            page_layout.addWidget(scroll)
+            
+            return page_widget
 
-        # Scroll area for settings content
-        self.scroll_area = ScrollArea()
-        self.scroll_area.setWidgetResizable(True)
-        self.scroll_area.setStyleSheet(f"QScrollArea {{ border: none; background-color: {bg_color}; }}")
-
-        # Content widget inside scroll area
-        content_widget = QWidget()
-        content_widget.setStyleSheet(f"QWidget {{ background-color: {bg_color}; }}")
-        scroll_layout = QVBoxLayout(content_widget)
-        scroll_layout.setContentsMargins(30, 30, 30, 30)
-        scroll_layout.setSpacing(20)
-
-        # Title for Content (optional, or kept as page title)
-        # We can remove the "Settings" title from here since it's on the sidebar now
-        # content_title = TitleLabel("Settings")
-        # scroll_layout.addWidget(content_title)
+        # --- Create Setting Groups ---
 
         # Appearance settings group
-        self.appearance_group = SettingCardGroup(_("Appearance"), content_widget)
-        
+        self.appearance_group = SettingCardGroup(_("Appearance"), None)
         self.language_card = LanguageSettingCard(self.appearance_group)
         self.appearance_group.addSettingCard(self.language_card)
-        
         self.theme_card = ThemeSettingCard(self.appearance_group)
         self.appearance_group.addSettingCard(self.theme_card)
         
-        scroll_layout.addWidget(self.appearance_group)
-
         # Proxy configuration group
-        self.proxy_group = SettingCardGroup(_("Network Configuration"), content_widget)
+        self.proxy_group = SettingCardGroup(_("Network Configuration"), None)
         self.proxy_card = ProxySettingCard(self.proxy_group)
         self.proxy_card.test_requested.connect(self._test_connection)
         self.proxy_group.addSettingCard(self.proxy_card)
-        scroll_layout.addWidget(self.proxy_group)
-
+        
         # Crypto pairs management group
-        self.pairs_group = SettingCardGroup(_("Trading Pairs"), content_widget)
+        self.pairs_group = SettingCardGroup(_("Trading Pairs"), None)
         self.pairs_card = PairsSettingCard(self.pairs_group)
         self.pairs_group.addSettingCard(self.pairs_card)
-        scroll_layout.addWidget(self.pairs_group)
-
+        
         # Price alerts group
-        self.alerts_group = SettingCardGroup(_("Notifications"), content_widget)
+        self.alerts_group = SettingCardGroup(_("Notifications"), None)
         self.alerts_card = AlertSettingCard(self.alerts_group)
         self.alerts_group.addSettingCard(self.alerts_card)
-        scroll_layout.addWidget(self.alerts_group)
 
-        # Add stretch to push content to top
-        scroll_layout.addStretch(1)
+        # --- Add pages to stack and buttons to sidebar ---
 
-        # Set content widget to scroll area
-        self.scroll_area.setWidget(content_widget)
-        content_layout.addWidget(self.scroll_area)
+        def add_nav_item(text, icon, group_widget):
+            index = self.stack_widget.count()
+            self.stack_widget.addWidget(create_page(group_widget))
+            
+            btn = NavItem(text, icon, self, is_dark)
+            btn.clicked.connect(lambda: self._switch_view(index))
+            sidebar_layout.addWidget(btn)
+            self.nav_btns.append(btn)
+            return btn
 
-        # Bottom button bar
+        add_nav_item(_("Appearance"), FluentIcon.BRUSH, self.appearance_group)
+        add_nav_item(_("Network"), FluentIcon.GLOBE, self.proxy_group)
+        add_nav_item(_("Trading Pairs"), FluentIcon.MARKET, self.pairs_group)
+        add_nav_item(_("Notifications"), FluentIcon.RINGER, self.alerts_group)
+
+        sidebar_layout.addStretch(1)
+
+        # Add Stack to content layout
+        content_layout.addWidget(self.stack_widget)
+
+        # Bottom button bar (persistent)
         btn_bar = QWidget()
         btn_bar.setStyleSheet(f"QWidget {{ background-color: {bg_color}; border-top: 1px solid #E0E0E0; }}")
         if self._theme_mode == "dark":
@@ -210,6 +242,16 @@ class SettingsWindow(QMainWindow):
         self.reset_btn.clicked.connect(self._reset_settings)
         btn_layout.addWidget(self.reset_btn)
 
+        # Export Button
+        self.export_btn = PushButton(FluentIcon.SHARE, _("Export Config"))
+        self.export_btn.clicked.connect(self._export_settings)
+        btn_layout.addWidget(self.export_btn)
+
+        # Import Button
+        self.import_btn = PushButton(FluentIcon.DOWNLOAD, _("Import Config"))
+        self.import_btn.clicked.connect(self._import_settings)
+        btn_layout.addWidget(self.import_btn)
+
         btn_layout.addStretch()
 
         self.save_btn = PrimaryPushButton(FluentIcon.SAVE, _("Save"))
@@ -219,21 +261,109 @@ class SettingsWindow(QMainWindow):
 
         content_layout.addWidget(btn_bar)
 
-        # Add Sidebar items now that groups are created
-        create_nav_btn(_("Appearance"), FluentIcon.BRUSH, self.appearance_group)
-        create_nav_btn(_("Network"), FluentIcon.GLOBE, self.proxy_group)
-        create_nav_btn(_("Trading Pairs"), FluentIcon.MARKET, self.pairs_group)
-        create_nav_btn(_("Notifications"), FluentIcon.RINGER, self.alerts_group)
-        
-        sidebar_layout.addStretch(1)
-
         # Add to main layout
         main_h_layout.addWidget(sidebar)
         main_h_layout.addWidget(content_container)
 
-    def _scroll_to_group(self, group_widget):
-        """Scroll to make the group widget visible."""
-        self.scroll_area.ensureWidgetVisible(group_widget)
+        # Select first item by default
+        if self.nav_btns:
+            self._switch_view(0)
+
+    def _switch_view(self, index):
+        """Switch the stacked widget view."""
+        self.stack_widget.setCurrentIndex(index)
+        for i, btn in enumerate(self.nav_btns):
+            btn.set_selected(i == index)
+
+    def _export_settings(self):
+        """Export settings to a JSON file."""
+        from PyQt6.QtWidgets import QFileDialog
+        
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        default_filename = f"crypto-monitor_config_{timestamp}.json"
+        
+        filepath, _filter = QFileDialog.getSaveFileName(
+            self,
+            _("Export Configuration"),
+            default_filename,
+            "JSON Files (*.json)"
+        )
+        
+        if filepath:
+            try:
+                self._settings_manager.export_to_file(filepath)
+                InfoBar.success(
+                    title=_("Success"),
+                    content=_("Configuration exported successfully"),
+                    orient=0,
+                    isClosable=True,
+                    position=InfoBarPosition.TOP,
+                    duration=2000,
+                    parent=self
+                )
+            except Exception as e:
+                InfoBar.error(
+                    title=_("Error"),
+                    content=f"{_('Failed to export configuration')}: {str(e)}",
+                    orient=0,
+                    isClosable=True,
+                    position=InfoBarPosition.TOP,
+                    duration=2000,
+                    parent=self
+                )
+
+    def _import_settings(self):
+        """Import settings from a JSON file."""
+        from PyQt6.QtWidgets import QFileDialog, QMessageBox
+        
+        filepath, _filter = QFileDialog.getOpenFileName(
+            self,
+            _("Import Configuration"),
+            "",
+            "JSON Files (*.json)"
+        )
+        
+        if filepath:
+            # Confirm with user
+            reply = QMessageBox.question(
+                self, 
+                _("Confirm Import"), 
+                _("Importing configuration will overwrite your current settings. This requires a restart. Continue?"),
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, 
+                QMessageBox.StandardButton.No
+            )
+            
+            if reply == QMessageBox.StandardButton.Yes:
+                try:
+                    self._settings_manager.import_from_file(filepath)
+                    self._load_settings() # Reload settings into UI
+                    
+                    # Notify and Restart
+                    msg = QMessageBox()
+                    msg.setIcon(QMessageBox.Icon.Information)
+                    msg.setText(_("Configuration imported successfully"))
+                    msg.setInformativeText(_("The application needs to restart to apply all changes."))
+                    msg.setWindowTitle(_("Success"))
+                    msg.setStandardButtons(QMessageBox.StandardButton.Ok)
+                    msg.exec()
+
+                    # Emit changes signals
+                    self.proxy_changed.emit()
+                    self.pairs_changed.emit()
+                    self.theme_changed.emit()
+                    
+                    # For a clean state, better to restart app, but here we just re-applied settings
+                    # and notified the user.
+                except Exception as e:
+                    InfoBar.error(
+                        title=_("Error"),
+                        content=f"{_('Failed to import configuration')}: {str(e)}",
+                        orient=0,
+                        isClosable=True,
+                        position=InfoBarPosition.TOP,
+                        duration=2000,
+                        parent=self
+                    )
 
     def _load_settings(self):
         """Load current settings into UI."""
