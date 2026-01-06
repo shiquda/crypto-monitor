@@ -144,7 +144,7 @@ class AlertDialog(Dialog):
 
         self.cooldown_spin = SpinBox()
         self.cooldown_spin.setRange(10, 3600)
-        self.cooldown_spin.setValue(60)
+        self.cooldown_spin.setValue(300)
         self.cooldown_spin.setSuffix(f" {_('sec')}")
         self.cooldown_spin.setFixedWidth(150)
         self.cooldown_spin.setEnabled(True) # Enabled by default for Repeat
@@ -266,7 +266,7 @@ class AlertDialog(Dialog):
 
             # Determine repeat mode
             repeat_mode = "repeat" if self.mode_repeat.isChecked() else "once"
-            cooldown = self.cooldown_spin.value() if repeat_mode == "repeat" else 60
+            cooldown = self.cooldown_spin.value() if repeat_mode == "repeat" else 300
 
             # Create or update alert
             if self._edit_alert:
