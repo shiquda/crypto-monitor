@@ -17,7 +17,10 @@ from ui.widgets.crypto_card import CryptoCard
 from ui.widgets.pagination import Pagination
 from ui.widgets.add_pair_dialog import AddPairDialog
 from ui.widgets.alert_dialog import AlertDialog
+from ui.widgets.alert_list_dialog import AlertListDialog
 from ui.settings_window import SettingsWindow
+
+
 
 from core.okx_client import OkxClientManager
 from core.price_tracker import PriceTracker
@@ -286,8 +289,9 @@ class MainWindow(QMainWindow):
 
     def _on_view_alerts_requested(self, pair: str):
         """Handle view alerts request from card context menu."""
-        # Open settings window and focus on alerts
-        self._open_settings()
+        # Open alert list dialog for the specific pair
+        dialog = AlertListDialog(pair, parent=self)
+        dialog.exec()
 
     def _toggle_always_on_top(self, pinned: bool):
         """Toggle always-on-top mode."""

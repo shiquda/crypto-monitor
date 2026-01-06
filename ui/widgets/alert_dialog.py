@@ -147,7 +147,7 @@ class AlertDialog(Dialog):
         self.cooldown_spin.setRange(10, 3600)
         self.cooldown_spin.setValue(60)
         self.cooldown_spin.setSuffix(" sec")
-        self.cooldown_spin.setFixedWidth(100)
+        self.cooldown_spin.setFixedWidth(150)
         self.cooldown_spin.setEnabled(True) # Enabled by default for Repeat
         repeat_layout.addWidget(self.cooldown_spin)
         repeat_layout.addStretch()

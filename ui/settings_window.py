@@ -44,7 +44,7 @@ class SettingsWindow(QMainWindow):
         self.setMinimumSize(700, 650)
         self.resize(700, 650)
         flags = Qt.WindowType.Window | Qt.WindowType.WindowCloseButtonHint
-        if parent and (parent.windowFlags() & Qt.WindowType.WindowStaysOnTopHint):
+        if self.parent() and (self.parent().windowFlags() & Qt.WindowType.WindowStaysOnTopHint):
             flags |= Qt.WindowType.WindowStaysOnTopHint
         self.setWindowFlags(flags)
         self.setWindowIcon(QIcon("assets/icons/crypto-monitor.png"))
