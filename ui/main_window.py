@@ -20,8 +20,7 @@ from ui.widgets.alert_dialog import AlertDialog
 from ui.widgets.alert_list_dialog import AlertListDialog
 from ui.settings_window import SettingsWindow
 
-
-
+from core.i18n import _
 from core.okx_client import OkxClientManager
 from core.price_tracker import PriceTracker
 from core.alert_manager import AlertManager
@@ -69,7 +68,11 @@ class MainWindow(QMainWindow):
         # Window size and icon - 降低高度从 360 到 320
         self.setFixedSize(160, 320)
         self.setWindowIcon(QIcon("assets/icons/crypto-monitor.png"))
-        self.setWindowTitle("Crypto Monitor")
+        self.setWindowTitle(_("Crypto Monitor"))
+
+
+        # Move to saved position
+
 
         # Move to saved position
         self.move(

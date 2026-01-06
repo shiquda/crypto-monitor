@@ -13,6 +13,7 @@ from typing import Optional, Dict, Any, List
 from pathlib import Path
 
 from .migration import MigrationManager, ConfigVersion
+from core.i18n import load_language
 
 
 @dataclass
@@ -109,6 +110,7 @@ class AppSettings:
     window_x: int = 100
     window_y: int = 100
     always_on_top: bool = False
+    language: str = "en_US"  # "en_US", "zh_CN", etc.
 
     # V2.0.0 features
     compact_mode: CompactModeConfig = field(default_factory=CompactModeConfig)
@@ -197,7 +199,7 @@ class SettingsManager:
                 # Only keep recognized fields in data
                 recognized_fields = {
                     'version', 'theme_mode', 'opacity', 'crypto_pairs',
-                    'window_x', 'window_y', 'always_on_top'
+                    'window_x', 'window_y', 'always_on_top', 'language'
                 }
                 filtered_data = {k: v for k, v in data.items() if k in recognized_fields}
 
@@ -212,7 +214,11 @@ class SettingsManager:
             except (json.JSONDecodeError, TypeError, KeyError) as e:
                 print(f"Error loading settings: {e}")
                 print("   Resetting to default settings")
+                print("   Resetting to default settings")
                 self.settings = AppSettings()
+
+        # Initialize language loader
+        load_language(self.settings.language)
 
         return self.settings
 
@@ -255,6 +261,12 @@ class SettingsManager:
     def update_theme(self, theme_mode: str) -> None:
         """Update theme mode."""
         self.settings.theme_mode = theme_mode
+        self.save()
+
+    def update_language(self, language: str) -> None:
+        """Update language setting."""
+        self.settings.language = language
+        load_language(language)
         self.save()
 
     # Alert management methods

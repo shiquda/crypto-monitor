@@ -14,6 +14,7 @@ from qfluentwidgets import ListWidget as FluentListWidget
 
 from config.settings import PriceAlert, get_settings_manager
 from .alert_dialog import AlertDialog
+from core.i18n import _
 
 
 class AlertListItem(QWidget):
@@ -52,7 +53,7 @@ class AlertListItem(QWidget):
         info_layout.addWidget(title)
 
         # Details
-        mode_text = "Once" if self.alert.repeat_mode == "once" else f"Repeat ({self.alert.cooldown_seconds}s)"
+        mode_text = _("Once") if self.alert.repeat_mode == "once" else f"{_('Repeat')} ({self.alert.cooldown_seconds}s)"
         details = BodyLabel(f"{type_text} ${self.alert.target_price:,.2f} | {mode_text}")
         details.setStyleSheet("font-size: 11px; color: #666666;")
         info_layout.addWidget(details)
@@ -68,11 +69,15 @@ class AlertListItem(QWidget):
     def _get_type_text(self) -> str:
         """Get human-readable alert type text."""
         if self.alert.alert_type == "price_above":
-            return "Above"
+            return _("Above")
         elif self.alert.alert_type == "price_below":
-            return "Below"
+            return _("Below")
+        elif self.alert.alert_type == "price_multiple":
+            return _("Step")
+        elif self.alert.alert_type == "price_change_pct":
+            return _("Change %")
         else:
-            return "Touch"
+            return _("Touch")
 
 
 class AlertSettingCard(ExpandGroupSettingCard):
@@ -83,8 +88,8 @@ class AlertSettingCard(ExpandGroupSettingCard):
     def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(
             FluentIcon.RINGER,
-            "Price Alerts",
-            "Manage price alerts for trading pairs",
+            _("Price Alerts"),
+            _("Manage price alerts for trading pairs"),
             parent
         )
         self._settings_manager = get_settings_manager()
@@ -112,14 +117,14 @@ class AlertSettingCard(ExpandGroupSettingCard):
         btn_layout = QHBoxLayout()
         btn_layout.setSpacing(10)
 
-        self.add_btn = PrimaryPushButton(FluentIcon.ADD, "Add Alert")
+        self.add_btn = PrimaryPushButton(FluentIcon.ADD, _("Add Alert"))
         self.add_btn.setFixedWidth(120)
         self.add_btn.clicked.connect(self._add_alert)
         btn_layout.addWidget(self.add_btn)
 
         btn_layout.addStretch()
 
-        self.clear_btn = PushButton(FluentIcon.DELETE, "Clear All")
+        self.clear_btn = PushButton(FluentIcon.DELETE, _("Clear All"))
         self.clear_btn.setFixedWidth(100)
         self.clear_btn.clicked.connect(self._clear_all_alerts)
         btn_layout.addWidget(self.clear_btn)

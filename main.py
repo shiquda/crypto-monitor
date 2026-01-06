@@ -23,6 +23,7 @@ def main():
     app.setApplicationVersion("2.0.0")
 
     # Load settings and apply proxy if configured
+    # Load settings (which initializes language loader)
     settings_manager = get_settings_manager()
     if settings_manager.settings.proxy.enabled:
         settings_manager._apply_proxy_env()

@@ -12,6 +12,8 @@ from PyQt6.QtCore import QUrl
 from PyQt6.QtSvgWidgets import QSvgWidget
 from qfluentwidgets import CardWidget, TransparentToolButton, FluentIcon as FIF
 
+from core.i18n import _
+
 
 class CryptoCard(CardWidget):
     """Fluent Design card widget displaying a single crypto pair's information."""
@@ -90,7 +92,7 @@ class CryptoCard(CardWidget):
         layout.addLayout(header_layout)
 
         # Price row
-        self.price_label = QLabel("Loading...")
+        self.price_label = QLabel(_("Loading..."))
         self.price_label.setStyleSheet("font-size: 16px; font-weight: 600;")  # 增加字体粗细从 500 到 600
         self.price_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.price_label)
@@ -223,14 +225,14 @@ class CryptoCard(CardWidget):
         
         # Define styles for states
         style = f"font-size: 11px; font-weight: 500; color: {display_color};"
-        text = "Connecting..."
+        text = _("Connecting...")
 
         if state == "reconnecting":
-            text = "Reconnecting..."
+            text = _("Reconnecting...")
         elif state == "disconnected":
-            text = "Disconnected"
+            text = _("Disconnected")
         elif state == "failed":
-            text = "Connection Failed"
+            text = _("Connection Failed")
 
         self.price_label.setText(text)
         self.price_label.setStyleSheet(style)
@@ -266,12 +268,12 @@ class CryptoCard(CardWidget):
         menu = RoundMenu(parent=self)
 
         # Add alert action
-        add_alert_action = Action(FIF.RINGER, "Add Alert...", self)
+        add_alert_action = Action(FIF.RINGER, _("Add Alert..."), self)
         add_alert_action.triggered.connect(lambda: self.add_alert_requested.emit(self.pair))
         menu.addAction(add_alert_action)
 
         # View alerts action
-        view_alerts_action = Action(FIF.VIEW, "View Alerts", self)
+        view_alerts_action = Action(FIF.VIEW, _("View Alerts"), self)
         view_alerts_action.triggered.connect(lambda: self.view_alerts_requested.emit(self.pair))
         menu.addAction(view_alerts_action)
 

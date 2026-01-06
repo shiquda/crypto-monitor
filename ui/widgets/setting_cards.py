@@ -14,7 +14,9 @@ from qfluentwidgets import (
 
 from .proxy_form import ProxyForm
 from .add_pair_dialog import AddPairDialog
+from .add_pair_dialog import AddPairDialog
 from config.settings import ProxyConfig
+from core.i18n import _
 
 
 class ProxySettingCard(ExpandGroupSettingCard):
@@ -25,8 +27,8 @@ class ProxySettingCard(ExpandGroupSettingCard):
     def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(
             FluentIcon.WIFI,
-            "Proxy Configuration",
-            "Configure network proxy settings for WebSocket connections",
+            _("Proxy Configuration"),
+            _("Configure network proxy settings for WebSocket connections"),
             parent
         )
         # Description text color adapts to theme automatically via QFluentWidgets
@@ -49,10 +51,10 @@ class ProxySettingCard(ExpandGroupSettingCard):
         switch_layout.setContentsMargins(0, 0, 0, 0)
 
         from qfluentwidgets import BodyLabel
-        self.enable_label = BodyLabel("Enable Proxy")
+        self.enable_label = BodyLabel(_("Enable Proxy"))
         self.enable_switch = SwitchButton()
-        self.enable_switch.setOffText("Off")
-        self.enable_switch.setOnText("On")
+        self.enable_switch.setOffText(_("Off"))
+        self.enable_switch.setOnText(_("On"))
         self.enable_switch.checkedChanged.connect(self._on_proxy_enabled_changed)
 
         switch_layout.addWidget(self.enable_label)
@@ -66,7 +68,7 @@ class ProxySettingCard(ExpandGroupSettingCard):
         layout.addWidget(self.proxy_form)
 
         # Test connection button
-        self.test_btn = PrimaryPushButton(FluentIcon.SYNC, "Test Connection")
+        self.test_btn = PrimaryPushButton(FluentIcon.SYNC, _("Test Connection"))
         self.test_btn.setFixedWidth(150)
         self.test_btn.clicked.connect(self._on_test_clicked)
         layout.addWidget(self.test_btn)
@@ -114,7 +116,7 @@ class ProxySettingCard(ExpandGroupSettingCard):
         """Show test connection result using InfoBar."""
         if success:
             InfoBar.success(
-                title="Connection Successful",
+                title=_("Connection Successful"),
                 content=message,
                 orient=0,  # Qt.Horizontal
                 isClosable=True,
@@ -124,7 +126,7 @@ class ProxySettingCard(ExpandGroupSettingCard):
             )
         else:
             InfoBar.error(
-                title="Connection Failed",
+                title=_("Connection Failed"),
                 content=message,
                 orient=0,  # Qt.Horizontal
                 isClosable=True,
@@ -142,8 +144,8 @@ class PairsSettingCard(ExpandGroupSettingCard):
     def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(
             FluentIcon.MARKET,
-            "Crypto Pairs Management",
-            "Add, remove, and reorder cryptocurrency trading pairs",
+            _("Crypto Pairs Management"),
+            _("Add, remove, and reorder cryptocurrency trading pairs"),
             parent
         )
         # Description text color adapts to theme automatically via QFluentWidgets
@@ -174,13 +176,13 @@ class PairsSettingCard(ExpandGroupSettingCard):
         btn_layout.setSpacing(8)
 
         # Add button
-        self.add_btn = PrimaryPushButton(FluentIcon.ADD, "Add")
+        self.add_btn = PrimaryPushButton(FluentIcon.ADD, _("Add"))
         self.add_btn.setFixedWidth(100)
         self.add_btn.clicked.connect(self._add_pair)
         btn_layout.addWidget(self.add_btn)
 
         # Remove button
-        self.remove_btn = PushButton(FluentIcon.DELETE, "Delete")
+        self.remove_btn = PushButton(FluentIcon.DELETE, _("Delete"))
         self.remove_btn.setFixedWidth(100)
         self.remove_btn.setEnabled(False)
         self.remove_btn.clicked.connect(self._remove_pair)
@@ -268,8 +270,8 @@ class ThemeSettingCard(ExpandGroupSettingCard):
     def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(
             FluentIcon.BRUSH,
-            "Theme Settings",
-            "Choose between light and dark theme",
+            _("Theme Settings"),
+            _("Choose between light and dark theme"),
             parent
         )
         # Description text color adapts to theme automatically via QFluentWidgets
@@ -291,9 +293,9 @@ class ThemeSettingCard(ExpandGroupSettingCard):
         theme_layout = QHBoxLayout(theme_container)
         theme_layout.setContentsMargins(0, 0, 0, 0)
 
-        self.theme_label = BodyLabel("Theme Mode")
+        self.theme_label = BodyLabel(_("Theme Mode"))
         self.theme_combo = ComboBox()
-        self.theme_combo.addItems(["Light Theme", "Dark Theme"])
+        self.theme_combo.addItems([_("Light Theme"), _("Dark Theme")])
         self.theme_combo.setPlaceholderText("Select theme")
         self.theme_combo.currentTextChanged.connect(self._on_theme_changed)
 
@@ -304,7 +306,7 @@ class ThemeSettingCard(ExpandGroupSettingCard):
         layout.addWidget(theme_container)
 
         # Info label - color adapts to theme automatically
-        info_label = BodyLabel("Note: Application restart required for theme changes to take effect")
+        info_label = BodyLabel(_("Note: Application restart required for theme changes to take effect"))
         info_label.setStyleSheet("QLabel { font-size: 12px; opacity: 0.6; }")
         layout.addWidget(info_label)
 
@@ -313,17 +315,88 @@ class ThemeSettingCard(ExpandGroupSettingCard):
 
     def _on_theme_changed(self, text: str):
         """Handle theme selection change."""
-        theme_mode = "light" if text == "Light Theme" else "dark"
+        theme_mode = "light" if text == _("Light Theme") else "dark"
         self.theme_changed.emit(theme_mode)
 
     def get_theme_mode(self) -> str:
         """Get current theme mode."""
         text = self.theme_combo.currentText()
-        return "light" if text == "Light Theme" else "dark"
+        return "light" if text == _("Light Theme") else "dark"
 
     def set_theme_mode(self, theme_mode: str):
         """Set theme mode."""
         if theme_mode == "dark":
-            self.theme_combo.setCurrentText("Dark Theme")
+            self.theme_combo.setCurrentText(_("Dark Theme"))
         else:
-            self.theme_combo.setCurrentText("Light Theme")
+            self.theme_combo.setCurrentText(_("Light Theme"))
+
+
+class LanguageSettingCard(ExpandGroupSettingCard):
+    """Expandable setting card for language configuration."""
+
+    language_changed = pyqtSignal(str)  # Emitted when language changes
+
+    def __init__(self, parent: Optional[QWidget] = None):
+        super().__init__(
+            FluentIcon.LANGUAGE,
+            _("Language"),
+            _("Select application language"),
+            parent
+        )
+        self._setup_ui()
+        self.toggleExpand()
+
+    def _setup_ui(self):
+        """Setup the language configuration UI."""
+        container = QWidget()
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(48, 18, 48, 18)
+        layout.setSpacing(16)
+
+        # Language selection
+        lang_container = QWidget()
+        lang_layout = QHBoxLayout(lang_container)
+        lang_layout.setContentsMargins(0, 0, 0, 0)
+
+        from qfluentwidgets import BodyLabel, ComboBox
+        self.lang_label = BodyLabel(_("Interface Language"))
+        self.lang_combo = ComboBox()
+        # Map display names to internal codes
+        self.languages = {
+            "English (US)": "en_US",
+            "Chinese (Simplified)": "zh_CN"
+        }
+        self.lang_combo.addItems(list(self.languages.keys()))
+        self.lang_combo.currentTextChanged.connect(self._on_lang_changed)
+
+        lang_layout.addWidget(self.lang_label)
+        lang_layout.addStretch(1)
+        lang_layout.addWidget(self.lang_combo)
+
+        layout.addWidget(lang_container)
+
+        # Info label
+        info_label = BodyLabel(_("Note: Application restart required for language changes to take effect"))
+        info_label.setStyleSheet("QLabel { font-size: 12px; opacity: 0.6; }")
+        layout.addWidget(info_label)
+
+        self.addGroupWidget(container)
+
+    def _on_lang_changed(self, text: str):
+        """Handle language selection change."""
+        code = self.languages.get(text, "en_US")
+        self.language_changed.emit(code)
+
+    def get_language(self) -> str:
+        """Get current language code."""
+        text = self.lang_combo.currentText()
+        return self.languages.get(text, "en_US")
+
+    def set_language(self, code: str):
+        """Set language."""
+        # Find key for value
+        for name, lang_code in self.languages.items():
+            if lang_code == code:
+                self.lang_combo.setCurrentText(name)
+                return
+        self.lang_combo.setCurrentText("English (US)")

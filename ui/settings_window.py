@@ -12,9 +12,11 @@ from qfluentwidgets import (
     FluentIcon, InfoBar, InfoBarPosition, Theme, setTheme
 )
 
-from ui.widgets.setting_cards import ProxySettingCard, PairsSettingCard, ThemeSettingCard
+from ui.widgets.setting_cards import ProxySettingCard, PairsSettingCard, ThemeSettingCard, LanguageSettingCard
+from ui.widgets.alert_setting_card import AlertSettingCard
 from ui.widgets.alert_setting_card import AlertSettingCard
 from config.settings import SettingsManager, ProxyConfig
+from core.i18n import _
 
 
 class SettingsWindow(QMainWindow):
@@ -77,7 +79,7 @@ class SettingsWindow(QMainWindow):
 
         # Sidebar Title
         from qfluentwidgets import TitleLabel, TransparentToolButton, BodyLabel
-        sidebar_title = TitleLabel("Settings")
+        sidebar_title = TitleLabel(_("Settings"))
         title_color = "black" if self._theme_mode == "light" else "white"
         sidebar_title.setStyleSheet(f"padding-left: 10px; margin-bottom: 10px; color: {title_color};")
         sidebar_layout.addWidget(sidebar_title)
@@ -158,26 +160,31 @@ class SettingsWindow(QMainWindow):
         # scroll_layout.addWidget(content_title)
 
         # Appearance settings group
-        self.appearance_group = SettingCardGroup("Appearance", content_widget)
+        self.appearance_group = SettingCardGroup(_("Appearance"), content_widget)
+        
+        self.language_card = LanguageSettingCard(self.appearance_group)
+        self.appearance_group.addSettingCard(self.language_card)
+        
         self.theme_card = ThemeSettingCard(self.appearance_group)
         self.appearance_group.addSettingCard(self.theme_card)
+        
         scroll_layout.addWidget(self.appearance_group)
 
         # Proxy configuration group
-        self.proxy_group = SettingCardGroup("Network Configuration", content_widget)
+        self.proxy_group = SettingCardGroup(_("Network Configuration"), content_widget)
         self.proxy_card = ProxySettingCard(self.proxy_group)
         self.proxy_card.test_requested.connect(self._test_connection)
         self.proxy_group.addSettingCard(self.proxy_card)
         scroll_layout.addWidget(self.proxy_group)
 
         # Crypto pairs management group
-        self.pairs_group = SettingCardGroup("Trading Pairs", content_widget)
+        self.pairs_group = SettingCardGroup(_("Trading Pairs"), content_widget)
         self.pairs_card = PairsSettingCard(self.pairs_group)
         self.pairs_group.addSettingCard(self.pairs_card)
         scroll_layout.addWidget(self.pairs_group)
 
         # Price alerts group
-        self.alerts_group = SettingCardGroup("Notifications", content_widget)
+        self.alerts_group = SettingCardGroup(_("Notifications"), content_widget)
         self.alerts_card = AlertSettingCard(self.alerts_group)
         self.alerts_group.addSettingCard(self.alerts_card)
         scroll_layout.addWidget(self.alerts_group)
@@ -199,13 +206,13 @@ class SettingsWindow(QMainWindow):
         btn_layout.setContentsMargins(30, 15, 30, 20)
         btn_layout.setSpacing(10)
 
-        self.reset_btn = PushButton(FluentIcon.SYNC, "Reset to Defaults")
+        self.reset_btn = PushButton(FluentIcon.SYNC, _("Reset to Defaults"))
         self.reset_btn.clicked.connect(self._reset_settings)
         btn_layout.addWidget(self.reset_btn)
 
         btn_layout.addStretch()
 
-        self.save_btn = PrimaryPushButton(FluentIcon.SAVE, "Save")
+        self.save_btn = PrimaryPushButton(FluentIcon.SAVE, _("Save"))
         self.save_btn.setFixedWidth(120)
         self.save_btn.clicked.connect(self._save_settings)
         btn_layout.addWidget(self.save_btn)
@@ -213,10 +220,10 @@ class SettingsWindow(QMainWindow):
         content_layout.addWidget(btn_bar)
 
         # Add Sidebar items now that groups are created
-        create_nav_btn("Appearance", FluentIcon.BRUSH, self.appearance_group)
-        create_nav_btn("Network", FluentIcon.GLOBE, self.proxy_group)
-        create_nav_btn("Trading Pairs", FluentIcon.MARKET, self.pairs_group)
-        create_nav_btn("Notifications", FluentIcon.RINGER, self.alerts_group)
+        create_nav_btn(_("Appearance"), FluentIcon.BRUSH, self.appearance_group)
+        create_nav_btn(_("Network"), FluentIcon.GLOBE, self.proxy_group)
+        create_nav_btn(_("Trading Pairs"), FluentIcon.MARKET, self.pairs_group)
+        create_nav_btn(_("Notifications"), FluentIcon.RINGER, self.alerts_group)
         
         sidebar_layout.addStretch(1)
 
@@ -234,6 +241,10 @@ class SettingsWindow(QMainWindow):
         theme_mode = self._settings_manager.settings.theme_mode
         self.theme_card.set_theme_mode(theme_mode)
 
+        # Load language
+        language = self._settings_manager.settings.language
+        self.language_card.set_language(language)
+
         # Load proxy configuration
         proxy = self._settings_manager.settings.proxy
         self.proxy_card.set_proxy_config(proxy)
@@ -244,13 +255,22 @@ class SettingsWindow(QMainWindow):
 
     def _save_settings(self):
         """Save settings."""
+        # ... (checks) ...
         # Check if theme changed
         old_theme = self._settings_manager.settings.theme_mode
         new_theme = self.theme_card.get_theme_mode()
         theme_changed = old_theme != new_theme
 
+        # Check if language changed
+        old_lang = self._settings_manager.settings.language
+        new_lang = self.language_card.get_language()
+        lang_changed = old_lang != new_lang
+
         # Get theme mode from card
         self._settings_manager.update_theme(new_theme)
+        
+        # Get language from card
+        self._settings_manager.update_language(new_lang)
 
         # Get proxy configuration from card
         proxy = self.proxy_card.get_proxy_config()
@@ -260,11 +280,11 @@ class SettingsWindow(QMainWindow):
         pairs = self.pairs_card.get_pairs()
         self._settings_manager.update_pairs(pairs)
 
-        # Show success message with restart hint if theme changed
-        if theme_changed:
+        # Show success message with restart hint if theme or language changed
+        if theme_changed or lang_changed:
             InfoBar.success(
-                title="Settings Saved",
-                content="Please restart the application for theme changes to take effect",
+                title=_("Settings Saved"),
+                content=_("Please restart the application for changes to take effect"),
                 orient=0,  # Qt.Horizontal
                 isClosable=True,
                 position=InfoBarPosition.TOP,
@@ -273,8 +293,8 @@ class SettingsWindow(QMainWindow):
             )
         else:
             InfoBar.success(
-                title="Settings Saved",
-                content="Your settings have been saved successfully",
+                title=_("Settings Saved"),
+                content=_("Your settings have been saved successfully"),
                 orient=0,  # Qt.Horizontal
                 isClosable=True,
                 position=InfoBarPosition.TOP,
@@ -298,8 +318,8 @@ class SettingsWindow(QMainWindow):
 
         # Show info message
         InfoBar.info(
-            title="Settings Reset",
-            content="Settings have been reset to defaults",
+            title=_("Settings Reset"),
+            content=_("Settings have been reset to defaults"),
             orient=0,  # Qt.Horizontal
             isClosable=True,
             position=InfoBarPosition.TOP,
@@ -324,10 +344,10 @@ class SettingsWindow(QMainWindow):
             sock.close()
 
             if result == 0:
-                self.proxy_card.show_test_result(True, "Proxy server is reachable")
+                self.proxy_card.show_test_result(True, _("Proxy server is reachable"))
             else:
-                self.proxy_card.show_test_result(False, f"Connection failed (error code: {result})")
+                self.proxy_card.show_test_result(False, f"{_('Connection failed')} ({_('error code')}: {result})")
         except socket.error as e:
-            self.proxy_card.show_test_result(False, f"Socket error: {str(e)}")
+            self.proxy_card.show_test_result(False, f"{_('Socket error')}: {str(e)}")
         except Exception as e:
-            self.proxy_card.show_test_result(False, f"Unexpected error: {str(e)}")
+            self.proxy_card.show_test_result(False, f"{_('Unexpected error')}: {str(e)}")

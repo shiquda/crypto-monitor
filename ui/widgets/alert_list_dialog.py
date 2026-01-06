@@ -17,14 +17,15 @@ from qfluentwidgets import (
 from config.settings import PriceAlert, get_settings_manager
 from core.alert_manager import get_alert_manager
 from ui.widgets.alert_dialog import AlertDialog
-
+from core.i18n import _
 
 class AlertItem(CardWidget):
     """Widget representing a single alert in the list."""
     
-    deleted = pyqtSignal(str)   # Emits alert_id
-    edited = pyqtSignal(object) # Emits PriceAlert object
-    toggled = pyqtSignal(str, bool) # Emits alert_id, new_state
+    # Define Signals
+    deleted = pyqtSignal(str)   # alert_id
+    edited = pyqtSignal(object) # PriceAlert object
+    toggled = pyqtSignal(str, bool) # alert_id, enabled status
 
     def __init__(self, alert: PriceAlert, parent=None):
         super().__init__(parent)
@@ -49,11 +50,11 @@ class AlertItem(CardWidget):
         
         # Main text (Target)
         if self.alert.alert_type == "price_multiple":
-            target_text = f"Step: ${self.alert.target_price:,.0f}"
+            target_text = f"{_('Step')}: ${self.alert.target_price:,.0f}"
         elif self.alert.alert_type == "price_change_pct":
-            target_text = f"Step: {self.alert.target_price:.2f}%"
+            target_text = f"{_('Step')}: {self.alert.target_price:.2f}%"
         else:
-            target_text = f"Target: ${self.alert.target_price:,.2f}"
+            target_text = f"{_('Target')}: ${self.alert.target_price:,.2f}"
             
         target_label = StrongBodyLabel(target_text)
         info_layout.addWidget(target_label)
@@ -61,9 +62,9 @@ class AlertItem(CardWidget):
         # Sub text (Type description)
         desc_text = self._get_desc_for_type(self.alert.alert_type)
         if self.alert.repeat_mode == "repeat":
-            desc_text += f" • Repeat ({self.alert.cooldown_seconds}s)"
+            desc_text += f" • {_('Repeat')} ({self.alert.cooldown_seconds}s)"
         else:
-            desc_text += " • Once"
+            desc_text += f" • {_('Once')}"
             
         desc_label = BodyLabel(desc_text)
         theme_mode = get_settings_manager().settings.theme_mode
@@ -77,21 +78,21 @@ class AlertItem(CardWidget):
         
         # Edit button
         self.edit_btn = ToolButton(FluentIcon.EDIT)
-        self.edit_btn.setToolTip("Edit Alert")
+        self.edit_btn.setToolTip(_("Edit Alert"))
         self.edit_btn.clicked.connect(lambda: self.edited.emit(self.alert))
         layout.addWidget(self.edit_btn)
 
         # Toggle switch
         self.toggle_switch = SwitchButton()
-        self.toggle_switch.setOnText("On")
-        self.toggle_switch.setOffText("Off")
+        self.toggle_switch.setOnText(_("On"))
+        self.toggle_switch.setOffText(_("Off"))
         self.toggle_switch.setChecked(self.alert.enabled)
         self.toggle_switch.checkedChanged.connect(self._on_toggled)
         layout.addWidget(self.toggle_switch)
 
         # Delete button
         self.delete_btn = ToolButton(FluentIcon.DELETE)
-        self.delete_btn.setToolTip("Delete Alert")
+        self.delete_btn.setToolTip(_("Delete Alert"))
         self.delete_btn.clicked.connect(lambda: self.deleted.emit(self.alert.id))
         layout.addWidget(self.delete_btn)
 
@@ -113,16 +114,16 @@ class AlertItem(CardWidget):
 
     def _get_desc_for_type(self, alert_type: str) -> str:
         if alert_type == "price_above":
-            return "Crosses Above"
+            return _("Crosses Above")
         elif alert_type == "price_below":
-            return "Crosses Below"
+            return _("Crosses Below")
         elif alert_type == "price_touch":
-            return "Touches"
+            return _("Touches")
         elif alert_type == "price_multiple":
-            return "Price Multiple"
+            return _("Price Multiple")
         elif alert_type == "price_change_pct":
-            return "Change Step"
-        return "Alert"
+            return _("Change Step")
+        return _("Alert")
 
 
 class AlertListDialog(QDialog):
@@ -150,19 +151,7 @@ class AlertListDialog(QDialog):
         self._setup_ui()
         self._load_alerts()
 
-    def mousePressEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton:
-            self._drag_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
-        super().mousePressEvent(event)
-
-    def mouseMoveEvent(self, event):
-        if self._drag_pos is not None and event.buttons() & Qt.MouseButton.LeftButton:
-            self.move(event.globalPosition().toPoint() - self._drag_pos)
-        super().mouseMoveEvent(event)
-
-    def mouseReleaseEvent(self, event):
-        self._drag_pos = None
-        super().mouseReleaseEvent(event)
+    # ... mouse events ...
 
     def _setup_ui(self):
         # Main layout
@@ -199,14 +188,14 @@ class AlertListDialog(QDialog):
         
         # Title
         from qfluentwidgets import TitleLabel, TransparentToolButton
-        title_label = TitleLabel(f"Alerts for {self.pair}")
+        title_label = TitleLabel(f"{_('Alerts for')} {self.pair}")
         title_label.setStyleSheet(f"color: {text_color};")
         title_layout.addWidget(title_label)
         
         title_layout.addStretch()
         
         # Add Alert Button
-        self.add_btn = PrimaryPushButton(FluentIcon.ADD, "Add Alert")
+        self.add_btn = PrimaryPushButton(FluentIcon.ADD, _("Add Alert"))
         self.add_btn.clicked.connect(self._on_add_clicked)
         title_layout.addWidget(self.add_btn)
         
@@ -245,7 +234,7 @@ class AlertListDialog(QDialog):
         
         if not alerts:
             from qfluentwidgets import BodyLabel
-            empty_label = BodyLabel("No alerts set for this pair.")
+            empty_label = BodyLabel(_("No alerts set for this pair."))
             empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             
             theme_mode = self._settings_manager.settings.theme_mode

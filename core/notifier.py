@@ -8,6 +8,7 @@ import webbrowser
 import threading
 from typing import Optional
 from PyQt6.QtCore import QObject, pyqtSignal, QThread
+from core.i18n import _
 
 try:
     from desktop_notifier import DesktopNotifier, Urgency, DEFAULT_SOUND
@@ -147,23 +148,23 @@ class NotificationService(QObject):
         symbol = pair.split("-")[0]
 
         if alert_type == "price_above":
-            title = f"{symbol} 📈 Crossed Above Target"
-            message = f"Price rose above ${target_price:,.2f}\nCurrent: ${current_price:,.2f}"
+            title = f"{symbol} 📈 {_('Crossed Above Target')}"
+            message = f"{_('Price rose above')} ${target_price:,.2f}\n{_('Current:')} ${current_price:,.2f}"
         elif alert_type == "price_below":
-            title = f"{symbol} 📉 Crossed Below Target"
-            message = f"Price fell below ${target_price:,.2f}\nCurrent: ${current_price:,.2f}"
+            title = f"{symbol} 📉 {_('Crossed Below Target')}"
+            message = f"{_('Price fell below')} ${target_price:,.2f}\n{_('Current:')} ${current_price:,.2f}"
         elif alert_type == "price_touch":
-            title = f"{symbol} 🎯 Price Touched Target"
-            message = f"Price reached ${target_price:,.2f}\nCurrent: ${current_price:,.2f}"
+            title = f"{symbol} 🎯 {_('Price Touched Target')}"
+            message = f"{_('Price reached')} ${target_price:,.2f}\n{_('Current:')} ${current_price:,.2f}"
         elif alert_type == "price_multiple":
-            title = f"{symbol} 🔢 Price Step Reached"
-            message = f"Price hit multiple of ${target_price:,.0f}\nCurrent: ${current_price:,.2f}"
+            title = f"{symbol} 🔢 {_('Price Step Reached')}"
+            message = f"{_('Price hit multiple of')} ${target_price:,.0f}\n{_('Current:')} ${current_price:,.2f}"
         elif alert_type == "price_change_pct":
-            title = f"{symbol} 📊 Percentage Step Reached"
-            message = f"24h Change crossed {target_price:.2f}% step\nCurrent: ${current_price:,.2f}"
+            title = f"{symbol} 📊 {_('Percentage Step Reached')}"
+            message = f"{_('24h Change crossed')} {target_price:.2f}% {_('step')}\n{_('Current:')} ${current_price:,.2f}"
         else:
-            title = f"{symbol} 🔔 Price Alert"
-            message = f"Target: {target_price}\nCurrent: ${current_price:,.2f}"
+            title = f"{symbol} 🔔 {_('Price Alert')}"
+            message = f"{_('Target:')} {target_price}\n{_('Current:')} ${current_price:,.2f}"
 
         # Schedule usage on the background loop
         loop = self._worker.get_loop()
@@ -188,8 +189,8 @@ class NotificationService(QObject):
         if loop and loop.is_running():
             asyncio.run_coroutine_threadsafe(
                 self._send_notification_task(
-                    title="Crypto Monitor",
-                    message="Notifications are working!",
+                    title=_("Crypto Monitor"),
+                    message=_("Notifications are working!"),
                     pair="BTC-USDT"
                 ),
                 loop

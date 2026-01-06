@@ -9,12 +9,14 @@ from PyQt6.QtCore import Qt
 from qfluentwidgets import Dialog, LineEdit
 
 
+from core.i18n import _
+
 class AddPairDialog(Dialog):
     """Fluent Design dialog for adding a new cryptocurrency trading pair."""
 
     def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(
-            title="Add Trading Pair",
+            title=_("Add Trading Pair"),
             content="",
             parent=parent
         )
@@ -32,19 +34,7 @@ class AddPairDialog(Dialog):
 
         self._drag_pos = None
 
-    def mousePressEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton:
-            self._drag_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
-        super().mousePressEvent(event)
-
-    def mouseMoveEvent(self, event):
-        if self._drag_pos is not None and event.buttons() & Qt.MouseButton.LeftButton:
-            self.move(event.globalPosition().toPoint() - self._drag_pos)
-        super().mouseMoveEvent(event)
-
-    def mouseReleaseEvent(self, event):
-        self._drag_pos = None
-        super().mouseReleaseEvent(event)
+    # ... mouse events ...
 
     def _setup_content(self):
         """Setup dialog content with input field."""
@@ -53,7 +43,7 @@ class AddPairDialog(Dialog):
         content_layout.setSpacing(12)
 
         # Label
-        label = QLabel("Enter trading pair (e.g., BTC-USDT):")
+        label = QLabel(_("Enter trading pair (e.g., BTC-USDT):"))
         label.setStyleSheet("font-size: 14px;")
         content_layout.addWidget(label)
 
@@ -75,9 +65,9 @@ class AddPairDialog(Dialog):
         self.textLayout.addLayout(content_layout)
 
         # Customize the built-in buttons
-        self.yesButton.setText("Add")
+        self.yesButton.setText(_("Add"))
         self.yesButton.setEnabled(False)
-        self.cancelButton.setText("Cancel")
+        self.cancelButton.setText(_("Cancel"))
 
         # Connect the built-in yes button
         self.yesButton.clicked.connect(self._on_confirm)
@@ -96,7 +86,7 @@ class AddPairDialog(Dialog):
             self.error_label.setVisible(False)
             self.yesButton.setEnabled(True)
         else:
-            self.error_label.setText("Invalid format. Use: SYMBOL-SYMBOL")
+            self.error_label.setText(_("Invalid format. Use: SYMBOL-SYMBOL"))
             self.error_label.setVisible(True)
             self.yesButton.setEnabled(False)
 

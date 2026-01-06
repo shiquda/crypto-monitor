@@ -10,6 +10,8 @@ from PyQt6.QtWidgets import QWidget
 from .fields import LabeledComboBox, LabeledLineEdit, LabeledSpinBox
 
 
+from core.i18n import _
+
 class ProxyForm(QWidget):
     """Reusable proxy configuration form widget."""
 
@@ -29,11 +31,11 @@ class ProxyForm(QWidget):
         layout.setSpacing(16)
 
         # 创建字段
-        self.proxy_type_field = LabeledComboBox("Proxy Type", ["HTTP", "SOCKS5"], min_width=180)
-        self.proxy_host_field = LabeledLineEdit("Host", "127.0.0.1", min_width=300)
-        self.proxy_port_field = LabeledSpinBox("Port", 1, 65535, 7890, min_width=180)
-        self.proxy_username_field = LabeledLineEdit("Username", "(optional)", min_width=300)
-        self.proxy_password_field = LabeledLineEdit("Password", "(optional)", is_password=True, min_width=300)
+        self.proxy_type_field = LabeledComboBox(_("Proxy Type"), ["HTTP", "SOCKS5"], min_width=180)
+        self.proxy_host_field = LabeledLineEdit(_("Host"), "127.0.0.1", min_width=300)
+        self.proxy_port_field = LabeledSpinBox(_("Port"), 1, 65535, 7890, min_width=180)
+        self.proxy_username_field = LabeledLineEdit(_("Username"), _("(optional)"), min_width=300)
+        self.proxy_password_field = LabeledLineEdit(_("Password"), _("(optional)"), is_password=True, min_width=300)
 
         # QFluentWidgets 组件已经有默认样式，不需要额外设置
 
