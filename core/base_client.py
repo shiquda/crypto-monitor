@@ -40,6 +40,15 @@ class BaseExchangeClient(QObject):
         """Get connection statistics."""
         pass
 
+    @abstractmethod
+    def fetch_klines(self, pair: str, interval: str, limit: int) -> List[Dict]:
+        """
+        Fetch historical kline/candlestick data.
+        Returns a list of dicts with at least:
+        timestamp (ms), open, high, low, close, volume
+        """
+        pass
+
     @property
     @abstractmethod
     def is_connected(self) -> bool:

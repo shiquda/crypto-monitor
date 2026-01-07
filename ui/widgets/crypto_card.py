@@ -46,6 +46,12 @@ class CryptoCard(CardWidget):
             "quote_volume": "0"
         }
         
+        # Chart data cache
+        # {timestamp: float, data: list}
+        self._chart_cache = {}
+        self._chart_cache_ttl = 300 # 5 minutes
+
+        
         self._setup_ui()
         self._load_icon()
         
@@ -80,6 +86,13 @@ class CryptoCard(CardWidget):
 
     def enterEvent(self, event):
         """Show hover card on mouse enter."""
+        from config.settings import get_settings_manager
+        settings = get_settings_manager().settings
+        if not settings.hover_enabled:
+            super().enterEvent(event)
+            return
+
+        self.hover_card.set_visibility(settings.hover_show_stats, settings.hover_show_chart)
         self._update_hover_card()
         
         # Position the card relative to this widget
@@ -100,6 +113,10 @@ class CryptoCard(CardWidget):
         
         self.hover_card.move(x, y)
         self.hover_card.show()
+        
+        # Trigger chart data fetch
+        self._fetch_history_data()
+        
         super().enterEvent(event)
 
     def leaveEvent(self, event):
@@ -438,3 +455,165 @@ class CryptoCard(CardWidget):
         menu.addAction(remove_action)
 
         menu.exec(event.globalPos())
+
+    def _fetch_history_data(self):
+        """Fetch historical k-line data in background."""
+        import time
+        from PyQt6.QtCore import QThread, pyqtSignal
+        
+        # Check cache
+        now = time.time()
+        from config.settings import get_settings_manager
+        current_period = get_settings_manager().settings.kline_period.upper()
+
+        if self._chart_cache:
+            # Check TTL and if period matches
+            cached_period = self._chart_cache.get("period", "24H") 
+            if (now - self._chart_cache.get("timestamp", 0) < self._chart_cache_ttl) and (cached_period == current_period):
+                # Cache hit
+                data = self._chart_cache.get("data", [])
+                if data:
+                     self.hover_card.update_chart(data, current_period)
+                     return
+
+        # Cache miss or expired
+        self.hover_card.set_chart_loading()
+        
+        # Get client from main window (a bit hacky, but standard way in this app structure)
+        # We need access to the active exchange client.
+        # This widget is created by MainWindow -> FlowLayout
+        # Ideally, we should pass the client or have a global accessor.
+        # For now, let's use the settings to determine which client to recreate purely for fetching,
+        # OR better, if we can access the single instance.
+        
+        # Since we are inside a widget, acquiring the main window instance is tricky without passing it.
+        # However, we can create a temporary client instance just for REST call, 
+        # OR we rely on the fact that we are just doing a REST call which is stateless mostly.
+        
+        if getattr(self, '_kline_worker', None) and self._kline_worker.isRunning():
+            return
+
+        from config.settings import get_settings_manager
+        settings = get_settings_manager().settings
+        
+        if not settings.hover_show_chart:
+            # Clear any existing chart? Or just don't fetch new info.
+            # If we don't fetch, we should probably hide the chart in the UI.
+            # The HoverCard update logic should handle visibility, 
+            # but we can save resources by not fetching.
+            return
+
+        exchange = settings.data_source
+        
+        # Define a worker thread class locally or use a generic one
+        class KlineWorker(QThread):
+            data_ready = pyqtSignal(list, str) # data, error_msg
+            
+            def __init__(self, exchange_name, pair):
+                super().__init__()
+                self.exchange_name = exchange_name
+                self.pair = pair
+                
+            def run(self):
+                try:
+                    # Determine interval and limit based on settings
+                    period_setting = settings.kline_period # "1h", "4h", "12h", "24h", "7d"
+                    
+                    # Default (24h)
+                    interval = "30m"
+                    limit = 48
+                    
+                    if period_setting == "1h":
+                        interval = "1m"
+                        limit = 60
+                    elif period_setting == "4h":
+                        interval = "5m"
+                        limit = 48
+                    elif period_setting == "12h":
+                        interval = "15m"
+                        limit = 48
+                    elif period_setting == "24h":
+                        interval = "30m"
+                        limit = 48
+                    elif period_setting == "7d":
+                        interval = "4h"
+                        limit = 42
+                    
+                    # Normalize exchange name to lowercase for comparison
+                    exchange_lower = self.exchange_name.lower()
+                    
+                    klines = []
+                    
+                    if exchange_lower == "binance":
+                        from core.binance_client import BinanceClient
+                        try:
+                            client = BinanceClient(None)
+                            klines = client.fetch_klines(self.pair, interval, limit)
+                            # Verify result
+                            if not klines:
+                                self.data_ready.emit([], "Empty response from Binance")
+                                client.deleteLater()
+                                return
+                            client.deleteLater()
+                        except Exception as e:
+                            self.data_ready.emit([], f"Binance Client Error: {str(e)}")
+                            return
+                        
+                    elif exchange_lower == "okx":
+                        from core.okx_client import OkxClientManager
+                        try:
+                            client = OkxClientManager(None)
+                            klines = client.fetch_klines(self.pair, interval, limit)
+                            if not klines:
+                                self.data_ready.emit([], "Empty response from OKX")
+                                client.deleteLater()
+                                return
+                            client.deleteLater()
+                        except Exception as e:
+                            self.data_ready.emit([], f"OKX Client Error: {str(e)}")
+                            return
+                    
+                    # Extract close prices for sparkline
+                    closes = [k["close"] for k in klines]
+                    self.data_ready.emit(closes, "")
+                    
+                except Exception as e:
+                    print(f"Error fetching klines: {e}")
+                    self.data_ready.emit([], str(e))
+
+        self._kline_worker = KlineWorker(exchange, self.pair)
+        self._kline_worker.data_ready.connect(self._on_kline_data_ready)
+        self._kline_worker.start()
+
+    def _on_kline_data_ready(self, data: list, error: str):
+        """Handle kline data ready."""
+        import time
+        from config.settings import get_settings_manager
+        period = get_settings_manager().settings.kline_period.upper()
+        
+        # Identify the worker that emitted this signal
+        sender_worker = self.sender()
+        
+        if data and not error:
+            # Update cache
+            self._chart_cache = {
+                "timestamp": time.time(),
+                "data": data,
+                "period": period # Cache period too, if settings change we shouldn't use old cache ideally?
+            }
+            # Update UI
+            # Verify hover card is still visible before updating to avoid weird states
+            if self.hover_card.isVisible():
+                 self.hover_card.update_chart(data, period)
+        else:
+            # Handle error/empty
+             if self.hover_card.isVisible():
+                self.hover_card.update_chart([], period, error)
+        
+        # Clean up the specific worker that finished
+        if sender_worker:
+            sender_worker.deleteLater()
+            
+        # If this was the current active worker, clear the reference
+        if getattr(self, '_kline_worker', None) == sender_worker:
+            self._kline_worker = None

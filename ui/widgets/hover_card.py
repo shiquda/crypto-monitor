@@ -1,6 +1,8 @@
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QGraphicsDropShadowEffect
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QGraphicsDropShadowEffect, QStackedWidget
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor
+
+from ui.widgets.mini_chart import MiniChart
 
 from core.i18n import _
 
@@ -51,6 +53,22 @@ class HoverCard(QWidget):
         self.content_layout.addWidget(self.amplitude_label)
         self.content_layout.addWidget(self.vol_label)
 
+        # Chart Section
+        self.chart_container = QStackedWidget()
+        self.chart_container.setFixedHeight(60)
+        
+        # 1. Loading state
+        self.loading_label = QLabel(_("Loading Chart..."))
+        self.loading_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.loading_label.setStyleSheet("color: #888888; font-size: 10px;")
+        self.chart_container.addWidget(self.loading_label)
+        
+        # 2. Chart widget
+        self.mini_chart = MiniChart()
+        self.chart_container.addWidget(self.mini_chart)
+        
+        self.content_layout.addWidget(self.chart_container)
+
         # Shadow effect
         shadow = QGraphicsDropShadowEffect(self)
         shadow.setBlurRadius(15)
@@ -73,6 +91,41 @@ class HoverCard(QWidget):
         self.vol_label.setText(f"<b>{_('24h Vol')}:</b> {self._format_volume(volume)} {quote_currency}")
         
         # Adjust size to fit content
+        # Adjust size to fit content
+        self.adjustSize()
+
+    def update_chart(self, data: list[float], period: str = "24H", error: str = None):
+        """Update the mini chart with historical data."""
+        if error:
+            self.chart_container.setCurrentWidget(self.loading_label)
+            self.loading_label.setText(f"Error: {error}")
+            self.loading_label.setToolTip(error) # Show full error on hover
+            return
+
+        if not data:
+            self.chart_container.setCurrentWidget(self.loading_label)
+            self.loading_label.setText(_("No Data"))
+            return
+            
+        self.mini_chart.set_data(data, period)
+        self.chart_container.setCurrentWidget(self.mini_chart)
+
+    def set_chart_loading(self):
+        """Show loading state for chart."""
+        self.chart_container.setCurrentWidget(self.loading_label)
+        self.loading_label.setText(_("Loading Chart..."))
+
+    def set_visibility(self, show_stats: bool, show_chart: bool):
+        """Set visibility of components."""
+        # Stats labels
+        stats_widgets = [self.high_label, self.low_label, self.vol_label, self.amplitude_label]
+        for w in stats_widgets:
+             w.setVisible(show_stats)
+             
+        # Chart
+        self.chart_container.setVisible(show_chart)
+        
+        # Adjust size immediately
         self.adjustSize()
 
     def update_theme(self, theme_mode: str):

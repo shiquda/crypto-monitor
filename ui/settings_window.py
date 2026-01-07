@@ -15,7 +15,10 @@ from qfluentwidgets import (
     PrimaryPushSettingCard
 )
 
-from ui.widgets.setting_cards import ProxySettingCard, PairsSettingCard, ThemeSettingCard, LanguageSettingCard, DisplaySettingCard
+from ui.widgets.setting_cards import (
+    ProxySettingCard, PairsSettingCard, ThemeSettingCard, 
+    LanguageSettingCard, DisplaySettingCard, HoverSettingCard
+)
 from ui.widgets.alert_setting_card import AlertSettingCard
 from ui.widgets.data_source_setting_card import DataSourceSettingCard
 from config.settings import SettingsManager, ProxyConfig
@@ -198,6 +201,11 @@ class SettingsWindow(QMainWindow):
         self.appearance_group.addSettingCard(self.language_card)
         self.theme_card = ThemeSettingCard(self.appearance_group)
         self.appearance_group.addSettingCard(self.theme_card)
+        
+        # Hover Card Settings (Placed here as requested)
+        self.hover_card = HoverSettingCard(self.appearance_group)
+        self.appearance_group.addSettingCard(self.hover_card)
+        self.hover_card.period_changed.connect(lambda p: self.display_changed.emit())
         
         # Display Settings
         self.display_card = DisplaySettingCard(self.appearance_group)
@@ -430,6 +438,15 @@ class SettingsWindow(QMainWindow):
         dynamic_bg = self._settings_manager.settings.dynamic_background
         self.display_card.set_dynamic_background(dynamic_bg)
         
+        # Load hover settings (including kline period)
+        settings = self._settings_manager.settings
+        self.hover_card.set_values(
+            settings.hover_enabled,
+            settings.hover_show_stats,
+            settings.hover_show_chart,
+            settings.kline_period
+        )
+        
         # Load data source
         source = self._settings_manager.settings.data_source
         self.data_source_card.set_data_source(source)
@@ -481,6 +498,15 @@ class SettingsWindow(QMainWindow):
         
         # Update dynamic background
         self._settings_manager.update_dynamic_background(new_dynamic_bg)
+        
+        # Update hover settings
+        hover_values = self.hover_card.get_values()
+        self._settings_manager.update_hover_settings(
+            hover_values['enabled'],
+            hover_values['show_stats'],
+            hover_values['show_chart']
+        )
+        self._settings_manager.update_kline_period(hover_values['period'])
         
         # Update data source
         self._settings_manager.update_data_source(new_source)

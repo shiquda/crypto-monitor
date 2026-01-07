@@ -406,6 +406,7 @@ class DisplaySettingCard(ExpandGroupSettingCard):
 
     color_schema_changed = pyqtSignal(str)  # Emitted when color schema changes
     dynamic_bg_changed = pyqtSignal(bool)   # Emitted when dynamic background setting changes
+    period_changed = pyqtSignal(str)        # Emitted when kline period changes
 
     def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(
@@ -498,3 +499,144 @@ class DisplaySettingCard(ExpandGroupSettingCard):
     def get_dynamic_background(self) -> bool:
         """Get current dynamic background state."""
         return self.bg_switch.isChecked()
+
+
+class HoverSettingCard(ExpandGroupSettingCard):
+    """Expandable setting card for hover card configuration."""
+
+    hover_settings_changed = pyqtSignal(bool, bool, bool) # enabled, stats, chart
+    period_changed = pyqtSignal(str)
+
+    def __init__(self, parent: Optional[QWidget] = None):
+        super().__init__(
+            FluentIcon.VIEW, # Used VIEW icon
+            _("Hover Card"),
+            _("Configure the floating information card"),
+            parent
+        )
+        self._setup_ui()
+        self.toggleExpand()
+
+    def _setup_ui(self):
+        """Setup the hover settings UI."""
+        container = QWidget()
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(48, 18, 48, 18)
+        layout.setSpacing(16)
+
+        from qfluentwidgets import BodyLabel, SwitchButton, ComboBox
+
+        # 1. Master Toggle
+        master_container = QWidget()
+        master_layout = QHBoxLayout(master_container)
+        master_layout.setContentsMargins(0, 0, 0, 0)
+        
+        self.master_label = BodyLabel(_("Enable Hover Card"))
+        self.master_switch = SwitchButton()
+        self.master_switch.setOffText(_("Off"))
+        self.master_switch.setOnText(_("On"))
+        self.master_switch.checkedChanged.connect(self._on_settings_changed)
+        
+        master_layout.addWidget(self.master_label)
+        master_layout.addStretch(1)
+        master_layout.addWidget(self.master_switch)
+        
+        layout.addWidget(master_container)
+        
+        # Sub-settings container (indented or just list)
+        self.sub_settings_widget = QWidget()
+        sub_layout = QVBoxLayout(self.sub_settings_widget)
+        sub_layout.setContentsMargins(0, 0, 0, 0)
+        sub_layout.setSpacing(16)
+        
+        # 2. Show Statistics
+        stats_container = QWidget()
+        stats_layout = QHBoxLayout(stats_container)
+        stats_layout.setContentsMargins(0, 0, 0, 0)
+        
+        self.stats_label = BodyLabel(_("Show Statistics"))
+        self.stats_switch = SwitchButton()
+        self.stats_switch.setOnText(_("On"))
+        self.stats_switch.setOffText(_("Off"))
+        self.stats_switch.checkedChanged.connect(self._on_settings_changed)
+        
+        stats_layout.addWidget(self.stats_label)
+        stats_layout.addStretch(1)
+        stats_layout.addWidget(self.stats_switch)
+        
+        sub_layout.addWidget(stats_container)
+        
+        # 3. Show Mini Chart
+        chart_container = QWidget()
+        chart_layout = QHBoxLayout(chart_container)
+        chart_layout.setContentsMargins(0, 0, 0, 0)
+        
+        self.chart_label = BodyLabel(_("Show Mini Chart"))
+        self.chart_switch = SwitchButton()
+        self.chart_switch.setOnText(_("On"))
+        self.chart_switch.setOffText(_("Off"))
+        self.chart_switch.checkedChanged.connect(self._on_chart_switch_changed)
+        
+        chart_layout.addWidget(self.chart_label)
+        chart_layout.addStretch(1)
+        chart_layout.addWidget(self.chart_switch)
+        
+        sub_layout.addWidget(chart_container)
+        
+        # 4. Mini Chart Range (Moved from DisplaySettingCard)
+        self.period_container = QWidget()
+        period_layout = QHBoxLayout(self.period_container)
+        period_layout.setContentsMargins(0, 0, 0, 0)
+        
+        self.period_label = BodyLabel(_("Mini Chart Range"))
+        self.period_combo = ComboBox()
+        self.period_combo.addItems(["1h", "4h", "12h", "24h", "7d"])
+        self.period_combo.currentTextChanged.connect(self._on_period_changed)
+        
+        period_layout.addWidget(self.period_label)
+        period_layout.addStretch(1)
+        period_layout.addWidget(self.period_combo)
+        
+        sub_layout.addWidget(self.period_container)
+        
+        layout.addWidget(self.sub_settings_widget)
+        
+        self.addGroupWidget(container)
+
+    def _on_settings_changed(self):
+        """Handle toggle changes."""
+        enabled = self.master_switch.isChecked()
+        stats = self.stats_switch.isChecked()
+        chart = self.chart_switch.isChecked()
+        
+        # Enable/Disable sub-settings
+        self.sub_settings_widget.setEnabled(enabled)
+        
+        self.hover_settings_changed.emit(enabled, stats, chart)
+
+    def _on_chart_switch_changed(self, checked: bool):
+        """Handle chart switch specifically to enable/disable range combo."""
+        self.period_container.setEnabled(checked)
+        self._on_settings_changed()
+
+    def _on_period_changed(self, text: str):
+        self.period_changed.emit(text)
+
+    def set_values(self, enabled: bool, show_stats: bool, show_chart: bool, period: str):
+        """Set all values."""
+        self.master_switch.setChecked(enabled)
+        self.stats_switch.setChecked(show_stats)
+        self.chart_switch.setChecked(show_chart)
+        self.period_combo.setCurrentText(period)
+        
+        self.sub_settings_widget.setEnabled(enabled)
+        self.period_container.setEnabled(show_chart)
+
+    def get_values(self):
+        """Get all values."""
+        return {
+            'enabled': self.master_switch.isChecked(),
+            'show_stats': self.stats_switch.isChecked(),
+            'show_chart': self.chart_switch.isChecked(),
+            'period': self.period_combo.currentText()
+        }

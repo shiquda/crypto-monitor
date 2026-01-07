@@ -111,6 +111,10 @@ class AppSettings:
     theme_mode: str = "light"  # "light", "dark", or "auto"
     color_schema: str = "standard"  # "standard" (Green Up/Red Down) or "reverse" (Red Up/Green Down)
     dynamic_background: bool = True  # Enable dynamic background color based on price change
+    kline_period: str = "24h" # "1h", "4h", "12h", "24h", "7d"
+    hover_enabled: bool = True     # Master toggle for hover card
+    hover_show_stats: bool = True  # Toggle for statistics in hover card
+    hover_show_chart: bool = True  # Toggle for mini chart in hover card
     opacity: int = 100
     crypto_pairs: list = field(default_factory=lambda: ["BTC-USDT", "ETH-USDT"])
     proxy: ProxyConfig = field(default_factory=ProxyConfig)
@@ -205,7 +209,9 @@ class SettingsManager:
 
                 # Only keep recognized fields in data
                 recognized_fields = {
-                    'version', 'data_source', 'theme_mode', 'color_schema', 'dynamic_background', 'opacity', 'crypto_pairs',
+                    'version', 'data_source', 'theme_mode', 'color_schema', 'dynamic_background', 'kline_period', 
+                    'hover_enabled', 'hover_show_stats', 'hover_show_chart',
+                    'opacity', 'crypto_pairs',
                     'window_x', 'window_y', 'always_on_top', 'language'
                 }
                 filtered_data = {k: v for k, v in data.items() if k in recognized_fields}
@@ -277,6 +283,21 @@ class SettingsManager:
     def update_dynamic_background(self, enabled: bool) -> None:
         """Update dynamic background setting."""
         self.settings.dynamic_background = enabled
+        self.save()
+
+    def update_kline_period(self, period: str) -> None:
+        """Update kline period setting."""
+        self.settings.kline_period = period
+        self.save()
+
+    def update_hover_settings(self, enabled: bool = None, show_stats: bool = None, show_chart: bool = None) -> None:
+        """Update hover card settings."""
+        if enabled is not None:
+            self.settings.hover_enabled = enabled
+        if show_stats is not None:
+            self.settings.hover_show_stats = show_stats
+        if show_chart is not None:
+            self.settings.hover_show_chart = show_chart
         self.save()
 
     def update_language(self, language: str) -> None:

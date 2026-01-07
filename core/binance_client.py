@@ -408,6 +408,84 @@ class BinanceClient(BaseExchangeClient):
     def get_stats(self) -> Optional[Dict[str, Any]]:
         return {}
 
+    def fetch_klines(self, pair: str, interval: str, limit: int = 24) -> List[Dict]:
+        """
+        Fetch klines from Binance.
+        GET /api/v3/klines
+        """
+        import requests
+        
+        # Map pair to symbol (e.g. BTC-USDT -> BTCUSDT)
+        symbol = pair.replace('-', '').upper()
+        
+        # Binance intervals: 1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 8h, 12h, 1d, 3d, 1w, 1M
+        # Our app might use "1h" or similar.
+        
+        url = "https://api.binance.com/api/v3/klines"
+        params = {
+            "symbol": symbol,
+            "interval": interval,
+            "limit": limit
+        }
+        
+        try:
+            # Check for proxy settings from environment or settings
+            # Using requests directly here. Ideally we should use a shared session or respect proxy settings.
+            # _fetch_precisions uses requests.
+            # Let's try to get proxy from settings if possible, or rely on env.
+            # For simplicity in this method, let's respect env vars (BinanceWebSocketWorker uses trust_env=True)
+            
+            # Construct proxies dict if needed. 
+            # However, BaseExchangeClient doesn't easily expose settings. 
+            # We can import settings here.
+            from config.settings import get_settings_manager
+            settings = get_settings_manager().settings
+            proxies = {}
+            if settings.proxy.enabled:
+                if settings.proxy.type.lower() == 'http':
+                    proxy_url = f"http://{settings.proxy.host}:{settings.proxy.port}"
+                    if settings.proxy.username:
+                        proxy_url = f"http://{settings.proxy.username}:{settings.proxy.password}@{settings.proxy.host}:{settings.proxy.port}"
+                    proxies = {"http": proxy_url, "https": proxy_url}
+                else:
+                    # SOCKS5
+                    proxy_url = f"socks5://{settings.proxy.host}:{settings.proxy.port}"
+                    if settings.proxy.username:
+                         proxy_url = f"socks5://{settings.proxy.username}:{settings.proxy.password}@{settings.proxy.host}:{settings.proxy.port}"
+                    proxies = {"http": proxy_url, "https": proxy_url}
+
+            response = requests.get(url, params=params, proxies=proxies, timeout=5)
+            response.raise_for_status()
+            data = response.json()
+            
+            # Binance response: 
+            # [
+            #   [
+            #     1499040000000,      // Open time
+            #     "0.01634790",       // Open
+            #     "0.80000000",       // High
+            #     "0.01575800",       // Low
+            #     "0.01577100",       // Close
+            #     ...
+            #   ]
+            # ]
+            
+            klines = []
+            for item in data:
+                klines.append({
+                    "timestamp": item[0],
+                    "open": float(item[1]),
+                    "high": float(item[2]),
+                    "low": float(item[3]),
+                    "close": float(item[4]),
+                    "volume": float(item[5])
+                })
+            return klines
+            
+        except Exception as e:
+            logger.error(f"Failed to fetch klines for {pair}: {e}")
+            return []
+
     @property
     def is_connected(self) -> bool:
         return self._worker is not None and self._worker.isRunning()

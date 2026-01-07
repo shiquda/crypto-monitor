@@ -9,7 +9,7 @@ import json
 import time
 import random
 import logging
-from typing import Optional, Callable, Set, Dict, Any
+from typing import Optional, Callable, Set, Dict, Any, List
 from PyQt6.QtCore import QObject, QThread, pyqtSignal, QTimer
 from enum import Enum
 
@@ -538,6 +538,95 @@ class OkxClientManager(BaseExchangeClient):
                 'worker_running': self._worker.isRunning(),
             }
         return None
+
+    def fetch_klines(self, pair: str, interval: str, limit: int = 24) -> List[Dict]:
+        """
+        Fetch klines from OKX.
+        GET /api/v5/market/candles
+        """
+        import requests
+        
+        # OKX uses correct pair format (e.g. BTC-USDT)
+        # Interval mapping: 1m, 3m, 5m, 15m, 1H, 2H, 4H, 1D...
+        # Map some common lowercases to uppercase if needed or handle standard args
+        
+        okx_interval = interval
+        if interval.lower() == '1h':
+            okx_interval = '1H'
+        elif interval.lower() == '4h':
+            okx_interval = '4H'
+        elif interval.lower() == '1d':
+            okx_interval = '1D'
+            
+        url = "https://www.okx.com/api/v5/market/candles"
+        params = {
+            "instId": pair,
+            "bar": okx_interval,
+            "limit": limit
+        }
+        
+        try:
+             # Construct proxies dict if needed. 
+            from config.settings import get_settings_manager
+            settings = get_settings_manager().settings
+            proxies = {}
+            if settings.proxy.enabled:
+                if settings.proxy.type.lower() == 'http':
+                    proxy_url = f"http://{settings.proxy.host}:{settings.proxy.port}"
+                    if settings.proxy.username:
+                        proxy_url = f"http://{settings.proxy.username}:{settings.proxy.password}@{settings.proxy.host}:{settings.proxy.port}"
+                    proxies = {"http": proxy_url, "https": proxy_url}
+                else:
+                    # SOCKS5
+                    proxy_url = f"socks5://{settings.proxy.host}:{settings.proxy.port}"
+                    if settings.proxy.username:
+                         proxy_url = f"socks5://{settings.proxy.username}:{settings.proxy.password}@{settings.proxy.host}:{settings.proxy.port}"
+                    proxies = {"http": proxy_url, "https": proxy_url}
+
+            response = requests.get(url, params=params, proxies=proxies, timeout=5)
+            response.raise_for_status()
+            data = response.json()
+            
+            # OKX response:
+            # {
+            #   "code": "0",
+            #   "data": [
+            #     [
+            #       "1597026383085",  // ts
+            #       "3.721",          // o
+            #       "3.743",          // h
+            #       "3.677",          // l
+            #       "3.708",          // c
+            #       "8422410",        // vol (in base currency)
+            #       "126963"          // vol (in quote currency)
+            #       ...
+            #     ]
+            #   ]
+            # }
+            
+            klines = []
+            if data.get('code') == '0':
+                # OKX returns newest first, we usually want oldest first for plotting?
+                # Let's keep data as is, MiniChart will handle or we reverse here.
+                # Usually charts need time sorted. API returns DESC (newest first).
+                # Reverse it to be ASC (oldest first).
+                raw_data = data.get('data', [])
+                for item in reversed(raw_data):
+                    klines.append({
+                        "timestamp": int(item[0]),
+                        "open": float(item[1]),
+                        "high": float(item[2]),
+                        "low": float(item[3]),
+                        "close": float(item[4]),
+                        "volume": float(item[5])
+                    })
+            print(f"[DEBUG] Parsed {len(klines)} klines")
+            return klines
+
+        except Exception as e:
+            print(f"[DEBUG] OKX fetch failed: {e}")
+            logger.error(f"Failed to fetch klines for {pair}: {e}")
+            return []
 
     @property
     def is_connected(self) -> bool:
