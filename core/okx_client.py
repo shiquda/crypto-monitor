@@ -8,6 +8,7 @@ import asyncio
 import json
 import time
 import random
+import logging
 from typing import Optional, Callable, Set, Dict, Any
 from PyQt6.QtCore import QObject, QThread, pyqtSignal, QTimer
 from enum import Enum
@@ -19,6 +20,8 @@ except ImportError:
 
 # Module-level list to keep dying workers alive until they finish
 _dying_workers = []
+
+logger = logging.getLogger(__name__)
 
 
 class ConnectionState(Enum):
@@ -89,7 +92,7 @@ class OkxWebSocketWorker(QThread):
     """
 
     # Signals
-    ticker_updated = pyqtSignal(str, str, str)  # pair, price, percentage
+    ticker_updated = pyqtSignal(str, dict) # pair, data_dict
     connection_error = pyqtSignal(str, str)  # pair, error_message
     connection_status = pyqtSignal(bool, str)  # connected, message
     connection_state_changed = pyqtSignal(str, str, int)  # state, message, retry_count
@@ -139,7 +142,7 @@ class OkxWebSocketWorker(QThread):
 
     def run(self):
         """Run the WebSocket client in asyncio event loop with auto-reconnect."""
-        print(f"[OkxWorker] Starting run loop (Thread: {int(QThread.currentThreadId())})")
+        logger.info(f"[OkxWorker] Starting run loop (Thread: {int(QThread.currentThreadId())})")
         self._running = True
         self._loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self._loop)
@@ -152,14 +155,14 @@ class OkxWebSocketWorker(QThread):
             self._main_task = self._loop.create_task(self._maintain_connection())
             self._loop.run_until_complete(self._main_task)
         except asyncio.CancelledError:
-            print("[OkxWorker] Main task cancelled")
+            logger.info("[OkxWorker] Main task cancelled")
             self._update_connection_state(ConnectionState.DISCONNECTED, "Connection cancelled")
         except Exception as e:
-            print(f"[OkxWorker] Fatal error: {e}")
+            logger.error(f"[OkxWorker] Fatal error: {e}", exc_info=True)
             self._last_error = str(e)
             self._update_connection_state(ConnectionState.FAILED, f"Fatal error: {e}")
         finally:
-            print("[OkxWorker] Cleaning up loop...")
+            logger.info("[OkxWorker] Cleaning up loop...")
             # Clean up all tasks
             try:
                 pending = asyncio.all_tasks(self._loop)
@@ -168,9 +171,9 @@ class OkxWebSocketWorker(QThread):
                 if pending:
                     self._loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
                 self._loop.close()
-                print("[OkxWorker] Loop closed.")
+                logger.info("[OkxWorker] Loop closed.")
             except Exception as e:
-                print(f"OKX Loop cleanup error: {e}")
+                logger.error(f"OKX Loop cleanup error: {e}")
                 
             self._update_connection_state(ConnectionState.DISCONNECTED, "Connection closed")
 
@@ -348,14 +351,27 @@ class OkxWebSocketWorker(QThread):
                 except (ValueError, ZeroDivisionError):
                     percentage = "0.00%"
 
+                # Extract extended data
+                high_24h = ticker.get('high24h', '0')
+                low_24h = ticker.get('low24h', '0')
+                quote_volume = ticker.get('volCcy24h', '0')
+
+                ticker_data = {
+                    "price": last_price,
+                    "percentage": percentage,
+                    "high_24h": high_24h,
+                    "low_24h": low_24h,
+                    "quote_volume_24h": quote_volume
+                }
+
                 # Emit signal (thread-safe)
-                self.ticker_updated.emit(pair, last_price, percentage)
+                self.ticker_updated.emit(pair, ticker_data)
 
         except json.JSONDecodeError:
             pass
         except Exception as e:
             self._last_error = f"Message handling error: {e}"
-            print(f"Error handling message: {e}")
+            logger.error(f"Error handling message: {e}")
             self._update_stats()
 
     def stop(self):
@@ -389,7 +405,7 @@ class OkxClientManager(BaseExchangeClient):
     - Detailed connection statistics
     """
 
-    ticker_updated = pyqtSignal(str, str, str)  # pair, price, percentage
+    ticker_updated = pyqtSignal(str, dict)  # pair, data_dict
     connection_status = pyqtSignal(bool, str)  # connected, message
     connection_state_changed = pyqtSignal(str, str, int)  # state, message, retry_count
     stats_updated = pyqtSignal(dict)  # connection statistics

@@ -15,8 +15,12 @@ from qfluentwidgets import CardWidget, TransparentToolButton, FluentIcon as FIF
 from core.i18n import _
 
 
+from ui.widgets.hover_card import HoverCard
+
 class CryptoCard(CardWidget):
     """Fluent Design card widget displaying a single crypto pair's information."""
+
+    # ... (signals remain same)
 
     double_clicked = pyqtSignal(str)  # Emits pair name on double-click
     remove_clicked = pyqtSignal(str)  # Emits pair name when remove button clicked
@@ -34,8 +38,91 @@ class CryptoCard(CardWidget):
         self._icon_retry_count = 0
         self._max_retries = 3
         self._current_percentage = "0.00%"  # Store current percentage
+        
+        # Extended data storage
+        self._hover_data = {
+            "high": "0",
+            "low": "0",
+            "quote_volume": "0"
+        }
+        
         self._setup_ui()
         self._load_icon()
+        
+        # Initialize HoverCard (no parent to allow floating)
+        self.hover_card = HoverCard(parent=None)
+        
+        # Apply current theme to hover card
+        self.hover_card.update_theme(self._theme_mode)
+
+    # ... (methods _setup_ui to update_price remain same, skip to update_state)
+
+
+    def update_state(self, state):
+        """
+        Update the card state with extended data.
+        
+        Args:
+            state: PriceState object containing price, percentage, and extended data.
+        """
+        self.update_price(state.current_price, state.trend, state.color)
+        self.update_percentage(state.percentage)
+        
+        # Store latest extended data
+        self._hover_data["high"] = state.high_24h
+        self._hover_data["low"] = state.low_24h
+        self._hover_data["quote_volume"] = state.quote_volume_24h
+        self._hover_data["amplitude"] = state.amplitude_24h
+        
+        # Update hover card if visible
+        if self.hover_card.isVisible():
+            self._update_hover_card()
+
+    def enterEvent(self, event):
+        """Show hover card on mouse enter."""
+        self._update_hover_card()
+        
+        # Position the card relative to this widget
+        # Calculate global position
+        global_pos = self.mapToGlobal(self.rect().topRight())
+        
+        # default to right side
+        x = global_pos.x() + 5
+        y = global_pos.y()
+        
+        # Check if it goes off screen (simple check)
+        screen = self.screen()
+        if screen:
+             screen_geom = screen.availableGeometry()
+             if x + self.hover_card.width() > screen_geom.right():
+                 # Move to left side
+                 x = self.mapToGlobal(self.rect().topLeft()).x() - self.hover_card.width() - 5
+        
+        self.hover_card.move(x, y)
+        self.hover_card.show()
+        super().enterEvent(event)
+
+    def leaveEvent(self, event):
+        """Hide hover card on mouse leave."""
+        self.hover_card.hide()
+        super().leaveEvent(event)
+
+    def _update_hover_card(self):
+        """Update hover card content."""
+        parts = self.pair.split('-')
+        quote_currency = parts[1] if len(parts) > 1 else ""
+        
+        self.hover_card.update_data(
+            high=self._hover_data["high"],
+            low=self._hover_data["low"],
+            volume=self._hover_data["quote_volume"],
+            quote_currency=quote_currency,
+            amplitude=self._hover_data.get("amplitude", "0.00%")
+        )
+
+    # ... (keep format_volume and other methods if needed, remove _update_tooltip)
+
+
 
     def _setup_ui(self):
         """Setup the widget UI with Fluent Design components."""
@@ -220,32 +307,9 @@ class CryptoCard(CardWidget):
         """Update the displayed price."""
         display_text = f"{price} {trend}" if trend else price
         self.price_label.setText(display_text)
-        
-        # Override the color passed from tracker if we want strict schema adherence,
-        # but PriceTracker might return 'green'/'red' abstractly?
-        # PriceTracker usually returns specific hex codes or 'green'/'red'.
-        # Let's check PriceTracker.update_price implementation if possible.
-        # Assuming color argument is hex code. If it is hex, we might need to recalculate.
-        # But actually update_price is called with state.color.
-        # Ideally PriceTracker should be unaware of UI colors, or return 'up'/'down'.
-        # For now, let's trust the logic in update_percentage which determines color based on sign.
-        # For Price, usually it follows percentage color or trend color.
-        
-        # We will recalculate color based on trend if possible, or just use what is passed provided it matches schema.
-        # Since I can't check PriceTracker easily right now without reading it,
-        # I will rely on update_percentage for the main color indication.
-        # But wait, update_price sets price_label style.
-        
-        # Let's infer color from trend/previous if needed, OR better:
-        # Assume 'color' param is stale/hardcoded and re-evaluate.
-        # But trend up/down is what matters.
-        
-        final_color = color # Fallback
-        
-        # If trend arrows are used, we can deduce.
-        # But let's look at update_percentage, which drives the main visual indicator often.
-        
         self.price_label.setStyleSheet(f"font-size: 16px; font-weight: 600; color: {color};")
+
+
 
 
     def set_connection_state(self, state: str):

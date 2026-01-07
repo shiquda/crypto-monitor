@@ -3,6 +3,7 @@ Main application window using Fluent Design.
 """
 
 import webbrowser
+import logging
 from typing import Optional, Dict
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QScrollArea,
@@ -26,6 +27,9 @@ from core.exchange_factory import ExchangeFactory
 from core.price_tracker import PriceTracker
 from core.alert_manager import get_alert_manager
 from config.settings import get_settings_manager
+
+
+logger = logging.getLogger(__name__)
 
 
 class MainWindow(QMainWindow):
@@ -190,29 +194,28 @@ class MainWindow(QMainWindow):
         """Handle page change."""
         self._update_cards_display()
 
-    def _on_ticker_update(self, pair: str, price: str, percentage: str):
-        """Handle ticker update from OKX."""
+    def _on_ticker_update(self, pair: str, data: dict):
+        """Handle ticker update from exchange."""
         # Update price tracker
-        state = self._price_tracker.update_price(pair, price, percentage)
+        state = self._price_tracker.update_price(pair, data)
 
         # Update card if visible
         if pair in self._cards:
-            self._cards[pair].update_price(price, state.trend, state.color)
-            self._cards[pair].update_percentage(percentage)
+            self._cards[pair].update_state(state)
 
         # Check price alerts
-        self._alert_manager.check_alerts(pair, price, percentage)
+        self._alert_manager.check_alerts(pair, state.current_price, state.percentage)
 
     def _on_connection_status(self, connected: bool, message: str):
         """Handle connection status change."""
-        print(f"Connection status: {connected}, {message}")
+        logger.debug(f"Connection status: {connected}, {message}")
 
     def _on_connection_state_changed(self, state: str, message: str, retry_count: int):
         """
         Handle detailed connection state change.
         Updates UI to reflect connecting/reconnecting status.
         """
-        print(f"Connection state: {state} ({message}) - Retry: {retry_count}")
+        logger.debug(f"Connection state: {state} ({message}) - Retry: {retry_count}")
         
         # Update all cards with connection state
         for card in self._cards.values():
@@ -255,7 +258,7 @@ class MainWindow(QMainWindow):
 
     def _on_data_source_changed(self):
         """Handle data source change."""
-        print("Data source changed, switching client...")
+        logger.info("Data source changed, switching client...")
         
         # Reset alert manager state to prevent false alerts due to price differences
         self._alert_manager.reset()

@@ -14,6 +14,9 @@ from pathlib import Path
 
 from .migration import MigrationManager, ConfigVersion
 from core.i18n import load_language
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -164,12 +167,12 @@ class SettingsManager:
             try:
                 migrated, message, backup_path = self.migration_manager.migrate_if_needed()
                 if migrated:
-                    print(f"✅ Configuration migrated: {message}")
+                    logger.info(f"✅ Configuration migrated: {message}")
                     if backup_path:
-                        print(f"📦 Backup saved to: {backup_path}")
+                        logger.info(f"📦 Backup saved to: {backup_path}")
             except Exception as e:
-                print(f"⚠️  Configuration migration failed: {e}")
-                print("   Using default settings")
+                logger.error(f"⚠️  Configuration migration failed: {e}")
+                logger.warning("   Using default settings")
 
         if self.config_file.exists():
             try:
@@ -216,9 +219,8 @@ class SettingsManager:
                     **filtered_data
                 )
             except (json.JSONDecodeError, TypeError, KeyError) as e:
-                print(f"Error loading settings: {e}")
-                print("   Resetting to default settings")
-                print("   Resetting to default settings")
+                logger.error(f"Error loading settings: {e}")
+                logger.warning("   Resetting to default settings")
                 self.settings = AppSettings()
 
         # Initialize language loader
@@ -344,14 +346,14 @@ class SettingsManager:
         try:
             migrated, message, backup_path = self.migration_manager.migrate_if_needed(force=True)
             if migrated:
-                print(f"✅ {message}")
+                logger.info(f"✅ {message}")
                 if backup_path:
-                    print(f"📦 Backup: {backup_path}")
+                    logger.info(f"📦 Backup: {backup_path}")
             else:
-                print(f"ℹ️  {message}")
+                logger.info(f"ℹ️  {message}")
             return migrated
         except Exception as e:
-            print(f"❌ Migration failed: {e}")
+            logger.error(f"❌ Migration failed: {e}")
             return False
 
     def get_config_version(self) -> str:
@@ -391,10 +393,10 @@ class SettingsManager:
 
     def reset_to_defaults(self) -> None:
         """Reset configuration to default values."""
-        print("⚠️  Resetting configuration to defaults...")
+        logger.warning("⚠️  Resetting configuration to defaults...")
         self.settings = AppSettings()
         self.save()
-        print("✅ Configuration reset to defaults")
+        logger.info("✅ Configuration reset to defaults")
 
     def export_to_file(self, filepath: str) -> None:
         """Export settings to a specific file."""

@@ -2,6 +2,7 @@ import asyncio
 import json
 import time
 import random
+import logging
 from typing import Optional, List, Set, Dict, Any
 from PyQt6.QtCore import QThread, pyqtSignal, QObject
 from enum import Enum
@@ -12,6 +13,8 @@ from core.base_client import BaseExchangeClient
 # Module-level list to keep dying workers alive until they finish
 # This prevents Python GC from destroying them prematurely
 _dying_workers: List[QThread] = []
+
+logger = logging.getLogger(__name__)
 
 class ConnectionState(Enum):
     """WebSocket connection states."""
@@ -58,7 +61,7 @@ class BinanceWebSocketWorker(QThread):
     Uses aiohttp for proxy support via environment variables.
     """
     
-    ticker_updated = pyqtSignal(str, str, str)
+    ticker_updated = pyqtSignal(str, dict)
     connection_state_changed = pyqtSignal(str, str, int)
     connection_status = pyqtSignal(bool, str)
     stats_updated = pyqtSignal(dict)
@@ -183,7 +186,7 @@ class BinanceWebSocketWorker(QThread):
                     self._loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
                 self._loop.close()
             except Exception as e:
-                print(f"Loop cleanup error: {e}")
+                logger.error(f"Loop cleanup error: {e}")
                 
             self._update_connection_state(ConnectionState.DISCONNECTED, "Connection closed")
 
@@ -210,7 +213,7 @@ class BinanceWebSocketWorker(QThread):
             data = json.loads(message)
             
             # Handle Ticker Event
-            # {"e": "24hrTicker", "s": "BTCUSDT", "c": "6000.00", "P": "1.2", ...}
+            # {"e": "24hrTicker", "s": "BTCUSDT", "c": "6000.00", "P": "1.2", "h": "...", "l": "...", "q": "..."}
             if data.get('e') == '24hrTicker':
                 symbol = data.get('s', '').lower()
                 price_str = data.get('c', '0')
@@ -233,8 +236,27 @@ class BinanceWebSocketWorker(QThread):
                         formatted_pct = f"+{pct:.2f}%" if pct >= 0 else f"{pct:.2f}%"
                     except:
                         formatted_pct = "0.00%"
-                        
-                    self.ticker_updated.emit(original_pair, price, formatted_pct)
+                    
+                    # Extract extended data
+                    high_24h = data.get('h', '0')
+                    low_24h = data.get('l', '0')
+                    quote_volume = data.get('q', '0')
+                    
+                    # Format volume slightly for readability (optional, but raw is fine for now, will format in UI or here)
+                    # Let's keep it raw string or formatted? UI might want to format. 
+                    # But generic "update_data" might expect ready strings.
+                    # Let's pass raw-ish strings, maybe round to 2 decimals if floats
+                    
+                    ticker_data = {
+                        "price": price,
+                        "percentage": formatted_pct,
+                        "high_24h": high_24h,
+                        "low_24h": low_24h,
+                        "quote_volume_24h": quote_volume,
+                        # "volume_24h": data.get('v', '0') # Base volume if needed
+                    }
+
+                    self.ticker_updated.emit(original_pair, ticker_data)
             
             self._update_stats()
             
@@ -301,8 +323,8 @@ class BinanceClient(BaseExchangeClient):
                                     invalid_pairs.append(pair)
                             
                             if invalid_pairs:
-                                print(f"⚠️  [Binance Warning] The following pairs are not valid or not supported: {', '.join(invalid_pairs)}")
-                                print("    Please check spelling or availability on Binance Spot market.")
+                                logger.warning(f"⚠️  [Binance Warning] The following pairs are not valid or not supported: {', '.join(invalid_pairs)}")
+                                logger.warning("    Please check spelling or availability on Binance Spot market.")
 
                         # If worker is running, update its precision map
                         if self._worker:
@@ -312,7 +334,7 @@ class BinanceClient(BaseExchangeClient):
                     pass
                     
             except Exception as e:
-                print(f"Failed to fetch Binance precisions: {e}")
+                logger.error(f"Failed to fetch Binance precisions: {e}")
             finally:
                 # Mark as not fetching anymore
                 try:

@@ -1,7 +1,11 @@
 {
     "(optional)": "(可选)",
+    "24h Amplitude": "24h振幅",
     "24h Change crossed": "24小时涨跌幅穿过",
     "24h Change hits multiple of (Step %)": "24小时涨跌幅达到 (步长 %) 的倍数",
+    "24h High": "24h最高价",
+    "24h Low": "24h最低价",
+    "24h Vol": "24h成交额",
     "About": "关于",
     "Above": "高于",
     "Add": "添加",

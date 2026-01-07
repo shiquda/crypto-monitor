@@ -16,6 +16,10 @@ class PriceState:
     trend: str = ""  # "↑", "↓", ""
     color: str = "#FFFFFF"
     percentage: str = "0.00%"
+    high_24h: str = "0"
+    low_24h: str = "0"
+    quote_volume_24h: str = "0"
+    amplitude_24h: str = "0.00%"
 
 
 class PriceTracker:
@@ -33,18 +37,20 @@ class PriceTracker:
     def __init__(self):
         self._states: Dict[str, PriceState] = {}
 
-    def update_price(self, pair: str, price_str: str, percentage: str) -> PriceState:
+    def update_price(self, pair: str, data: dict) -> PriceState:
         """
         Update price for a pair and calculate new state.
 
         Args:
             pair: Trading pair (e.g., "BTC-USDT")
-            price_str: Price as string
-            percentage: Percentage change string
+            data: Dictionary containing price, percentage, etc.
 
         Returns:
             Updated PriceState
         """
+        price_str = data.get("price", "0")
+        percentage_str = data.get("percentage", "0.00%")
+        
         try:
             current_price = float(price_str)
         except ValueError:
@@ -65,7 +71,29 @@ class PriceTracker:
         ) / self.PERIOD
 
         state.current_price = current_price
-        state.percentage = percentage
+        state.percentage = percentage_str
+        state.high_24h = data.get("high_24h", "0")
+        state.low_24h = data.get("low_24h", "0")
+        state.quote_volume_24h = data.get("quote_volume_24h", "0")
+
+        # Calculate Amplitude: (High - Low) / Open
+        # Open = Current / (1 + Percentage)
+        try:
+            high = float(state.high_24h)
+            low = float(state.low_24h)
+            pct_val = float(percentage_str.strip('%').replace('+', '')) / 100.0
+            
+            if current_price > 0:
+                open_price = current_price / (1 + pct_val)
+                if open_price > 0:
+                    amplitude = (high - low) / open_price * 100
+                    state.amplitude_24h = f"{amplitude:.2f}%"
+                else:
+                     state.amplitude_24h = "0.00%"
+            else:
+                state.amplitude_24h = "0.00%"
+        except (ValueError, ZeroDivisionError):
+             state.amplitude_24h = "0.00%"
 
         # Calculate color based on intraday percentage (as requested by user)
         # Check settings for color schema
@@ -79,10 +107,10 @@ class PriceTracker:
         # Ideally white should be theme dependent but here we return a fixed color. 
         # The card handles text color default based on theme if trend is flat.
         
-        if percentage.startswith('+'):
+        if percentage_str.startswith('+'):
             state.color = green if is_standard else red
             state.trend = "↑"
-        elif percentage.startswith('-'):
+        elif percentage_str.startswith('-'):
             state.color = red if is_standard else green
             state.trend = "↓"
         else:

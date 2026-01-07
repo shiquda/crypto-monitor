@@ -9,7 +9,9 @@ class BaseExchangeClient(QObject):
     """
     
     # Standard signals that all clients must emit
-    ticker_updated = pyqtSignal(str, str, str)  # pair (e.g. BTC-USDT), price, percentage
+    # Signal emits: pair, data_dict
+    # data_dict keys: price, percentage, high_24h, low_24h, volume_24h, quote_volume_24h
+    ticker_updated = pyqtSignal(str, dict)
     connection_status = pyqtSignal(bool, str)   # connected, message
     connection_state_changed = pyqtSignal(str, str, int)  # state, message, retry_count
     stats_updated = pyqtSignal(dict)            # connection statistics
