@@ -220,12 +220,19 @@ class BinanceWebSocketWorker(QThread):
                 percent_val = data.get('P', '0') # Binance returns formatted percent (e.g. 1.234)
                 
                 # Format price based on precision
-                precision = self._precision_map.get(symbol, 2) # Default to 2 decimals
-                try:
-                    price_float = float(price_str)
-                    price = f"{price_float:.{precision}f}"
-                except:
-                    price = price_str
+                if symbol in self._precision_map:
+                    precision = self._precision_map[symbol]
+                    try:
+                        price_float = float(price_str)
+                        price = f"{price_float:.{precision}f}"
+                    except:
+                        price = price_str
+                else:
+                    # Fallback: Use raw string but clean up trailing zeros if decimal exists
+                    if '.' in price_str:
+                        price = price_str.rstrip('0').rstrip('.')
+                    else:
+                        price = price_str
                 
                 # Map back to display pair
                 original_pair = self._symbol_map.get(symbol)
