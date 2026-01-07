@@ -1,12 +1,12 @@
 name: Release
 
-'on':
+"on":
   push:
     tags:
-      - 'v*'
+      - "v*"
 
 env:
-  PYTHON_VERSION: '3.13.2'
+  PYTHON_VERSION: "3.13.2"
 
 jobs:
   build:
@@ -16,14 +16,14 @@ jobs:
       matrix:
         include:
           - os: windows-latest
-            artifact_name: crypto-monitor-windows-x64
-            asset_name: crypto-monitor-windows-x64.exe
+            artifact_name_prefix: crypto-monitor-windows-x64
+            asset_suffix: .exe
           - os: ubuntu-latest
-            artifact_name: crypto-monitor-linux-x64
-            asset_name: crypto-monitor-linux-x64
+            artifact_name_prefix: crypto-monitor-linux-x64
+            asset_suffix: ""
           - os: macos-latest
-            artifact_name: crypto-monitor-macos-x64
-            asset_name: crypto-monitor-macos-x64
+            artifact_name_prefix: crypto-monitor-macos-x64
+            asset_suffix: ""
 
     steps:
       - name: Checkout code
@@ -50,7 +50,10 @@ jobs:
       - name: Install dependencies
         run: |
           uv sync --frozen
-          uv run pip install pyinstaller>=6.0.0
+      - name: Get version
+        id: get_version
+        shell: bash
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV
 
       - name: Build on Windows
         if: matrix.os == 'windows-latest'
@@ -62,25 +65,28 @@ jobs:
           } else {
             $iconParam = ""
           }
-          uv run pyinstaller --onefile --windowed --name="${{ matrix.asset_name }}" $iconParam --add-data="assets;assets" --add-data="imgs;imgs" --add-data="i18n;i18n" main.py
+          $assetName = "${{ matrix.artifact_name_prefix }}-${{ env.VERSION }}${{ matrix.asset_suffix }}"
+          uv run pyinstaller --onefile --windowed --name="$assetName" $iconParam --add-data="assets;assets" --add-data="imgs;imgs" --add-data="i18n;i18n" main.py
 
       - name: Build on Linux
         if: matrix.os == 'ubuntu-latest'
         run: |
           rm -rf build dist
-          uv run pyinstaller --onefile --windowed --name="${{ matrix.asset_name }}" --add-data="assets:assets" --add-data="imgs:imgs" --add-data="i18n:i18n" main.py
+          assetName="${{ matrix.artifact_name_prefix }}-${{ env.VERSION }}${{ matrix.asset_suffix }}"
+          uv run pyinstaller --onefile --windowed --name="$assetName" --add-data="assets:assets" --add-data="imgs:imgs" --add-data="i18n:i18n" main.py
 
       - name: Build on macOS
         if: matrix.os == 'macos-latest'
         run: |
           rm -rf build dist
-          uv run pyinstaller --onefile --windowed --name="${{ matrix.asset_name }}" --add-data="assets:assets" --add-data="imgs:imgs" --add-data="i18n:i18n" main.py
+          assetName="${{ matrix.artifact_name_prefix }}-${{ env.VERSION }}${{ matrix.asset_suffix }}"
+          uv run pyinstaller --onefile --windowed --name="$assetName" --add-data="assets:assets" --add-data="imgs:imgs" --add-data="i18n:i18n" main.py
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact_name }}
-          path: dist/${{ matrix.asset_name }}
+          name: ${{ matrix.artifact_name_prefix }}-${{ env.VERSION }}
+          path: dist/${{ matrix.artifact_name_prefix }}-${{ env.VERSION }}${{ matrix.asset_suffix }}
           if-no-files-found: error
           retention-days: 1
 
@@ -125,26 +131,43 @@ jobs:
 
       - name: Generate changelog
         id: changelog
+        shell: python
         run: |
-          # 获取上一个标签
-          PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
-          if [ -z "$PREVIOUS_TAG" ]; then
-            PREVIOUS_TAG="HEAD"
-          fi
+          import os
+          import re
 
-          # 生成变更日志
-          echo "## Changes" > CHANGELOG.md
-          echo "" >> CHANGELOG.md
-          git log --pretty=format:"- %s" $PREVIOUS_TAG..HEAD >> CHANGELOG.md
-          echo "" >> CHANGELOG.md
-          echo "" >> CHANGELOG.md
+          def extract_changelog(version):
+              try:
+                  with open('CHANGELOG.md', 'r', encoding='utf-8') as f:
+                      content = f.read()
+                  
+                  # Create regex pattern for the version section
+                  # Matches ## [version] ... until the next ## [ or end of file
+                  pattern = f"## \\[{re.escape(version)}\\].*?\\n(.*?)(?=\\n## \\[|$)"
+                  match = re.search(pattern, content, re.DOTALL)
+                  
+                  if match:
+                      return match.group(1).strip()
+                  else:
+                      print(f"Warning: No changelog found for version {version}")
+                      return "No changelog available."
+              except Exception as e:
+                  print(f"Error reading changelog: {e}")
+                  return "Error reading changelog."
 
-          # 设置环境变量供后续步骤使用
-          {
-            echo 'changelog<<EOF'
-            cat CHANGELOG.md
-            echo EOF
-          } >> $GITHUB_OUTPUT
+          # Get version from GITHUB_REF (refs/tags/v0.3.0 -> 0.3.0)
+          ref = os.environ.get('GITHUB_REF', '')
+          version = ref.split('/')[-1]
+          if version.startswith('v'):
+              version = version[1:]
+
+          changelog_text = extract_changelog(version)
+
+          # Write to output using EOF (multi-line supported)
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as f:
+              f.write("changelog<<EOF\\n")
+              f.write(changelog_text)
+              f.write("\\nEOF\\n")
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
@@ -158,25 +181,25 @@ jobs:
             ${{ steps.changelog.outputs.changelog }}
 
             ### Downloads
-            - Windows: crypto-monitor-windows-x64.exe
-            - Linux: crypto-monitor-linux-x64
-            - macOS: crypto-monitor-macos-x64
+            - Windows: crypto-monitor-windows-x64-${{ steps.tag.outputs.version }}.exe
+            - Linux: crypto-monitor-linux-x64-${{ steps.tag.outputs.version }}
+            - macOS: crypto-monitor-macos-x64-${{ steps.tag.outputs.version }}
 
             ### Installation
             **Windows:**
-            1. Download `crypto-monitor-windows-x64.exe`
+            1. Download `crypto-monitor-windows-x64-${{ steps.tag.outputs.version }}.exe`
             2. Run the installer
             3. Launch crypto-monitor from Start menu
 
             **Linux:**
-            1. Download `crypto-monitor-linux-x64`
-            2. Make it executable: `chmod +x crypto-monitor-linux-x64`
-            3. Run: `./crypto-monitor-linux-x64`
+            1. Download `crypto-monitor-linux-x64-${{ steps.tag.outputs.version }}`
+            2. Make it executable: `chmod +x crypto-monitor-linux-x64-${{ steps.tag.outputs.version }}`
+            3. Run: `./crypto-monitor-linux-x64-${{ steps.tag.outputs.version }}`
 
             **macOS:**
-            1. Download `crypto-monitor-macos-x64`
-            2. Make it executable: `chmod +x crypto-monitor-macos-x64`
-            3. Run: `./crypto-monitor-macos-x64`
+            1. Download `crypto-monitor-macos-x64-${{ steps.tag.outputs.version }}`
+            2. Make it executable: `chmod +x crypto-monitor-macos-x64-${{ steps.tag.outputs.version }}`
+            3. Run: `./crypto-monitor-macos-x64-${{ steps.tag.outputs.version }}`
             4. If you see a security warning, go to System Preferences > Security & Privacy and allow the app
 
             For more information, visit the [project repository](https://github.com/${{ github.repository }}).
