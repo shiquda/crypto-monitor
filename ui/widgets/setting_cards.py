@@ -217,7 +217,9 @@ class PairsSettingCard(ExpandGroupSettingCard):
 
     def _add_pair(self):
         """Add a new crypto pair."""
-        pair = AddPairDialog.get_new_pair(self.window())
+        from config.settings import get_settings_manager
+        data_source = get_settings_manager().settings.data_source
+        pair = AddPairDialog.get_new_pair(data_source, self.window())
         if pair:
             self.pairs_list.addItem(pair)
             self.pairs_changed.emit()

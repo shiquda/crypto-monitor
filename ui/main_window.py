@@ -304,8 +304,9 @@ class MainWindow(QMainWindow):
             for card in self._cards.values():
                 card.set_edit_mode(False)
         else:
-            # Show add pair dialog
-            pair = AddPairDialog.get_new_pair(self)
+            # Show add pair dialog with current data source
+            data_source = self._settings_manager.settings.data_source
+            pair = AddPairDialog.get_new_pair(data_source, self)
             if pair:
                 self._add_pair(pair)
 
