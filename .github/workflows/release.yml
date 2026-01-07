@@ -163,11 +163,14 @@ jobs:
 
           changelog_text = extract_changelog(version)
 
-          # Write to output using EOF (multi-line supported)
+
+          # Write to output using a random delimiter to avoid EOF conflicts
+          import uuid
+          delimiter = f"EOF{uuid.uuid4().hex}"
           with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as f:
-              f.write("changelog<<EOF\\n")
-              f.write(changelog_text)
-              f.write("\\nEOF\\n")
+              print(f"changelog<<{delimiter}", file=f)
+              print(changelog_text, file=f)
+              print(delimiter, file=f)
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
