@@ -4,7 +4,7 @@ description: 执行软件版本发布流程：分析变更、更新文档与代�
 
 1. 获取当前最新版本及变更日志
 // turbo
-git fetch --tags; $latest = git tag --sort=-v:refname | Select-Object -First 1; Write-Host "Current Version: $latest"; Write-Host "Changes since last version:"; if ($latest) { git log "$latest..HEAD" --pretty=format:"- %s (%h)" --no-merges } else { git log --pretty=format:"- %s (%h)" --no-merges }
+git fetch --tags; $latest = git tag --sort=-v:refname | Select-Object -First 1; Write-Host "Current Version: $latest"; Write-Host "Changes since last version:"; if ($latest) { git --no-pager log "$latest..HEAD" --pretty=format:"%n--- Commit %h ---%n%B" --no-merges } else { git --no-pager log --pretty=format:"%n--- Commit %h ---%n%B" --no-merges }
 
 2. 确定新版本号
    - 审阅上述变更日志。

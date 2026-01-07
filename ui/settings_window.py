@@ -258,7 +258,7 @@ class SettingsWindow(QMainWindow):
             _("Check Update"),
             FluentIcon.INFO,
             _("Current Version"),
-            "0.3.0",
+            "0.3.1",
             self.about_group
         )
         self.version_card.button.hide()
