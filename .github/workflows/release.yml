@@ -55,38 +55,38 @@ jobs:
         shell: bash
         run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV
 
+      - name: Install Inno Setup
+        if: matrix.os == 'windows-latest'
+        run: choco install innosetup
+
       - name: Build on Windows
         if: matrix.os == 'windows-latest'
         run: |
-          Remove-Item -Recurse -Force build, dist -ErrorAction SilentlyContinue
-          $iconPath = Resolve-Path "assets\icons\crypto-monitor.ico" -ErrorAction SilentlyContinue
-          if ($iconPath) {
-            $iconParam = "--icon=$($iconPath.Path)"
-          } else {
-            $iconParam = ""
+          .\build.ps1 -i
+          Move-Item dist\crypto-monitor.exe dist\${{ matrix.artifact_name_prefix }}-${{ env.VERSION }}.exe
+          if (Test-Path dist\crypto-monitor-setup.exe) {
+            Move-Item dist\crypto-monitor-setup.exe dist\crypto-monitor-setup-windows-x64-${{ env.VERSION }}.exe
           }
-          $assetName = "${{ matrix.artifact_name_prefix }}-${{ env.VERSION }}${{ matrix.asset_suffix }}"
-          uv run pyinstaller --onefile --windowed --name="$assetName" $iconParam --add-data="assets;assets" --add-data="imgs;imgs" --add-data="i18n;i18n" main.py
 
       - name: Build on Linux
         if: matrix.os == 'ubuntu-latest'
         run: |
           rm -rf build dist
           assetName="${{ matrix.artifact_name_prefix }}-${{ env.VERSION }}${{ matrix.asset_suffix }}"
-          uv run pyinstaller --onefile --windowed --name="$assetName" --add-data="assets:assets" --add-data="imgs:imgs" --add-data="i18n:i18n" main.py
+          uv run pyinstaller --onefile --windowed --name="$assetName" --add-data="assets/icons:assets/icons" --add-data="i18n:i18n" main.py
 
       - name: Build on macOS
         if: matrix.os == 'macos-latest'
         run: |
           rm -rf build dist
           assetName="${{ matrix.artifact_name_prefix }}-${{ env.VERSION }}${{ matrix.asset_suffix }}"
-          uv run pyinstaller --onefile --windowed --name="$assetName" --add-data="assets:assets" --add-data="imgs:imgs" --add-data="i18n:i18n" main.py
+          uv run pyinstaller --onefile --windowed --name="$assetName" --add-data="assets/icons:assets/icons" --add-data="i18n:i18n" main.py
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact_name_prefix }}-${{ env.VERSION }}
-          path: dist/${{ matrix.artifact_name_prefix }}-${{ env.VERSION }}${{ matrix.asset_suffix }}
+          path: dist/*
           if-no-files-found: error
           retention-days: 1
 
@@ -184,6 +184,7 @@ jobs:
             ${{ steps.changelog.outputs.changelog }}
 
             ### Downloads
+            - Windows Installer: crypto-monitor-setup-windows-x64-${{ steps.tag.outputs.version }}.exe
             - Windows: crypto-monitor-windows-x64-${{ steps.tag.outputs.version }}.exe
             - Linux: crypto-monitor-linux-x64-${{ steps.tag.outputs.version }}
             - macOS: crypto-monitor-macos-x64-${{ steps.tag.outputs.version }}
