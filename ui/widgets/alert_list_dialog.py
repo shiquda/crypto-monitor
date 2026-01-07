@@ -105,7 +105,7 @@ class AlertItem(CardWidget):
         elif alert_type == "price_below":
             return FluentIcon.DOWN
         elif alert_type == "price_touch":
-            return FluentIcon.TARGET
+            return FluentIcon.MARKET
         elif alert_type == "price_multiple":
             return FluentIcon.TILES
         elif alert_type == "price_change_pct":

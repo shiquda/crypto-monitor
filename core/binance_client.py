@@ -287,34 +287,39 @@ class BinanceClient(BaseExchangeClient):
                         
                     new_map[symbol] = precision
                 
-                self._precision_map = new_map
-                
-                # Validate currently configured pairs
-                if self._pairs:
-                    invalid_pairs = []
-                    for pair in self._pairs:
-                        normalized = pair.replace("-", "").lower()
-                        if normalized not in valid_symbols:
-                            invalid_pairs.append(pair)
-                    
-                    if invalid_pairs:
-                        print(f"⚠️  [Binance Warning] The following pairs are not valid or not supported: {', '.join(invalid_pairs)}")
-                        print("    Please check spelling or availability on Binance Spot market.")
+                # Check if client still exists and is not stopped
+                try:
+                    if hasattr(self, '_stop_requested') and not self._stop_requested:
+                        self._precision_map = new_map
+                        
+                        # Validate currently configured pairs
+                        if self._pairs:
+                            invalid_pairs = []
+                            for pair in self._pairs:
+                                normalized = pair.replace("-", "").lower()
+                                if normalized not in valid_symbols:
+                                    invalid_pairs.append(pair)
+                            
+                            if invalid_pairs:
+                                print(f"⚠️  [Binance Warning] The following pairs are not valid or not supported: {', '.join(invalid_pairs)}")
+                                print("    Please check spelling or availability on Binance Spot market.")
 
-                # If client is stopped during fetch, abort
-                if not hasattr(self, '_stop_requested') or self._stop_requested:
-                    return
-
-                # If worker is running, update its precision map
-                if self._worker:
-                    self._worker.set_precisions(self._precision_map)
+                        # If worker is running, update its precision map
+                        if self._worker:
+                            self._worker.set_precisions(self._precision_map)
+                except RuntimeError:
+                    # Client might be deleted
+                    pass
                     
             except Exception as e:
                 print(f"Failed to fetch Binance precisions: {e}")
             finally:
                 # Mark as not fetching anymore
-                if hasattr(self, '_fetching_precisions'):
-                    self._fetching_precisions = False
+                try:
+                    if hasattr(self, '_fetching_precisions'):
+                        self._fetching_precisions = False
+                except RuntimeError:
+                    pass
                 
         import threading
         threading.Thread(target=fetch, daemon=True).start()
