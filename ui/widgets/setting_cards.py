@@ -405,12 +405,13 @@ class DisplaySettingCard(ExpandGroupSettingCard):
     """Expandable setting card for display options (color schema)."""
 
     color_schema_changed = pyqtSignal(str)  # Emitted when color schema changes
+    dynamic_bg_changed = pyqtSignal(bool)   # Emitted when dynamic background setting changes
 
     def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(
             FluentIcon.PALETTE,
             _("Display Settings"),
-            _("Configure color preferences for price changes"),
+            _("Configure price display colors and effects"),
             parent
         )
         self._setup_ui()
@@ -428,7 +429,7 @@ class DisplaySettingCard(ExpandGroupSettingCard):
         schema_layout = QHBoxLayout(schema_container)
         schema_layout.setContentsMargins(0, 0, 0, 0)
 
-        from qfluentwidgets import BodyLabel, ComboBox
+        from qfluentwidgets import BodyLabel, ComboBox, SwitchButton
         self.schema_label = BodyLabel(_("Color Schema"))
         self.schema_combo = ComboBox()
         # Note: Index 0 is Standard, Index 1 is Reverse
@@ -438,8 +439,40 @@ class DisplaySettingCard(ExpandGroupSettingCard):
         schema_layout.addWidget(self.schema_label)
         schema_layout.addStretch(1)
         schema_layout.addWidget(self.schema_combo)
-
+        
         layout.addWidget(schema_container)
+        
+        # Dynamic Background
+        bg_container = QWidget()
+        bg_layout = QHBoxLayout(bg_container)
+        bg_layout.setContentsMargins(0, 0, 0, 0)
+        
+        # Label container for title and description
+        label_container = QWidget()
+        label_layout = QVBoxLayout(label_container)
+        label_layout.setContentsMargins(0, 0, 0, 0)
+        label_layout.setSpacing(2)
+
+        from qfluentwidgets import CaptionLabel
+        self.bg_label = BodyLabel(_("Dynamic Background"))
+        self.bg_desc = CaptionLabel(_("Background opacity varies with price change magnitude"))
+        # Set description text color using theme aware colors if possible, typically CaptionLabel is implicitly styled or we leave it default
+        # But to be safe lets leave it default, it should be lighter than BodyLabel
+        
+        label_layout.addWidget(self.bg_label)
+        label_layout.addWidget(self.bg_desc)
+        
+        self.bg_switch = SwitchButton()
+        self.bg_switch.setOffText(_("Off"))
+        self.bg_switch.setOnText(_("On"))
+        self.bg_switch.checkedChanged.connect(self.dynamic_bg_changed.emit)
+        
+        bg_layout.addWidget(label_container)
+        bg_layout.addStretch(1)
+        bg_layout.addWidget(self.bg_switch)
+        
+        layout.addWidget(bg_container)
+        
         self.addGroupWidget(container)
 
     def _on_schema_changed(self, text: str):
@@ -457,3 +490,11 @@ class DisplaySettingCard(ExpandGroupSettingCard):
     def get_color_schema(self) -> str:
         """Get current color schema."""
         return "standard" if self.schema_combo.currentIndex() == 0 else "reverse"
+
+    def set_dynamic_background(self, enabled: bool):
+        """Set dynamic background state."""
+        self.bg_switch.setChecked(enabled)
+
+    def get_dynamic_background(self) -> bool:
+        """Get current dynamic background state."""
+        return self.bg_switch.isChecked()

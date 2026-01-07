@@ -107,6 +107,7 @@ class AppSettings:
     # Basic settings
     theme_mode: str = "light"  # "light", "dark", or "auto"
     color_schema: str = "standard"  # "standard" (Green Up/Red Down) or "reverse" (Red Up/Green Down)
+    dynamic_background: bool = True  # Enable dynamic background color based on price change
     opacity: int = 100
     crypto_pairs: list = field(default_factory=lambda: ["BTC-USDT", "ETH-USDT"])
     proxy: ProxyConfig = field(default_factory=ProxyConfig)
@@ -201,7 +202,7 @@ class SettingsManager:
 
                 # Only keep recognized fields in data
                 recognized_fields = {
-                    'version', 'data_source', 'theme_mode', 'color_schema', 'opacity', 'crypto_pairs',
+                    'version', 'data_source', 'theme_mode', 'color_schema', 'dynamic_background', 'opacity', 'crypto_pairs',
                     'window_x', 'window_y', 'always_on_top', 'language'
                 }
                 filtered_data = {k: v for k, v in data.items() if k in recognized_fields}
@@ -269,6 +270,11 @@ class SettingsManager:
     def update_color_schema(self, schema: str) -> None:
         """Update color schema."""
         self.settings.color_schema = schema
+        self.save()
+
+    def update_dynamic_background(self, enabled: bool) -> None:
+        """Update dynamic background setting."""
+        self.settings.dynamic_background = enabled
         self.save()
 
     def update_language(self, language: str) -> None:
@@ -434,7 +440,7 @@ class SettingsManager:
 
         # Only keep recognized fields
         recognized_fields = {
-            'version', 'theme_mode', 'color_schema', 'opacity', 'crypto_pairs',
+            'version', 'theme_mode', 'color_schema', 'dynamic_background', 'opacity', 'crypto_pairs',
             'window_x', 'window_y', 'always_on_top', 'language'
         }
         filtered_data = {k: v for k, v in data.items() if k in recognized_fields}

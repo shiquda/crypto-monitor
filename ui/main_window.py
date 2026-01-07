@@ -226,6 +226,7 @@ class MainWindow(QMainWindow):
             self._settings_window.pairs_changed.connect(self._on_pairs_changed)
             self._settings_window.theme_changed.connect(self._on_theme_changed)
             self._settings_window.data_source_changed.connect(self._on_data_source_changed)
+            self._settings_window.display_changed.connect(self._on_display_changed)
             self._settings_window.show()
         else:
             self._settings_window.activateWindow()
@@ -245,6 +246,12 @@ class MainWindow(QMainWindow):
         """Handle theme change."""
         # Theme change requires application restart
         pass
+
+    def _on_display_changed(self):
+        """Handle display settings change (dynamic background)."""
+        # Force update all cards
+        for card in self._cards.values():
+            card.refresh_style()
 
     def _on_data_source_changed(self):
         """Handle data source change."""

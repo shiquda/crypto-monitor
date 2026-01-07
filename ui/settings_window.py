@@ -27,8 +27,8 @@ class SettingsWindow(QMainWindow):
 
     proxy_changed = pyqtSignal()  # Emitted when proxy settings change
     pairs_changed = pyqtSignal()  # Emitted when crypto pairs change
-    pairs_changed = pyqtSignal()  # Emitted when crypto pairs change
-    theme_changed = pyqtSignal()  # Emitted when theme settings change
+    theme_changed = pyqtSignal(str)  # Emitted when theme settings change
+    display_changed = pyqtSignal()  # Emitted when display settings (like dynamic bg) change
     data_source_changed = pyqtSignal()  # Emitted when data source changes
 
     def __init__(self, settings_manager: SettingsManager, parent: Optional[QWidget] = None):
@@ -421,6 +421,10 @@ class SettingsWindow(QMainWindow):
         schema = self._settings_manager.settings.color_schema
         self.display_card.set_color_schema(schema)
         
+        # Load dynamic background
+        dynamic_bg = self._settings_manager.settings.dynamic_background
+        self.display_card.set_dynamic_background(dynamic_bg)
+        
         # Load data source
         source = self._settings_manager.settings.data_source
         self.data_source_card.set_data_source(source)
@@ -454,7 +458,12 @@ class SettingsWindow(QMainWindow):
         # Check if color schema changed
         old_schema = self._settings_manager.settings.color_schema
         new_schema = self.display_card.get_color_schema()
-        # schema_changed = old_schema != new_schema 
+        # schema_changed = old_schema != new_schema
+        
+        # Check if dynamic background changed
+        old_dynamic_bg = self._settings_manager.settings.dynamic_background
+        new_dynamic_bg = self.display_card.get_dynamic_background()
+        dynamic_bg_changed = old_dynamic_bg != new_dynamic_bg 
 
         # Get theme mode from card
         self._settings_manager.update_theme(new_theme)
@@ -464,6 +473,9 @@ class SettingsWindow(QMainWindow):
 
         # Update color schema
         self._settings_manager.update_color_schema(new_schema)
+        
+        # Update dynamic background
+        self._settings_manager.update_dynamic_background(new_dynamic_bg)
         
         # Update data source
         self._settings_manager.update_data_source(new_source)
@@ -506,6 +518,8 @@ class SettingsWindow(QMainWindow):
             QTimer.singleShot(100, lambda: self.theme_changed.emit())
         if source_changed:
             QTimer.singleShot(100, lambda: self.data_source_changed.emit())
+        if dynamic_bg_changed:
+            QTimer.singleShot(100, lambda: self.display_changed.emit())
 
     def _reset_settings(self):
         """Reset settings to defaults."""

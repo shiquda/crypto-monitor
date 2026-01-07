@@ -6,7 +6,7 @@ import os
 from typing import Optional
 from PyQt6.QtWidgets import QVBoxLayout, QHBoxLayout, QLabel, QWidget, QMenu
 from PyQt6.QtCore import Qt, pyqtSignal, QByteArray
-from PyQt6.QtGui import QPixmap, QMouseEvent, QImage, QAction, QContextMenuEvent
+from PyQt6.QtGui import QMouseEvent, QContextMenuEvent, QAction, QColor
 from PyQt6.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
 from PyQt6.QtCore import QUrl
 from PyQt6.QtSvgWidgets import QSvgWidget
@@ -276,6 +276,49 @@ class CryptoCard(CardWidget):
         self.price_label.setText(text)
         self.price_label.setStyleSheet(style)
 
+    def refresh_style(self):
+        """Refresh card style based on settings and state."""
+        from config.settings import get_settings_manager
+        settings = get_settings_manager().settings
+        
+        # Reset if disabled
+        if not settings.dynamic_background:
+            self.setStyleSheet("") # Clear any custom background
+            return
+
+        # Calculate background color based on percentage
+        try:
+            pct_val = float(self._current_percentage.strip('%').replace('+', ''))
+        except (ValueError, AttributeError):
+            pct_val = 0.0
+            
+        if pct_val == 0:
+            self.setStyleSheet("")
+            return
+            
+        # Determine base color
+        is_up = pct_val > 0
+        base_color = self._color_up if is_up else self._color_down
+        
+        # Calculate opacity
+        # Max intensity at 10% change
+        # Opacity range: 0.10 to 0.40 (increased for better visibility)
+        ratio = min(abs(pct_val) / 10.0, 1.0) 
+        opacity = 0.10 + (ratio * 0.30)
+        
+        # Convert hex to rgba
+        c = QColor(base_color)
+        r, g, b = c.red(), c.green(), c.blue()
+        
+        bg_color = f"rgba({r}, {g}, {b}, {opacity:.2f})"
+        
+        # We need to construct a stylesheet that preserves CardWidget properties but adds background
+        # CardWidget uses qproperty-backgroundColor usually? Or just background.
+        # Let's try setting background-color on the widget ID or class.
+        # Since we are inside the class, self.setStyleSheet works on this widget.
+        
+        self.setStyleSheet(f"CryptoCard {{ background-color: {bg_color}; border: 1px solid rgba(0,0,0,0.05); border-radius: 10px; }}")
+
     def update_percentage(self, percentage: str):
         """Update the percentage display."""
         self._current_percentage = percentage
@@ -289,6 +332,8 @@ class CryptoCard(CardWidget):
         else:
             neutral_color = "#333333" if self._theme_mode == "light" else "#FFFFFF"
             self.percentage_label.setStyleSheet(f"font-size: 11px; color: {neutral_color};")
+            
+        self.refresh_style()
 
     def set_edit_mode(self, enabled: bool):
         """Enable/disable edit mode (shows remove button)."""
