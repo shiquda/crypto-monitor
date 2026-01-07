@@ -7,8 +7,8 @@ import webbrowser
 from typing import Optional
 from datetime import datetime
 from PyQt6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel
-from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QIcon
+from PyQt6.QtGui import QIcon, QDesktopServices
+from PyQt6.QtCore import Qt, pyqtSignal, QUrl
 from qfluentwidgets import (
     ScrollArea, SettingCardGroup, PushButton, PrimaryPushButton,
     FluentIcon, InfoBar, InfoBarPosition, Theme, setTheme,
@@ -87,7 +87,7 @@ class SettingsWindow(QMainWindow):
         sidebar_layout.setSpacing(5)
 
         # Sidebar Title
-        from qfluentwidgets import TitleLabel, TransparentToolButton, BodyLabel
+        from qfluentwidgets import TitleLabel, BodyLabel
         from PyQt6.QtWidgets import QStackedWidget
 
         sidebar_title = TitleLabel(_("Settings"))
@@ -275,6 +275,17 @@ class SettingsWindow(QMainWindow):
         self.github_card.button.setText(_("View"))
         self.github_card.button.clicked.connect(lambda: webbrowser.open("https://github.com/shiquda/crypto-monitor"))
         self.about_group.addSettingCard(self.github_card)
+
+        # Open Log Directory Card
+        self.app_dir_card = PrimaryPushSettingCard(
+            _("Open"),
+            FluentIcon.FOLDER,
+            _("Log Directory"),
+            _("Open the logs directory"),
+            self.about_group
+        )
+        self.app_dir_card.button.clicked.connect(self._open_log_directory)
+        self.about_group.addSettingCard(self.app_dir_card)
         
         add_nav_item(_("About"), FluentIcon.PEOPLE, self.about_group)
 
@@ -478,7 +489,7 @@ class SettingsWindow(QMainWindow):
         source_changed = old_source != new_source
 
         # Check if color schema changed
-        old_schema = self._settings_manager.settings.color_schema
+        # old_schema = self._settings_manager.settings.color_schema
         new_schema = self.display_card.get_color_schema()
         # schema_changed = old_schema != new_schema
         
@@ -594,3 +605,19 @@ class SettingsWindow(QMainWindow):
             self.proxy_card.show_test_result(False, f"{_('Socket error')}: {str(e)}")
         except Exception as e:
             self.proxy_card.show_test_result(False, f"{_('Unexpected error')}: {str(e)}")
+
+    def _open_log_directory(self):
+        """Open the application log directory in file explorer."""
+        import os
+        from pathlib import Path
+        
+        if os.name == 'nt':  # Windows
+            log_dir = Path(os.environ.get('APPDATA', '')) / 'crypto-monitor' / 'logs'
+        else:  # Linux/Mac
+            log_dir = Path.home() / '.config' / 'crypto-monitor' / 'logs'
+            
+        # Ensure it exists before opening, though it should exist
+        if not log_dir.exists():
+            log_dir.mkdir(parents=True, exist_ok=True)
+            
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(log_dir)))
