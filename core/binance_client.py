@@ -1,5 +1,6 @@
 import asyncio
 import json
+from config.settings import get_settings_manager
 import time
 import random
 import logging
@@ -111,8 +112,14 @@ class BinanceWebSocketWorker(QThread):
                 )
                 
                 # trust_env=True enables automatic proxy detection from environment variables
+                # Also explicitly check app settings for proxy
+                settings = get_settings_manager().settings
+                proxy_url = None
+                if settings.proxy.enabled and settings.proxy.type == 'http':
+                    proxy_url = settings.proxy.get_proxy_url()
+
                 async with aiohttp.ClientSession(trust_env=True) as session:
-                    async with session.ws_connect(self.WS_URL) as ws:
+                    async with session.ws_connect(self.WS_URL, proxy=proxy_url) as ws:
                         self._connection_start_time = time.time()
                         self._reconnect_strategy.reset()
                         self._update_connection_state(ConnectionState.CONNECTED, "Connected to Binance")
@@ -291,7 +298,20 @@ class BinanceClient(BaseExchangeClient):
             try:
                 # Use request session to allow automatic env proxy usage if requests supports it
                 # (requests usually supports env vars by default)
-                response = requests.get("https://api.binance.com/api/v3/exchangeInfo", timeout=10)
+                
+                # Configure proxies from settings
+                settings = get_settings_manager().settings
+                proxies = {}
+                if settings.proxy.enabled:
+                    if settings.proxy.type == 'http':
+                        proxy_url = settings.proxy.get_proxy_url()
+                        proxies = {"http": proxy_url, "https": proxy_url}
+                    elif settings.proxy.type == 'socks5':
+                        # requests works with socks5 if dependencies are met, trying best effort
+                        proxy_url = settings.proxy.get_proxy_url()
+                        proxies = {"http": proxy_url, "https": proxy_url}
+
+                response = requests.get("https://api.binance.com/api/v3/exchangeInfo", proxies=proxies, timeout=10)
                 data = response.json()
                 
                 new_map = {}
