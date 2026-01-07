@@ -22,8 +22,9 @@ from ui.settings_window import SettingsWindow
 
 from core.i18n import _
 from core.okx_client import OkxClientManager
+from core.exchange_factory import ExchangeFactory
 from core.price_tracker import PriceTracker
-from core.alert_manager import AlertManager
+from core.alert_manager import get_alert_manager
 from config.settings import get_settings_manager
 
 
@@ -42,9 +43,9 @@ class MainWindow(QMainWindow):
 
         # Core components
         self._settings_manager = get_settings_manager()
-        self._okx_client = OkxClientManager(self)
+        self._exchange_client = ExchangeFactory.create_client(self)
         self._price_tracker = PriceTracker()
-        self._alert_manager = AlertManager(self)
+        self._alert_manager = get_alert_manager()
 
         # Apply theme based on settings
         theme_mode = self._settings_manager.settings.theme_mode
@@ -133,10 +134,10 @@ class MainWindow(QMainWindow):
         # Pagination
         self.pagination.page_changed.connect(self._on_page_changed)
 
-        # OKX client signals
-        self._okx_client.ticker_updated.connect(self._on_ticker_update)
-        self._okx_client.connection_status.connect(self._on_connection_status)
-        self._okx_client.connection_state_changed.connect(self._on_connection_state_changed)
+        # Exchange client signals
+        self._exchange_client.ticker_updated.connect(self._on_ticker_update)
+        self._exchange_client.connection_status.connect(self._on_connection_status)
+        self._exchange_client.connection_state_changed.connect(self._on_connection_state_changed)
 
     def _load_pairs(self):
         """Load pairs from settings and subscribe."""
@@ -152,7 +153,7 @@ class MainWindow(QMainWindow):
 
         # Subscribe to all pairs
         if pairs:
-            self._okx_client.subscribe(pairs)
+            self._exchange_client.subscribe(pairs)
 
     def _update_cards_display(self):
         """Update the displayed cards based on current page."""
@@ -223,6 +224,7 @@ class MainWindow(QMainWindow):
             self._settings_window.proxy_changed.connect(self._on_proxy_changed)
             self._settings_window.pairs_changed.connect(self._on_pairs_changed)
             self._settings_window.theme_changed.connect(self._on_theme_changed)
+            self._settings_window.data_source_changed.connect(self._on_data_source_changed)
             self._settings_window.show()
         else:
             self._settings_window.activateWindow()
@@ -231,7 +233,7 @@ class MainWindow(QMainWindow):
     def _on_proxy_changed(self):
         """Handle proxy configuration change."""
         # Reconnect with new proxy settings
-        self._okx_client.reconnect()
+        self._exchange_client.reconnect()
 
     def _on_pairs_changed(self):
         """Handle crypto pairs change."""
@@ -241,8 +243,47 @@ class MainWindow(QMainWindow):
     def _on_theme_changed(self):
         """Handle theme change."""
         # Theme change requires application restart
-        # This is just a placeholder for future enhancements
         pass
+
+    def _on_data_source_changed(self):
+        """Handle data source change."""
+        print("Data source changed, switching client...")
+        
+        # Reset alert manager state to prevent false alerts due to price differences
+        self._alert_manager.reset()
+        
+        # Stop existing client
+        if self._exchange_client:
+            # Safe cleanup: wait for client to fully stop before checking for deletion
+            old_client = self._exchange_client
+            
+            # CRITICAL: Disconnect all signals from the old client to the main window
+            # This prevents ticker updates or state changes from reaching this window
+            # while the new client is being set up.
+            try:
+                old_client.ticker_updated.disconnect(self._on_ticker_update)
+                old_client.connection_status.disconnect(self._on_connection_status)
+                old_client.connection_state_changed.disconnect(self._on_connection_state_changed)
+            except (TypeError, RuntimeError):
+                # Signals might already be disconnected
+                pass
+                
+            # Connect the stopped signal to deleteLater on the old client object
+            old_client.stopped.connect(old_client.deleteLater)
+            old_client.stop()
+            # Clean reference immediately so new client can assume control
+            self._exchange_client = None
+            
+        # Create new client
+        self._exchange_client = ExchangeFactory.create_client(self)
+        
+        # Connect signals
+        self._exchange_client.ticker_updated.connect(self._on_ticker_update)
+        self._exchange_client.connection_status.connect(self._on_connection_status)
+        self._exchange_client.connection_state_changed.connect(self._on_connection_state_changed)
+        
+        # Resubscribe
+        self._load_pairs()
 
     def _toggle_edit_mode(self):
         """Toggle edit mode (add/remove pairs)."""
@@ -318,8 +359,8 @@ class MainWindow(QMainWindow):
         self._settings_manager.settings.window_y = pos.y()
         self._settings_manager.save()
 
-        # Stop OKX client
-        self._okx_client.stop()
+        # Stop exchange client
+        self._exchange_client.stop()
 
         # Close application
         QApplication.quit()

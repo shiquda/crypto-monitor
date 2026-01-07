@@ -16,6 +16,7 @@ from qfluentwidgets import (
 from ui.widgets.setting_cards import ProxySettingCard, PairsSettingCard, ThemeSettingCard, LanguageSettingCard
 from ui.widgets.alert_setting_card import AlertSettingCard
 from ui.widgets.alert_setting_card import AlertSettingCard
+from ui.widgets.data_source_setting_card import DataSourceSettingCard
 from config.settings import SettingsManager, ProxyConfig
 from core.i18n import _
 
@@ -25,7 +26,9 @@ class SettingsWindow(QMainWindow):
 
     proxy_changed = pyqtSignal()  # Emitted when proxy settings change
     pairs_changed = pyqtSignal()  # Emitted when crypto pairs change
+    pairs_changed = pyqtSignal()  # Emitted when crypto pairs change
     theme_changed = pyqtSignal()  # Emitted when theme settings change
+    data_source_changed = pyqtSignal()  # Emitted when data source changes
 
     def __init__(self, settings_manager: SettingsManager, parent: Optional[QWidget] = None):
         super().__init__(parent)
@@ -190,8 +193,13 @@ class SettingsWindow(QMainWindow):
         self.theme_card = ThemeSettingCard(self.appearance_group)
         self.appearance_group.addSettingCard(self.theme_card)
         
-        # Proxy configuration group
+        # Proxy query group (Network)
         self.proxy_group = SettingCardGroup(_("Network Configuration"), None)
+        
+        # Data Source
+        self.data_source_card = DataSourceSettingCard(self.proxy_group)
+        self.proxy_group.addSettingCard(self.data_source_card)
+        
         self.proxy_card = ProxySettingCard(self.proxy_group)
         self.proxy_card.test_requested.connect(self._test_connection)
         self.proxy_group.addSettingCard(self.proxy_card)
@@ -374,6 +382,10 @@ class SettingsWindow(QMainWindow):
         # Load language
         language = self._settings_manager.settings.language
         self.language_card.set_language(language)
+        
+        # Load data source
+        source = self._settings_manager.settings.data_source
+        self.data_source_card.set_data_source(source)
 
         # Load proxy configuration
         proxy = self._settings_manager.settings.proxy
@@ -395,12 +407,20 @@ class SettingsWindow(QMainWindow):
         old_lang = self._settings_manager.settings.language
         new_lang = self.language_card.get_language()
         lang_changed = old_lang != new_lang
+        
+        # Check if data source changed
+        old_source = self._settings_manager.settings.data_source
+        new_source = self.data_source_card.get_data_source()
+        source_changed = old_source != new_source
 
         # Get theme mode from card
         self._settings_manager.update_theme(new_theme)
         
         # Get language from card
         self._settings_manager.update_language(new_lang)
+        
+        # Update data source
+        self._settings_manager.update_data_source(new_source)
 
         # Get proxy configuration from card
         proxy = self.proxy_card.get_proxy_config()
@@ -438,6 +458,8 @@ class SettingsWindow(QMainWindow):
         QTimer.singleShot(100, lambda: self.pairs_changed.emit())
         if theme_changed:
             QTimer.singleShot(100, lambda: self.theme_changed.emit())
+        if source_changed:
+            QTimer.singleShot(100, lambda: self.data_source_changed.emit())
 
     def _reset_settings(self):
         """Reset settings to defaults."""

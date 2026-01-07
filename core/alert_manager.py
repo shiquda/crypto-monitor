@@ -67,6 +67,12 @@ class AlertManager(QObject):
             if self._should_trigger(alert, current_price, previous_price, percentage_val, previous_percentage):
                 self._trigger_alert(alert, current_price, previous_price)
 
+    def reset(self):
+        """Reset all price history. Call this when switching data sources."""
+        self._current_prices.clear()
+        if hasattr(self, '_current_percentages'):
+            self._current_percentages.clear()
+
     def _should_trigger(
         self, 
         alert: PriceAlert, 

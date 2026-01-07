@@ -424,6 +424,7 @@ dependencies = [
     { name = "pyqt6" },
     { name = "pyqt6-fluent-widgets" },
     { name = "python-okx" },
+    { name = "requests" },
     { name = "websockets" },
 ]
 
@@ -445,6 +446,7 @@ requires-dist = [
     { name = "pyqt6", specifier = ">=6.6.0" },
     { name = "pyqt6-fluent-widgets", specifier = ">=1.0.0" },
     { name = "python-okx", specifier = ">=0.3.0" },
+    { name = "requests", specifier = ">=2.30.0" },
     { name = "websockets", specifier = ">=12.0" },
 ]
 provides-extras = ["fluent"]

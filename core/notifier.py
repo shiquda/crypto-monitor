@@ -75,6 +75,7 @@ class NotificationService(QObject):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._worker: Optional[AsyncLoopThread] = None
+        self._notifier: Optional['DesktopNotifier'] = None
         
         if NOTIFIER_AVAILABLE:
             self._worker = AsyncLoopThread(self)
@@ -91,6 +92,17 @@ class NotificationService(QObject):
         webbrowser.open(url)
         self.notification_clicked.emit(pair)
 
+    async def _ensure_notifier(self):
+        """Ensure DesktopNotifier is initialized (lazy init in loop)."""
+        if self._notifier is None:
+            try:
+                self._notifier = DesktopNotifier(
+                    app_name="Crypto Monitor",
+                    app_icon=None
+                )
+            except Exception as e:
+                print(f"Failed to initialize DesktopNotifier: {e}")
+
     async def _send_notification_task(
         self,
         title: str,
@@ -106,21 +118,15 @@ class NotificationService(QObject):
             urgency = Urgency.Normal
 
         try:
-            # We initialize a new notifier for each notification to ensure thread safety
-            # relative to the current thread (the worker thread).
-            # Improvements could be made to reuse it if we are sure it stays on this thread.
-            notifier = DesktopNotifier(
-                app_name="Crypto Monitor",
-                app_icon=None
-            )
-            
-            await notifier.send(
-                title=title,
-                message=message,
-                urgency=urgency,
-                on_clicked=lambda: self._open_url(pair),
-                sound=DEFAULT_SOUND,
-            )
+            await self._ensure_notifier()
+            if self._notifier:
+                await self._notifier.send(
+                    title=title,
+                    message=message,
+                    urgency=urgency,
+                    on_clicked=lambda: self._open_url(pair),
+                    sound=DEFAULT_SOUND,
+                )
         except Exception as e:
             print(f"Failed to send notification: {e}")
 
@@ -168,16 +174,20 @@ class NotificationService(QObject):
 
         # Schedule usage on the background loop
         loop = self._worker.get_loop()
-        if loop and loop.is_running():
-             asyncio.run_coroutine_threadsafe(
-                self._send_notification_task(
-                    title=title,
-                    message=message,
-                    pair=pair,
-                    urgency=Urgency.Normal
-                ),
-                loop
-            )
+        if loop and loop.is_running() and not loop.is_closed():
+             try:
+                 asyncio.run_coroutine_threadsafe(
+                    self._send_notification_task(
+                        title=title,
+                        message=message,
+                        pair=pair,
+                        urgency=Urgency.Normal
+                    ),
+                    loop
+                )
+             except RuntimeError:
+                 # Loop might be closed during execution
+                 pass
 
     def send_test_notification(self):
         """Send a test notification."""
@@ -186,15 +196,18 @@ class NotificationService(QObject):
             return
 
         loop = self._worker.get_loop()
-        if loop and loop.is_running():
-            asyncio.run_coroutine_threadsafe(
-                self._send_notification_task(
-                    title=_("Crypto Monitor"),
-                    message=_("Notifications are working!"),
-                    pair="BTC-USDT"
-                ),
-                loop
-            )
+        if loop and loop.is_running() and not loop.is_closed():
+            try:
+                asyncio.run_coroutine_threadsafe(
+                    self._send_notification_task(
+                        title=_("Crypto Monitor"),
+                        message=_("Notifications are working!"),
+                        pair="BTC-USDT"
+                    ),
+                    loop
+                )
+            except RuntimeError:
+                pass
 
     @property
     def is_available(self) -> bool:

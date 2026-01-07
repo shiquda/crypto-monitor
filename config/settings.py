@@ -100,7 +100,8 @@ class PriceAlert:
 class AppSettings:
     """Application settings."""
     # Current version
-    version: str = "2.2.0"
+    version: str = "2.3.0"  # Bump version
+    data_source: str = "OKX"  # "OKX" or "Binance"
 
     # Basic settings
     theme_mode: str = "light"  # "light", "dark", or "auto"
@@ -198,7 +199,7 @@ class SettingsManager:
 
                 # Only keep recognized fields in data
                 recognized_fields = {
-                    'version', 'theme_mode', 'opacity', 'crypto_pairs',
+                    'version', 'data_source', 'theme_mode', 'opacity', 'crypto_pairs',
                     'window_x', 'window_y', 'always_on_top', 'language'
                 }
                 filtered_data = {k: v for k, v in data.items() if k in recognized_fields}
@@ -267,6 +268,11 @@ class SettingsManager:
         """Update language setting."""
         self.settings.language = language
         load_language(language)
+        self.save()
+
+    def update_data_source(self, source: str) -> None:
+        """Update data source setting."""
+        self.settings.data_source = source
         self.save()
 
     # Alert management methods

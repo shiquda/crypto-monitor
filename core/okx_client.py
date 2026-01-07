@@ -12,11 +12,13 @@ from typing import Optional, Callable, Set, Dict, Any
 from PyQt6.QtCore import QObject, QThread, pyqtSignal, QTimer
 from enum import Enum
 
-# Import OKX WebSocket
 try:
     from okx.websocket.WsPublicAsync import WsPublicAsync
 except ImportError:
     WsPublicAsync = None
+
+# Module-level list to keep dying workers alive until they finish
+_dying_workers = []
 
 
 class ConnectionState(Enum):
@@ -137,6 +139,7 @@ class OkxWebSocketWorker(QThread):
 
     def run(self):
         """Run the WebSocket client in asyncio event loop with auto-reconnect."""
+        print(f"[OkxWorker] Starting run loop (Thread: {int(QThread.currentThreadId())})")
         self._running = True
         self._loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self._loop)
@@ -145,12 +148,30 @@ class OkxWebSocketWorker(QThread):
         self._reconnect_strategy.reset()
 
         try:
-            self._loop.run_until_complete(self._maintain_connection())
+            # Store task reference for cancellation
+            self._main_task = self._loop.create_task(self._maintain_connection())
+            self._loop.run_until_complete(self._main_task)
+        except asyncio.CancelledError:
+            print("[OkxWorker] Main task cancelled")
+            self._update_connection_state(ConnectionState.DISCONNECTED, "Connection cancelled")
         except Exception as e:
+            print(f"[OkxWorker] Fatal error: {e}")
             self._last_error = str(e)
             self._update_connection_state(ConnectionState.FAILED, f"Fatal error: {e}")
         finally:
-            self._loop.close()
+            print("[OkxWorker] Cleaning up loop...")
+            # Clean up all tasks
+            try:
+                pending = asyncio.all_tasks(self._loop)
+                for task in pending:
+                    task.cancel()
+                if pending:
+                    self._loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+                self._loop.close()
+                print("[OkxWorker] Loop closed.")
+            except Exception as e:
+                print(f"OKX Loop cleanup error: {e}")
+                
             self._update_connection_state(ConnectionState.DISCONNECTED, "Connection closed")
 
     async def _maintain_connection(self):
@@ -191,6 +212,8 @@ class OkxWebSocketWorker(QThread):
                             )
                             break
 
+            except asyncio.CancelledError:
+                raise  # Propagate cancellation to run()
             except Exception as e:
                 self._last_error = str(e)
                 error_msg = f"Connection failed: {e}"
@@ -338,18 +361,27 @@ class OkxWebSocketWorker(QThread):
     def stop(self):
         """Stop the WebSocket connection."""
         self._running = False
-        self.wait(5000)  # Wait max 5 seconds to avoid blocking UI
+        if self._loop and self._loop.is_running():
+            # Thread-safe cancellation
+            self._loop.call_soon_threadsafe(self._cancel_task_safe)
+            
+    def _cancel_task_safe(self):
+        """Helper to cancel the main task from within the loop."""
+        if hasattr(self, '_main_task') and self._main_task:
+            self._main_task.cancel()
 
     def update_pairs(self, pairs: list[str]):
         """Update subscription pairs (requires reconnection)."""
         self.pairs = pairs
 
 
-class OkxClientManager(QObject):
+from core.base_client import BaseExchangeClient
+
+class OkxClientManager(BaseExchangeClient):
     """
     Manages OKX WebSocket connections.
     Handles multiple subscriptions and reconnection with automatic retry.
-
+    
     Key features:
     - Automatic reconnection with exponential backoff
     - Incremental subscription updates (no full reconnect needed)
@@ -366,6 +398,34 @@ class OkxClientManager(QObject):
         super().__init__(parent)
         self._worker: Optional[OkxWebSocketWorker] = None
         self._pairs: list[str] = []
+
+    def _detach_and_stop_worker(self, worker: OkxWebSocketWorker):
+        """
+        Safely detach and stop a worker thread.
+        Orphans the worker so it isn't destroyed if the parent client is deleted.
+        """
+        if not worker:
+            return
+
+        # CRITICAL: Remove parent before moving to module-level list
+        worker.setParent(None)
+        
+        # Keep worker alive in module-level list until it finishes
+        if worker.isRunning():
+            _dying_workers.append(worker)
+            
+            def cleanup():
+                if worker in _dying_workers:
+                    try:
+                        _dying_workers.remove(worker)
+                    except ValueError:
+                        pass
+                worker.deleteLater()
+            
+            worker.finished.connect(cleanup)
+            worker.stop()
+        else:
+            worker.deleteLater()
 
     def subscribe(self, pairs: list[str]):
         """
@@ -398,7 +458,7 @@ class OkxClientManager(QObject):
         """Create a new WebSocket worker."""
         # Stop any existing worker first
         if self._worker is not None:
-            self.stop()
+            self._detach_and_stop_worker(self._worker)
 
         self._pairs = pairs
         self._worker = OkxWebSocketWorker(pairs, self)
@@ -443,10 +503,10 @@ class OkxClientManager(QObject):
 
     def stop(self):
         """Stop all connections."""
-        if self._worker is not None:
-            self._worker.stop()
-            self._worker.wait(5000)  # Wait up to 5 seconds
+        if self._worker:
+            self._detach_and_stop_worker(self._worker)
             self._worker = None
+        self.stopped.emit()
 
     def reconnect(self):
         """Force reconnect with current pairs (for manual recovery)."""
