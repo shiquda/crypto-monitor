@@ -40,6 +40,11 @@ A modern, elegant, and cross-platform cryptocurrency price monitor built with Py
         - **Network**: Configure HTTP/Socks5 proxy.
         - **notification**: Manage notification preferences.
 
+## Documentation
+For detailed usage instructions, please refer to the User Manual:
+
+[English](docs/user_manual_en.md) | [简体中文](docs/user_manual_zh.md)
+
 ## Technology Stack
 
 - **Python 3.10+**
