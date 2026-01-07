@@ -51,28 +51,54 @@ class Pagination(QWidget):
 
         layout.addStretch()
 
-        # Apply styles - 使用深色文字以适应浅色背景
-        style = """
-            QPushButton#pageButton {
-                background: transparent;
-                border: 1px solid #CCCCCC;
-                border-radius: 4px;
-                color: #333333;
-                font-size: 12px;
-            }
-            QPushButton#pageButton:hover {
-                background: rgba(0, 0, 0, 0.05);
-                border-color: #999999;
-            }
-            QPushButton#pageButton:disabled {
-                color: #CCCCCC;
-                border-color: #E0E0E0;
-            }
-            QLabel#pageLabel {
-                color: #333333;
-                font-size: 12px;
-            }
-        """
+        # Apply theme-aware styles
+        from config.settings import get_settings_manager
+        theme_mode = get_settings_manager().settings.theme_mode
+        
+        if theme_mode == "dark":
+            style = """
+                QPushButton#pageButton {
+                    background: transparent;
+                    border: 1px solid #555555;
+                    border-radius: 4px;
+                    color: #EEEEEE;
+                    font-size: 12px;
+                }
+                QPushButton#pageButton:hover {
+                    background: rgba(255, 255, 255, 0.1);
+                    border-color: #888888;
+                }
+                QPushButton#pageButton:disabled {
+                    color: #555555;
+                    border-color: #444444;
+                }
+                QLabel#pageLabel {
+                    color: #EEEEEE;
+                    font-size: 12px;
+                }
+            """
+        else:
+            style = """
+                QPushButton#pageButton {
+                    background: transparent;
+                    border: 1px solid #CCCCCC;
+                    border-radius: 4px;
+                    color: #333333;
+                    font-size: 12px;
+                }
+                QPushButton#pageButton:hover {
+                    background: rgba(0, 0, 0, 0.05);
+                    border-color: #999999;
+                }
+                QPushButton#pageButton:disabled {
+                    color: #CCCCCC;
+                    border-color: #E0E0E0;
+                }
+                QLabel#pageLabel {
+                    color: #333333;
+                    font-size: 12px;
+                }
+            """
         self.setStyleSheet(style)
         self._update_ui()
 

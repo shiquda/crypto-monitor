@@ -107,7 +107,8 @@ class SettingsWindow(QMainWindow):
                 self.setCursor(Qt.CursorShape.PointingHandCursor)
                 
                 layout = QHBoxLayout(self)
-                layout.setContentsMargins(10, 0, 10, 0)
+                # Leave extra left margin for selection indicator border
+                layout.setContentsMargins(13, 0, 10, 0)
                 layout.setSpacing(12)
                 
                 # Icon
@@ -116,8 +117,10 @@ class SettingsWindow(QMainWindow):
                 self.icon_label.setFixedSize(16, 16)
                 self.icon_label.setScaledContents(True)
                 
-                params = Qt.GlobalColor.white if is_dark else Qt.GlobalColor.black
-                self.icon_label.setPixmap(icon.icon(params).pixmap(16, 16))
+                # Use Theme enum for proper icon color rendering
+                from qfluentwidgets import Theme
+                icon_theme = Theme.DARK if is_dark else Theme.LIGHT
+                self.icon_label.setPixmap(icon.icon(icon_theme).pixmap(16, 16))
                 layout.addWidget(self.icon_label)
                 
                 # Text
@@ -134,14 +137,23 @@ class SettingsWindow(QMainWindow):
                 
             def _update_style(self):
                 if self.is_selected:
-                    bg = "rgba(255, 255, 255, 0.1)" if self.is_dark else "rgba(0, 0, 0, 0.05)"
+                    # Use stronger background and accent color for selected state
+                    if self.is_dark:
+                        bg = "rgba(0, 120, 212, 0.25)"  # Blue tint for dark mode
+                    else:
+                        bg = "rgba(0, 120, 212, 0.12)"  # Blue tint for light mode
                     self.setStyleSheet(f"background-color: {bg}; border-radius: 5px;")
+                    # Update text to accent color
+                    self.text_label.setStyleSheet("color: #0078D4; background: transparent; border: none;")
                 else:
                     self.setStyleSheet("background-color: transparent;")
+                    # Reset text color
+                    text_color = "white" if self.is_dark else "black"
+                    self.text_label.setStyleSheet(f"color: {text_color}; background: transparent; border: none;")
 
             def enterEvent(self, event):
                 if not self.is_selected:
-                    bg = "rgba(255, 255, 255, 0.05)" if self.is_dark else "rgba(0, 0, 0, 0.03)"
+                    bg = "rgba(255, 255, 255, 0.08)" if self.is_dark else "rgba(0, 0, 0, 0.04)"
                     self.setStyleSheet(f"background-color: {bg}; border-radius: 5px;")
                 super().enterEvent(event)
                 
@@ -557,7 +569,7 @@ class SettingsWindow(QMainWindow):
         QTimer.singleShot(100, lambda: self.proxy_changed.emit())
         QTimer.singleShot(100, lambda: self.pairs_changed.emit())
         if theme_changed:
-            QTimer.singleShot(100, lambda: self.theme_changed.emit())
+            QTimer.singleShot(100, lambda t=new_theme: self.theme_changed.emit(t))
         if source_changed:
             QTimer.singleShot(100, lambda: self.data_source_changed.emit())
         if dynamic_bg_changed:

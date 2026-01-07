@@ -284,16 +284,16 @@ def get_stylesheet(name: str, theme_mode: str = "light") -> str:
                 border-radius: 4px;
             }}
             QLabel#statusInfo {{
-                background-color: #E3F2FD;
-                color: #1976D2;
+                background-color: {"#1E3A5F" if theme_mode == "dark" else "#E3F2FD"};
+                color: {"#64B5F6" if theme_mode == "dark" else "#1976D2"};
             }}
             QLabel#statusSuccess {{
-                background-color: #E8F5E9;
-                color: #2E7D32;
+                background-color: {"#1B3D1B" if theme_mode == "dark" else "#E8F5E9"};
+                color: {"#81C784" if theme_mode == "dark" else "#2E7D32"};
             }}
             QLabel#statusError {{
-                background-color: #FFEBEE;
-                color: #C62828;
+                background-color: {"#4A1A1A" if theme_mode == "dark" else "#FFEBEE"};
+                color: {"#EF9A9A" if theme_mode == "dark" else "#C62828"};
             }}
         """,
     }

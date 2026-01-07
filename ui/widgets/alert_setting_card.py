@@ -49,13 +49,23 @@ class AlertListItem(QWidget):
         # Pair and type
         type_text = self._get_type_text()
         title = BodyLabel(f"{self.alert.pair}")
-        title.setStyleSheet("font-weight: bold; font-size: 13px;")
+        
+        # Theme-aware title color
+        from config.settings import get_settings_manager
+        theme_mode = get_settings_manager().settings.theme_mode
+        title_color = "#FFFFFF" if theme_mode == "dark" else "#333333"
+        title.setStyleSheet(f"font-weight: bold; font-size: 13px; color: {title_color};")
         info_layout.addWidget(title)
 
         # Details
         mode_text = _("Once") if self.alert.repeat_mode == "once" else f"{_('Repeat')} ({self.alert.cooldown_seconds}s)"
         details = BodyLabel(f"{type_text} ${self.alert.target_price:,.2f} | {mode_text}")
-        details.setStyleSheet("font-size: 11px; color: #666666;")
+        
+        # Theme-aware color for details - use darker color for better visibility in light mode
+        from config.settings import get_settings_manager
+        theme_mode = get_settings_manager().settings.theme_mode
+        details_color = "#AAAAAA" if theme_mode == "dark" else "#555555"
+        details.setStyleSheet(f"font-size: 11px; color: {details_color};")
         info_layout.addWidget(details)
 
         layout.addLayout(info_layout, 1)
@@ -107,10 +117,10 @@ class AlertSettingCard(ExpandGroupSettingCard):
         layout.setContentsMargins(48, 18, 48, 18)
         layout.setSpacing(16)
 
-        # Alerts list
+        # Alerts list - increased height for better visibility
         self.alerts_list = FluentListWidget()
-        self.alerts_list.setMinimumHeight(150)
-        self.alerts_list.setMaximumHeight(250)
+        self.alerts_list.setMinimumHeight(200)
+        self.alerts_list.setMaximumHeight(350)
         layout.addWidget(self.alerts_list)
 
         # Button bar
