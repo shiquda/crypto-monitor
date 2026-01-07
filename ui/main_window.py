@@ -175,7 +175,8 @@ class MainWindow(QMainWindow):
         for pair in visible_pairs:
             if pair not in self._cards:
                 card = CryptoCard(pair)
-                card.double_clicked.connect(self._on_card_double_click)
+                card.double_clicked.connect(self._open_pair_in_browser)
+                card.browser_opened_requested.connect(self._open_pair_in_browser)
                 card.remove_clicked.connect(self._remove_pair)
                 card.add_alert_requested.connect(self._on_add_alert_requested)
                 card.view_alerts_requested.connect(self._on_view_alerts_requested)
@@ -313,10 +314,27 @@ class MainWindow(QMainWindow):
             self._price_tracker.clear_pair(pair)
             self._load_pairs()
 
-    def _on_card_double_click(self, pair: str):
-        """Handle double-click on card to open OKX page."""
-        formatted_pair = pair.lower()
-        url = f"https://www.okx.com/trade-spot/{formatted_pair}"
+    def _open_pair_in_browser(self, pair: str):
+        """Open the trading pair in the browser based on the current data source."""
+        source = self._settings_manager.settings.data_source
+        lang = self._settings_manager.settings.language
+        
+        if source.lower() == "binance":
+            # Binance format: BTC_USDT
+            formatted_pair = pair.replace("-", "_").upper()
+            # Determine locale prefix
+            # Map zh_CN to zh-CN, others default to en (or we could map more if needed)
+            locale_prefix = "zh-CN" if lang == "zh_CN" else "en"
+            url = f"https://www.binance.com/{locale_prefix}/trade/{formatted_pair}"
+        else:
+            # OKX format: btc-usdt
+            formatted_pair = pair.lower()
+            # OKX uses zh-hans for Simplified Chinese
+            if lang == "zh_CN":
+                url = f"https://www.okx.com/zh-hans/trade-spot/{formatted_pair}"
+            else:
+                url = f"https://www.okx.com/trade-spot/{formatted_pair}"
+
         webbrowser.open(url)
 
     def _on_add_alert_requested(self, pair: str):

@@ -14,7 +14,6 @@ from qfluentwidgets import (
 
 from .proxy_form import ProxyForm
 from .add_pair_dialog import AddPairDialog
-from .add_pair_dialog import AddPairDialog
 from config.settings import ProxyConfig
 from core.i18n import _
 
@@ -400,3 +399,61 @@ class LanguageSettingCard(ExpandGroupSettingCard):
                 self.lang_combo.setCurrentText(name)
                 return
         self.lang_combo.setCurrentText("English (US)")
+
+
+class DisplaySettingCard(ExpandGroupSettingCard):
+    """Expandable setting card for display options (color schema)."""
+
+    color_schema_changed = pyqtSignal(str)  # Emitted when color schema changes
+
+    def __init__(self, parent: Optional[QWidget] = None):
+        super().__init__(
+            FluentIcon.PALETTE,
+            _("Display Settings"),
+            _("Configure color preferences for price changes"),
+            parent
+        )
+        self._setup_ui()
+        self.toggleExpand()
+
+    def _setup_ui(self):
+        """Setup the display settings UI."""
+        container = QWidget()
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(48, 18, 48, 18)
+        layout.setSpacing(16)
+
+        # Color Schema
+        schema_container = QWidget()
+        schema_layout = QHBoxLayout(schema_container)
+        schema_layout.setContentsMargins(0, 0, 0, 0)
+
+        from qfluentwidgets import BodyLabel, ComboBox
+        self.schema_label = BodyLabel(_("Color Schema"))
+        self.schema_combo = ComboBox()
+        # Note: Index 0 is Standard, Index 1 is Reverse
+        self.schema_combo.addItems([_("Green Up / Red Down (Standard)"), _("Red Up / Green Down (Reverse)")])
+        self.schema_combo.currentTextChanged.connect(self._on_schema_changed)
+
+        schema_layout.addWidget(self.schema_label)
+        schema_layout.addStretch(1)
+        schema_layout.addWidget(self.schema_combo)
+
+        layout.addWidget(schema_container)
+        self.addGroupWidget(container)
+
+    def _on_schema_changed(self, text: str):
+        """Handle color schema change."""
+        mode = "standard" if self.schema_combo.currentIndex() == 0 else "reverse"
+        self.color_schema_changed.emit(mode)
+
+    def set_color_schema(self, schema: str):
+        """Set color schema."""
+        if schema == "standard":
+            self.schema_combo.setCurrentIndex(0)
+        else:
+            self.schema_combo.setCurrentIndex(1)
+
+    def get_color_schema(self) -> str:
+        """Get current color schema."""
+        return "standard" if self.schema_combo.currentIndex() == 0 else "reverse"

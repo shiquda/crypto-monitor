@@ -131,5 +131,20 @@
     "e.g. 2.0": "例如 2.0",
     "error code": "错误代码",
     "sec": "秒",
-    "step": "步长"
+    "step": "步长",
+    "Open in Browser": "在浏览器打开",
+    "Remove Pair": "删除交易对",
+    "About": "关于",
+    "Current Version": "当前版本",
+    "Check Update": "检查更新",
+    "GitHub Repository": "GitHub 仓库",
+    "View source code, report issues, or contribute": "查看源代码、报告问题或贡献代码",
+    "View": "查看",
+    "Display Settings": "显示设置",
+    "Configure color preferences for price changes": "配置价格涨跌的颜色偏好",
+    "Color Schema": "颜色模式",
+    "Green Up / Red Down (Standard)": "绿涨 / 红跌 (标准)",
+    "Red Up / Green Down (Reverse)": "红涨 / 绿跌 (反向)",
+    "Data Source": "数据源",
+    "Select the exchange for real-time data": "选择实时数据的交易所来源"
 }

@@ -68,21 +68,25 @@ class PriceTracker:
         state.percentage = percentage
 
         # Calculate color based on intraday percentage (as requested by user)
-        if percentage.startswith('+'):
-            state.color = "#4CAF50"  # Green
-        elif percentage.startswith('-'):
-            state.color = "#F44336"  # Red
-        else:
-            state.color = "#FFFFFF"  # White
+        # Check settings for color schema
+        from config.settings import get_settings_manager
+        settings = get_settings_manager().settings
+        is_standard = settings.color_schema == "standard"
         
-        # We can still keep the trend (up/down arrow) based on moving average 
-        # as it provides additional micro-trend info, or align it with percentage.
-        # Let's align trend with percentage for consistency.
+        green = "#4CAF50"
+        red = "#F44336"
+        white = "#FFFFFF" # or adapt to theme, but PriceTracker is theme-agnostic usually, returning hex.
+        # Ideally white should be theme dependent but here we return a fixed color. 
+        # The card handles text color default based on theme if trend is flat.
+        
         if percentage.startswith('+'):
+            state.color = green if is_standard else red
             state.trend = "↑"
         elif percentage.startswith('-'):
+            state.color = red if is_standard else green
             state.trend = "↓"
         else:
+            state.color = white
             state.trend = ""
 
         return state

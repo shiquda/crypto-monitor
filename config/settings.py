@@ -104,7 +104,9 @@ class AppSettings:
     data_source: str = "OKX"  # "OKX" or "Binance"
 
     # Basic settings
+    # Basic settings
     theme_mode: str = "light"  # "light", "dark", or "auto"
+    color_schema: str = "standard"  # "standard" (Green Up/Red Down) or "reverse" (Red Up/Green Down)
     opacity: int = 100
     crypto_pairs: list = field(default_factory=lambda: ["BTC-USDT", "ETH-USDT"])
     proxy: ProxyConfig = field(default_factory=ProxyConfig)
@@ -199,7 +201,7 @@ class SettingsManager:
 
                 # Only keep recognized fields in data
                 recognized_fields = {
-                    'version', 'data_source', 'theme_mode', 'opacity', 'crypto_pairs',
+                    'version', 'data_source', 'theme_mode', 'color_schema', 'opacity', 'crypto_pairs',
                     'window_x', 'window_y', 'always_on_top', 'language'
                 }
                 filtered_data = {k: v for k, v in data.items() if k in recognized_fields}
@@ -262,6 +264,11 @@ class SettingsManager:
     def update_theme(self, theme_mode: str) -> None:
         """Update theme mode."""
         self.settings.theme_mode = theme_mode
+        self.save()
+
+    def update_color_schema(self, schema: str) -> None:
+        """Update color schema."""
+        self.settings.color_schema = schema
         self.save()
 
     def update_language(self, language: str) -> None:
@@ -427,7 +434,7 @@ class SettingsManager:
 
         # Only keep recognized fields
         recognized_fields = {
-            'version', 'theme_mode', 'opacity', 'crypto_pairs',
+            'version', 'theme_mode', 'color_schema', 'opacity', 'crypto_pairs',
             'window_x', 'window_y', 'always_on_top', 'language'
         }
         filtered_data = {k: v for k, v in data.items() if k in recognized_fields}

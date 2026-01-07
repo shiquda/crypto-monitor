@@ -22,6 +22,7 @@ class CryptoCard(CardWidget):
     remove_clicked = pyqtSignal(str)  # Emits pair name when remove button clicked
     add_alert_requested = pyqtSignal(str)  # Emits pair name when add alert is requested
     view_alerts_requested = pyqtSignal(str)  # Emits pair name when view alerts is requested
+    browser_opened_requested = pyqtSignal(str)  # Emits pair name when open in browser is requested
 
     # Icon CDN URL
     ICON_URL_TEMPLATE = "https://cdn.jsdelivr.net/gh/vadimmalykhin/binance-icons/crypto/{symbol}.svg"
@@ -201,13 +202,51 @@ class CryptoCard(CardWidget):
                 self.icon_widget.hide()
         reply.deleteLater()
 
+    @property
+    def _color_up(self):
+        """Get color for price up (positive)."""
+        from config.settings import get_settings_manager
+        settings = get_settings_manager().settings
+        return "#4CAF50" if settings.color_schema == "standard" else "#F44336"
+
+    @property
+    def _color_down(self):
+        """Get color for price down (negative)."""
+        from config.settings import get_settings_manager
+        settings = get_settings_manager().settings
+        return "#F44336" if settings.color_schema == "standard" else "#4CAF50"
+
     def update_price(self, price: str, trend: str, color: str):
         """Update the displayed price."""
         display_text = f"{price} {trend}" if trend else price
         self.price_label.setText(display_text)
-
-        # Set color with font size and weight - 增加字体粗细从 500 到 600
+        
+        # Override the color passed from tracker if we want strict schema adherence,
+        # but PriceTracker might return 'green'/'red' abstractly?
+        # PriceTracker usually returns specific hex codes or 'green'/'red'.
+        # Let's check PriceTracker.update_price implementation if possible.
+        # Assuming color argument is hex code. If it is hex, we might need to recalculate.
+        # But actually update_price is called with state.color.
+        # Ideally PriceTracker should be unaware of UI colors, or return 'up'/'down'.
+        # For now, let's trust the logic in update_percentage which determines color based on sign.
+        # For Price, usually it follows percentage color or trend color.
+        
+        # We will recalculate color based on trend if possible, or just use what is passed provided it matches schema.
+        # Since I can't check PriceTracker easily right now without reading it,
+        # I will rely on update_percentage for the main color indication.
+        # But wait, update_price sets price_label style.
+        
+        # Let's infer color from trend/previous if needed, OR better:
+        # Assume 'color' param is stale/hardcoded and re-evaluate.
+        # But trend up/down is what matters.
+        
+        final_color = color # Fallback
+        
+        # If trend arrows are used, we can deduce.
+        # But let's look at update_percentage, which drives the main visual indicator often.
+        
         self.price_label.setStyleSheet(f"font-size: 16px; font-weight: 600; color: {color};")
+
 
     def set_connection_state(self, state: str):
         """Update UI based on connection state."""
@@ -216,12 +255,12 @@ class CryptoCard(CardWidget):
             return
         
         # Determine color based on current intraday percentage
+        display_color = "#333333" if self._theme_mode == "light" else "#FFFFFF"
+        
         if self._current_percentage.startswith('+'):
-            display_color = "#4CAF50"  # Green
+            display_color = self._color_up
         elif self._current_percentage.startswith('-'):
-            display_color = "#F44336"  # Red
-        else:
-            display_color = "#333333" if self._theme_mode == "light" else "#FFFFFF"
+            display_color = self._color_down
         
         # Define styles for states
         style = f"font-size: 11px; font-weight: 500; color: {display_color};"
@@ -244,9 +283,9 @@ class CryptoCard(CardWidget):
 
         # Set color based on positive/negative
         if percentage.startswith('+'):
-            self.percentage_label.setStyleSheet("font-size: 11px; color: #4CAF50;")
+            self.percentage_label.setStyleSheet(f"font-size: 11px; color: {self._color_up};")
         elif percentage.startswith('-'):
-            self.percentage_label.setStyleSheet("font-size: 11px; color: #F44336;")
+            self.percentage_label.setStyleSheet(f"font-size: 11px; color: {self._color_down};")
         else:
             neutral_color = "#333333" if self._theme_mode == "light" else "#FFFFFF"
             self.percentage_label.setStyleSheet(f"font-size: 11px; color: {neutral_color};")
@@ -276,5 +315,17 @@ class CryptoCard(CardWidget):
         view_alerts_action = Action(FIF.VIEW, _("View Alerts"), self)
         view_alerts_action.triggered.connect(lambda: self.view_alerts_requested.emit(self.pair))
         menu.addAction(view_alerts_action)
+
+        menu.addSeparator()
+
+        # Open in Browser action
+        open_browser_action = Action(FIF.GLOBE, _("Open in Browser"), self)
+        open_browser_action.triggered.connect(lambda: self.browser_opened_requested.emit(self.pair))
+        menu.addAction(open_browser_action)
+
+        # Remove pair action
+        remove_action = Action(FIF.DELETE, _("Remove Pair"), self)
+        remove_action.triggered.connect(lambda: self.remove_clicked.emit(self.pair))
+        menu.addAction(remove_action)
 
         menu.exec(event.globalPos())

@@ -3,6 +3,7 @@ Settings window - independent window for configuration.
 Refactored to use QFluentWidgets for a modern Fluent Design interface.
 """
 
+import webbrowser
 from typing import Optional
 from datetime import datetime
 from PyQt6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel
@@ -10,11 +11,11 @@ from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QIcon
 from qfluentwidgets import (
     ScrollArea, SettingCardGroup, PushButton, PrimaryPushButton,
-    FluentIcon, InfoBar, InfoBarPosition, Theme, setTheme
+    FluentIcon, InfoBar, InfoBarPosition, Theme, setTheme,
+    PrimaryPushSettingCard
 )
 
-from ui.widgets.setting_cards import ProxySettingCard, PairsSettingCard, ThemeSettingCard, LanguageSettingCard
-from ui.widgets.alert_setting_card import AlertSettingCard
+from ui.widgets.setting_cards import ProxySettingCard, PairsSettingCard, ThemeSettingCard, LanguageSettingCard, DisplaySettingCard
 from ui.widgets.alert_setting_card import AlertSettingCard
 from ui.widgets.data_source_setting_card import DataSourceSettingCard
 from config.settings import SettingsManager, ProxyConfig
@@ -193,6 +194,10 @@ class SettingsWindow(QMainWindow):
         self.theme_card = ThemeSettingCard(self.appearance_group)
         self.appearance_group.addSettingCard(self.theme_card)
         
+        # Display Settings
+        self.display_card = DisplaySettingCard(self.appearance_group)
+        self.appearance_group.addSettingCard(self.display_card)
+        
         # Proxy query group (Network)
         self.proxy_group = SettingCardGroup(_("Network Configuration"), None)
         
@@ -230,6 +235,35 @@ class SettingsWindow(QMainWindow):
         add_nav_item(_("Network"), FluentIcon.GLOBE, self.proxy_group)
         add_nav_item(_("Trading Pairs"), FluentIcon.MARKET, self.pairs_group)
         add_nav_item(_("Notifications"), FluentIcon.RINGER, self.alerts_group)
+
+        # About group
+        self.about_group = SettingCardGroup(_("About"), None)
+        
+        # Version Card
+        # Using PrimaryPushSettingCard but disabling button for static display
+        self.version_card = PrimaryPushSettingCard(
+            _("Check Update"),
+            FluentIcon.INFO,
+            _("Current Version"),
+            "0.2.0",
+            self.about_group
+        )
+        self.version_card.button.hide()
+        self.about_group.addSettingCard(self.version_card)
+        
+        # GitHub Card
+        self.github_card = PrimaryPushSettingCard(
+            _("View"),
+            FluentIcon.GITHUB,
+            _("GitHub Repository"),
+            _("View source code, report issues, or contribute"),
+            self.about_group
+        )
+        self.github_card.button.setText(_("View"))
+        self.github_card.button.clicked.connect(lambda: webbrowser.open("https://github.com/shiquda/crypto-monitor"))
+        self.about_group.addSettingCard(self.github_card)
+        
+        add_nav_item(_("About"), FluentIcon.PEOPLE, self.about_group)
 
         sidebar_layout.addStretch(1)
 
@@ -382,6 +416,10 @@ class SettingsWindow(QMainWindow):
         # Load language
         language = self._settings_manager.settings.language
         self.language_card.set_language(language)
+
+        # Load color schema
+        schema = self._settings_manager.settings.color_schema
+        self.display_card.set_color_schema(schema)
         
         # Load data source
         source = self._settings_manager.settings.data_source
@@ -413,11 +451,19 @@ class SettingsWindow(QMainWindow):
         new_source = self.data_source_card.get_data_source()
         source_changed = old_source != new_source
 
+        # Check if color schema changed
+        old_schema = self._settings_manager.settings.color_schema
+        new_schema = self.display_card.get_color_schema()
+        # schema_changed = old_schema != new_schema 
+
         # Get theme mode from card
         self._settings_manager.update_theme(new_theme)
         
         # Get language from card
         self._settings_manager.update_language(new_lang)
+
+        # Update color schema
+        self._settings_manager.update_color_schema(new_schema)
         
         # Update data source
         self._settings_manager.update_data_source(new_source)
