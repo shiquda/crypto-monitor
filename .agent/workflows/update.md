@@ -14,6 +14,7 @@ git fetch --tags; $latest = git tag --sort=-v:refname | Select-Object -First 1; 
    - **CHANGELOG.md**: 在顶部新增版本章节，格式必须严格遵守 `## [版本号] - YYYY-MM-DD` (例如 `## [0.3.1] - 2026-01-08`)，下方包含分类后的变更列表。这是 Github Release 工作流自动提取变更日志的关键。
    - **pyproject.toml**: 更新 `version = "..."` 字段。
    - **ui/settings_window.py**: 查找 `PrimaryPushSettingCard` 中的版本号字符串 (例如 `"0.3.0"`) 并更新。
+   - setup.iss：更改版本号
 
 4. 提交发布 Commit
    - 暂存更改: `git add CHANGELOG.md pyproject.toml ui/settings_window.py`

@@ -30,17 +30,21 @@ class AlertManager(QObject):
         self._notification_service = get_notification_service()
         self._current_prices: Dict[str, float] = {}
 
-    def check_alerts(self, pair: str, price_str: str, percentage_str: str = "0.00%"):
+    def check_alerts(self, pair: str, price: 'str | float', percentage_str: str = "0.00%"):
         """
         Check if any alerts should be triggered for the given price.
 
         Args:
             pair: Trading pair, e.g., "BTC-USDT"
-            price_str: Current price as string
+            price: Current price as string or float
             percentage_str: Current 24h change percentage as string
         """
         try:
-            current_price = float(price_str.replace(',', ''))
+            # Handle both string and float inputs
+            if isinstance(price, (int, float)):
+                current_price = float(price)
+            else:
+                current_price = float(str(price).replace(',', ''))
             # Parse percentage string (e.g., "+1.23%")
             percentage_val = float(percentage_str.strip('%').replace('+', ''))
         except (ValueError, AttributeError):
