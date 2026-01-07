@@ -48,8 +48,9 @@ class SettingsWindow(QMainWindow):
     def _setup_ui(self):
         """Setup the settings window UI with QFluentWidgets."""
         self.setWindowTitle(_("Settings"))
-        self.setMinimumSize(700, 650)
-        self.resize(700, 650)
+        # Increase width by 20% (700 -> 840)
+        self.setMinimumSize(840, 650)
+        self.resize(840, 650)
         flags = Qt.WindowType.Window | Qt.WindowType.WindowCloseButtonHint
         if self.parent() and (self.parent().windowFlags() & Qt.WindowType.WindowStaysOnTopHint):
             flags |= Qt.WindowType.WindowStaysOnTopHint
@@ -108,6 +109,10 @@ class SettingsWindow(QMainWindow):
                 
                 # Icon
                 self.icon_label = QLabel()
+                # Fix icon size to prevent squeezing
+                self.icon_label.setFixedSize(16, 16)
+                self.icon_label.setScaledContents(True)
+                
                 params = Qt.GlobalColor.white if is_dark else Qt.GlobalColor.black
                 self.icon_label.setPixmap(icon.icon(params).pixmap(16, 16))
                 layout.addWidget(self.icon_label)
@@ -245,7 +250,7 @@ class SettingsWindow(QMainWindow):
             _("Check Update"),
             FluentIcon.INFO,
             _("Current Version"),
-            "0.2.0",
+            "0.3.0",
             self.about_group
         )
         self.version_card.button.hide()
