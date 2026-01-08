@@ -235,11 +235,9 @@ class BinanceWebSocketWorker(QThread):
                     except:
                         price = price_str
                 else:
-                    # Fallback: Use raw string but clean up trailing zeros if decimal exists
-                    if '.' in price_str:
-                        price = price_str.rstrip('0').rstrip('.')
-                    else:
-                        price = price_str
+                    # Fallback: Use smart formatting
+                    from core.utils import format_price
+                    price = format_price(price_str)
                 
                 # Map back to display pair
                 original_pair = self._symbol_map.get(symbol)

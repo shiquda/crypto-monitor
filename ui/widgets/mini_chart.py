@@ -12,7 +12,7 @@ class MiniChart(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setMinimumHeight(60)
-        self.setFixedWidth(200) # Match hover card width approx
+        self.setFixedWidth(220) # Increased width for better visibility
         self._data: List[float] = []
         self._color_up = "#4CAF50"
         self._color_down = "#F44336"
@@ -43,13 +43,29 @@ class MiniChart(QWidget):
         if range_val == 0:
             range_val = 1 # Avoid division by zero
 
+        # Format labels first to determine padding
+        from core.utils import format_price
+        max_str = format_price(max_val)
+        min_str = format_price(min_val)
+        
+        # Calculate required padding for labels
+        font = painter.font()
+        font.setPointSize(8)
+        painter.setFont(font)
+        fm = painter.fontMetrics()
+        
+        max_w = fm.horizontalAdvance(max_str)
+        min_w = fm.horizontalAdvance(min_str)
+        required_padding = max(max_w, min_w) + 8 # Add margin
+        
         # 2. Geometry
         w = self.width()
         h = self.height()
         padding_top = 22 
         padding_bottom = 15 
         padding_left = 5
-        padding_right = 45 
+        padding_right = max(45, required_padding) # Dynamic padding, minimum 45
+        
         plot_h = h - padding_top - padding_bottom
         plot_w = w - padding_left - padding_right
         
@@ -146,15 +162,16 @@ class MiniChart(QWidget):
         text_color_hex = color_up_hex if pct_change >= 0 else color_down_hex
         
         painter.setPen(QColor(text_color_hex))
-        font = painter.font()
-        font.setPointSize(8)
-        painter.setFont(font)
         
-        # Max Label
-        painter.drawText(int(w - padding_right + 2), int(padding_top), f"{max_val:.2f}")
+        # Max Label (Right Aligned)
+        # Use calculate padded position or align to right edge minus margin
+        # Align to the right side of the widget, regardless of padding_right logic used for chart
+        # Because we expanded chart padding to fit this text.
+        
+        painter.drawText(int(w - max_w - 2), int(padding_top), max_str)
         
         # Min Label
-        painter.drawText(int(w - padding_right + 2), int(h - 2), f"{min_val:.2f}")
+        painter.drawText(int(w - min_w - 2), int(h - 2), min_str)
         
         # Period Label
         font.setBold(True)

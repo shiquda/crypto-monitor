@@ -1,0 +1,51 @@
+"""
+Utility functions for Crypto Monitor.
+"""
+
+from typing import Union, Optional
+
+def format_price(price: Union[float, str], precision: Optional[int] = None) -> str:
+    """
+    Format price string with smart precision based on magnitude.
+    
+    Args:
+        price: The price to format (float or string).
+        precision: Optional explicit precision to use.
+        
+    Returns:
+        Formatted price string.
+    """
+    try:
+        if isinstance(price, str):
+            # Clean up string first
+            price = float(price.replace(',', ''))
+        
+        val = float(price)
+    except (ValueError, TypeError):
+        return "0.00"
+
+    # If explicit precision is provided, use it
+    if precision is not None and precision >= 0:
+        return f"{val:.{precision}f}"
+
+    # Smart precision based on magnitude
+    if val == 0:
+        return "0.00"
+    
+    abs_val = abs(val)
+    
+    if abs_val < 0.0001:
+        return f"{val:.8f}"
+    elif abs_val < 0.01:
+        return f"{val:.6f}"
+    elif abs_val < 1:
+        return f"{val:.4f}"
+    elif abs_val < 10:
+        return f"{val:.4f}"  # Keep 4 decimals for things like XRP (0.5xyz)
+    elif abs_val < 1000:
+        return f"{val:.2f}"
+    else:
+        # For large numbers, 2 decimals is usually enough, 
+        # but maybe we want grouping separators?
+        # Let's keep it simple standard fixed point for now.
+        return f"{val:.2f}"
