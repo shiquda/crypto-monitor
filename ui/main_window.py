@@ -22,11 +22,9 @@ from ui.widgets.alert_list_dialog import AlertListDialog
 from ui.settings_window import SettingsWindow
 
 from core.i18n import _
-from core.okx_client import OkxClientManager
-from core.exchange_factory import ExchangeFactory
-from core.price_tracker import PriceTracker
-from core.alert_manager import get_alert_manager
+from core.market_data_controller import MarketDataController
 from config.settings import get_settings_manager
+
 
 
 logger = logging.getLogger(__name__)
@@ -47,9 +45,8 @@ class MainWindow(QMainWindow):
 
         # Core components
         self._settings_manager = get_settings_manager()
-        self._exchange_client = ExchangeFactory.create_client(self)
-        self._price_tracker = PriceTracker()
-        self._alert_manager = get_alert_manager()
+        self._market_controller = MarketDataController(self)
+
 
         # Apply theme based on settings
         theme_mode = self._settings_manager.settings.theme_mode
@@ -63,7 +60,10 @@ class MainWindow(QMainWindow):
         self._auto_scroll_timer.timeout.connect(self._on_auto_scroll_timer)
         self._setup_auto_scroll()
         
+        # Start data controller
         self._load_pairs()
+        self._market_controller.start()
+
 
     def _setup_ui(self):
         """Setup the main window UI with Fluent Design components."""
@@ -205,9 +205,12 @@ class MainWindow(QMainWindow):
         self.pagination.page_changed.connect(self._on_page_changed)
 
         # Exchange client signals
-        self._exchange_client.ticker_updated.connect(self._on_ticker_update)
-        self._exchange_client.connection_status.connect(self._on_connection_status)
-        self._exchange_client.connection_state_changed.connect(self._on_connection_state_changed)
+        # Market controller signals
+        self._market_controller.ticker_updated.connect(self._on_ticker_update)
+        self._market_controller.connection_status_changed.connect(self._on_connection_status)
+        self._market_controller.connection_state_changed.connect(self._on_connection_state_changed)
+        self._market_controller.data_source_changed.connect(self._on_data_source_changed_complete)
+
 
     def _load_pairs(self):
         """Load pairs from settings and subscribe."""
@@ -223,8 +226,9 @@ class MainWindow(QMainWindow):
         self._update_cards_display()
 
         # Subscribe to all pairs
-        if pairs:
-            self._exchange_client.subscribe(pairs)
+        # Subscribe via controller
+        self._market_controller.reload_pairs()
+
 
     def _update_cards_display(self):
         """Update the displayed cards based on current page."""
@@ -262,17 +266,13 @@ class MainWindow(QMainWindow):
         """Handle page change."""
         self._update_cards_display()
 
-    def _on_ticker_update(self, pair: str, data: dict):
-        """Handle ticker update from exchange."""
-        # Update price tracker
-        state = self._price_tracker.update_price(pair, data)
-
+    def _on_ticker_update(self, pair: str, state: object):
+        """Handle ticker update from controller."""
         # Update card if visible
         if pair in self._cards:
             self._cards[pair].update_state(state)
 
-        # Check price alerts
-        self._alert_manager.check_alerts(pair, state.current_price, state.percentage)
+
 
     def _on_connection_status(self, connected: bool, message: str):
         """Handle connection status change."""
@@ -291,8 +291,8 @@ class MainWindow(QMainWindow):
 
     def _on_proxy_changed(self):
         """Handle proxy configuration change."""
-        # Reconnect with new proxy settings
-        self._exchange_client.reconnect()
+        self._market_controller.set_proxy()
+
 
     def _on_pairs_changed(self):
         """Handle crypto pairs change."""
@@ -338,49 +338,18 @@ class MainWindow(QMainWindow):
         self._update_cards_display()
 
     def _on_data_source_changed(self):
-        """Handle data source change."""
-        logger.info("Data source changed, switching client...")
+        """Handle data source change request."""
+        # This triggers re-initialization in the controller
+        self._market_controller.set_data_source()
         
-        # Reset alert manager state to prevent false alerts due to price differences
-        self._alert_manager.reset()
-        
-        # Stop existing client
-        if self._exchange_client:
-            # Safe cleanup: wait for client to fully stop before checking for deletion
-            old_client = self._exchange_client
-            
-            # CRITICAL: Disconnect all signals from the old client to the main window
-            # This prevents ticker updates or state changes from reaching this window
-            # while the new client is being set up.
-            try:
-                old_client.ticker_updated.disconnect(self._on_ticker_update)
-                old_client.connection_status.disconnect(self._on_connection_status)
-                old_client.connection_state_changed.disconnect(self._on_connection_state_changed)
-            except (TypeError, RuntimeError):
-                # Signals might already be disconnected
-                pass
-                
-            # Connect the stopped signal to deleteLater on the old client object
-            old_client.stopped.connect(old_client.deleteLater)
-            old_client.stop()
-            # Clean reference immediately so new client can assume control
-            self._exchange_client = None
-            
-        # Create new client
-        self._exchange_client = ExchangeFactory.create_client(self)
-        
-        # Connect signals
-        self._exchange_client.ticker_updated.connect(self._on_ticker_update)
-        self._exchange_client.connection_status.connect(self._on_connection_status)
-        self._exchange_client.connection_state_changed.connect(self._on_connection_state_changed)
-        
-        # Auto scroll timer
-        self._auto_scroll_timer = QTimer(self)
-        self._auto_scroll_timer.timeout.connect(self._on_auto_scroll_timer)
-        self._setup_auto_scroll()
-        
-        # Resubscribe
-        self._load_pairs()
+    def _on_data_source_changed_complete(self):
+        """Handle completion of data source change."""
+        # Auto scroll timer reset if needed, or just ensure UI is consistent
+        # In the original code, it was recreating the timer.
+        # But here the timer is owned by MainWindow, so we don't strictly need to recreate it unless we want to reset it.
+        # We can just ensure pairs are reloaded (which set_data_source does)
+        pass
+
 
     def _toggle_edit_mode(self):
         """Toggle edit mode (add/remove pairs)."""
@@ -408,8 +377,9 @@ class MainWindow(QMainWindow):
             if pair in self._cards:
                 self._cards[pair].deleteLater()
                 del self._cards[pair]
-            self._price_tracker.clear_pair(pair)
+            self._market_controller.clear_pair_data(pair)
             self._load_pairs()
+
 
     def _open_pair_in_browser(self, pair: str):
         """Open the trading pair in the browser based on the current data source."""
@@ -436,7 +406,8 @@ class MainWindow(QMainWindow):
 
     def _on_add_alert_requested(self, pair: str):
         """Handle add alert request from card context menu."""
-        current_price = self._alert_manager.get_current_price(pair)
+        current_price = self._market_controller.get_current_price(pair)
+
         alert = AlertDialog.create_alert(
             parent=self,
             pair=pair,
@@ -474,8 +445,10 @@ class MainWindow(QMainWindow):
         self._settings_manager.settings.window_y = pos.y()
         self._settings_manager.save()
 
-        # Stop exchange client
-        self._exchange_client.stop()
+        # Stop market controller
+        if self._market_controller:
+            self._market_controller.stop()
+
 
         # Close application
         QApplication.quit()
