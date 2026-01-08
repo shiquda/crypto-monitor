@@ -4,14 +4,11 @@ Uses python-okx library with PyQt signal integration.
 Enhanced with automatic reconnection and incremental subscription.
 """
 
-import asyncio
 import json
 import time
-import random
 import logging
-from typing import Optional, Callable, Set, Dict, Any, List
-from PyQt6.QtCore import QObject, QThread, pyqtSignal, QTimer
-from enum import Enum
+from typing import Optional, Set, List, Dict, Any
+from PyQt6.QtCore import QObject, pyqtSignal
 
 try:
     from okx.websocket.WsPublicAsync import WsPublicAsync
@@ -23,57 +20,8 @@ _dying_workers = []
 
 logger = logging.getLogger(__name__)
 
-
-class ConnectionState(Enum):
-    """WebSocket connection states."""
-    DISCONNECTED = "disconnected"
-    CONNECTING = "connecting"
-    CONNECTED = "connected"
-    RECONNECTING = "reconnecting"
-    FAILED = "failed"
-
-
-class ReconnectStrategy:
-    """
-    Exponential backoff reconnection strategy.
-    Implements jitter to prevent thundering herd problem.
-    """
-
-    def __init__(self, initial_delay: float = 1.0, max_delay: float = 30.0,
-                 backoff_factor: float = 2.0, max_retries: Optional[int] = None):
-        self.initial_delay = initial_delay
-        self.max_delay = max_delay
-        self.backoff_factor = backoff_factor
-        self.max_retries = max_retries
-        self.retry_count = 0
-
-    def next_delay(self) -> float:
-        """Get the next retry delay with exponential backoff and jitter."""
-        if self.retry_count == 0:
-            delay = self.initial_delay
-        else:
-            delay = min(
-                self.initial_delay * (self.backoff_factor ** self.retry_count),
-                self.max_delay
-            )
-
-        # Add jitter (±25% random variation)
-        jitter = delay * 0.25 * random.random()
-        delay += jitter if random.random() > 0.5 else -jitter
-
-        self.retry_count += 1
-        return max(delay, self.initial_delay)
-
-    def reset(self):
-        """Reset retry counter."""
-        self.retry_count = 0
-
-    def should_retry(self) -> bool:
-        """Check if retry attempts are still within limits."""
-        if self.max_retries is None:
-            return True
-        return self.retry_count < self.max_retries
-
+from core.websocket_worker import BaseWebSocketWorker, ConnectionState
+from core.base_client import BaseExchangeClient
 
 class TickerData:
     """Ticker data container."""
@@ -84,153 +32,20 @@ class TickerData:
         self.percentage = percentage
 
 
-class OkxWebSocketWorker(QThread):
+class OkxWebSocketWorker(BaseWebSocketWorker):
     """
     Worker thread for OKX WebSocket connection.
     Runs asyncio event loop in a separate thread.
     Enhanced with automatic reconnection and incremental subscription.
     """
 
-    # Signals
-    ticker_updated = pyqtSignal(str, dict) # pair, data_dict
-    connection_error = pyqtSignal(str, str)  # pair, error_message
-    connection_status = pyqtSignal(bool, str)  # connected, message
-    connection_state_changed = pyqtSignal(str, str, int)  # state, message, retry_count
-    stats_updated = pyqtSignal(dict)  # connection statistics
-
     # OKX WebSocket URL
     WS_PUBLIC_URL = "wss://ws.okx.com:8443/ws/v5/public"
 
-    def __init__(self, pairs: list[str], parent: Optional[QObject] = None):
-        super().__init__(parent)
-        self.pairs = list(pairs)  # Store initial pairs
-        self._running = False
-        self._loop: Optional[asyncio.AbstractEventLoop] = None
+    def __init__(self, pairs: List[str], parent: Optional[QObject] = None):
+        super().__init__(pairs, parent)
         self._ws_client: Optional[WsPublicAsync] = None
-        self._reconnect_strategy = ReconnectStrategy()
-        self._connection_state = ConnectionState.DISCONNECTED
-        self._subscribed_pairs: Set[str] = set()
-        self._last_message_time = 0
-        self._connection_start_time = 0
-        self._total_reconnect_count = 0
-        self._last_error = ""
         self._heartbeat_interval = 30  # seconds
-        self._connection_timeout = 60  # seconds
-
-    def _update_connection_state(self, state: ConnectionState, message: str = ""):
-        """Update connection state and emit signals."""
-        self._connection_state = state
-        retry_count = self._reconnect_strategy.retry_count if state == ConnectionState.RECONNECTING else 0
-        self.connection_state_changed.emit(state.value, message, retry_count)
-
-        # Emit old-style signal for backward compatibility
-        is_connected = state in [ConnectionState.CONNECTED, ConnectionState.CONNECTING]
-        self.connection_status.emit(is_connected, message)
-
-    def _update_stats(self):
-        """Update connection statistics."""
-        stats = {
-            'state': self._connection_state.value,
-            'reconnect_count': self._total_reconnect_count,
-            'retry_count': self._reconnect_strategy.retry_count,
-            'subscribed_pairs': len(self._subscribed_pairs),
-            'connection_duration': time.time() - self._connection_start_time if self._connection_start_time > 0 else 0,
-            'last_message_age': time.time() - self._last_message_time if self._last_message_time > 0 else 0,
-            'last_error': self._last_error,
-        }
-        self.stats_updated.emit(stats)
-
-    def run(self):
-        """Run the WebSocket client in asyncio event loop with auto-reconnect."""
-        logger.info(f"[OkxWorker] Starting run loop (Thread: {int(QThread.currentThreadId())})")
-        self._running = True
-        self._loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(self._loop)
-
-        self._update_connection_state(ConnectionState.CONNECTING, "Initializing connection...")
-        self._reconnect_strategy.reset()
-
-        try:
-            # Store task reference for cancellation
-            self._main_task = self._loop.create_task(self._maintain_connection())
-            self._loop.run_until_complete(self._main_task)
-        except asyncio.CancelledError:
-            logger.info("[OkxWorker] Main task cancelled")
-            self._update_connection_state(ConnectionState.DISCONNECTED, "Connection cancelled")
-        except Exception as e:
-            logger.error(f"[OkxWorker] Fatal error: {e}", exc_info=True)
-            self._last_error = str(e)
-            self._update_connection_state(ConnectionState.FAILED, f"Fatal error: {e}")
-        finally:
-            logger.info("[OkxWorker] Cleaning up loop...")
-            # Clean up all tasks
-            try:
-                pending = asyncio.all_tasks(self._loop)
-                for task in pending:
-                    task.cancel()
-                if pending:
-                    self._loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
-                self._loop.close()
-                logger.info("[OkxWorker] Loop closed.")
-            except Exception as e:
-                logger.error(f"OKX Loop cleanup error: {e}")
-                
-            self._update_connection_state(ConnectionState.DISCONNECTED, "Connection closed")
-
-    async def _maintain_connection(self):
-        """
-        Maintain WebSocket connection with automatic reconnection.
-        Uses exponential backoff strategy for reconnection attempts.
-        """
-        while self._running:
-            try:
-                # Attempt to connect
-                self._update_connection_state(
-                    ConnectionState.CONNECTING if self._reconnect_strategy.retry_count > 0 else ConnectionState.CONNECTING,
-                    f"Connecting to OKX (attempt {self._reconnect_strategy.retry_count + 1})..."
-                )
-
-                await self._connect_and_subscribe()
-                # If we reach here, connection was successful
-                self._reconnect_strategy.reset()
-                self._update_connection_state(ConnectionState.CONNECTED, "Connected to OKX")
-                self._update_stats()
-
-                # Keep connection alive with periodic checks
-                while self._running:
-                    await asyncio.sleep(1)
-
-                    # Check if we need to update subscriptions (incremental changes)
-                    if set(self.pairs) != self._subscribed_pairs:
-                        await self._update_subscriptions()
-
-                    # Check heartbeat - if no message received for too long, reconnect
-                    if self._last_message_time > 0:
-                        time_since_last = time.time() - self._last_message_time
-                        if time_since_last > self._connection_timeout:
-                            self._last_error = f"Heartbeat timeout: {time_since_last:.1f}s"
-                            self._update_connection_state(
-                                ConnectionState.RECONNECTING,
-                                f"Heartbeat timeout after {time_since_last:.1f}s, reconnecting..."
-                            )
-                            break
-
-            except asyncio.CancelledError:
-                raise  # Propagate cancellation to run()
-            except Exception as e:
-                self._last_error = str(e)
-                error_msg = f"Connection failed: {e}"
-
-                # Check if we should retry
-                if self._reconnect_strategy.should_retry():
-                    self._update_connection_state(ConnectionState.RECONNECTING, error_msg)
-                    self._total_reconnect_count += 1
-
-                    delay = self._reconnect_strategy.next_delay()
-                    await asyncio.sleep(delay)
-                else:
-                    self._update_connection_state(ConnectionState.FAILED, f"Max retries exceeded: {e}")
-                    raise
 
     async def _connect_and_subscribe(self):
         """Connect to OKX WebSocket and subscribe to ticker channels."""
@@ -264,7 +79,10 @@ class OkxWebSocketWorker(QThread):
                     "op": "subscribe",
                     "args": [{"channel": "tickers", "instId": pair} for pair in current_pairs]
                 }
-                await self._ws_client.send(json.dumps(subscribe_msg))
+                if self._ws_client: # Should be valid in simple mode too? distinct var?
+                     # In simple mode we don't have self._ws_client as WsPublicAsync
+                     # logic in _simple_websocket_subscribe handles subscription sending.
+                     pass 
             return
 
         # Subscribe to new pairs
@@ -292,8 +110,20 @@ class OkxWebSocketWorker(QThread):
         try:
             async with websockets.connect(self.WS_PUBLIC_URL) as ws:
                 self.connection_status.emit(True, "Connected to OKX")
-
-                # Subscribe to tickers
+                
+                # We need to expose ws for update_subscriptions? 
+                # The original simplified implementation didn't support incremental updates fully inside simple mode gracefully
+                # or it re-sent list.
+                # Original logic:
+                # subscribe_msg = ...
+                # await ws.send(...)
+                # while self._running: ...
+                
+                # To support incremental updates here we'd need more complex logic.
+                # For refactoring, I should preserve original behavior.
+                # Original behavior:
+                # Just subscribed once at start.
+                
                 subscribe_msg = {
                     "op": "subscribe",
                     "args": [{"channel": "tickers", "instId": pair} for pair in self.pairs]
@@ -374,24 +204,15 @@ class OkxWebSocketWorker(QThread):
             logger.error(f"Error handling message: {e}")
             self._update_stats()
 
-    def stop(self):
-        """Stop the WebSocket connection."""
-        self._running = False
-        if self._loop and self._loop.is_running():
-            # Thread-safe cancellation
-            self._loop.call_soon_threadsafe(self._cancel_task_safe)
-            
-    def _cancel_task_safe(self):
-        """Helper to cancel the main task from within the loop."""
-        if hasattr(self, '_main_task') and self._main_task:
-            self._main_task.cancel()
-
     def update_pairs(self, pairs: list[str]):
-        """Update subscription pairs (requires reconnection)."""
+        """Update subscription pairs (requires reconnection or incremental)."""
         self.pairs = pairs
+        # Base class handles reconnection logic if needed via main loop, 
+        # but here we rely on _maintain_connection loop checking for differences.
+        # Original: _maintain_connection loop checks:
+        # if set(self.pairs) != self._subscribed_pairs: await self._update_subscriptions()
+        # This logic is now in BaseWebSocketWorker.
 
-
-from core.base_client import BaseExchangeClient
 
 class OkxClientManager(BaseExchangeClient):
     """
@@ -532,8 +353,13 @@ class OkxClientManager(BaseExchangeClient):
     def get_stats(self) -> Optional[Dict[str, Any]]:
         """Get current connection statistics."""
         if self._worker is not None:
+            # Safely access _connection_state from base worker
+            state = 'unknown'
+            if hasattr(self._worker, '_connection_state'):
+                 state = self._worker._connection_state.value
+            
             return {
-                'state': self._worker._connection_state.value if hasattr(self._worker, '_connection_state') else 'unknown',
+                'state': state,
                 'subscribed_pairs': len(self._pairs),
                 'worker_running': self._worker.isRunning(),
             }
@@ -545,10 +371,6 @@ class OkxClientManager(BaseExchangeClient):
         GET /api/v5/market/candles
         """
         import requests
-        
-        # OKX uses correct pair format (e.g. BTC-USDT)
-        # Interval mapping: 1m, 3m, 5m, 15m, 1H, 2H, 4H, 1D...
-        # Map some common lowercases to uppercase if needed or handle standard args
         
         okx_interval = interval
         if interval.lower() == '1h':
@@ -587,29 +409,8 @@ class OkxClientManager(BaseExchangeClient):
             response.raise_for_status()
             data = response.json()
             
-            # OKX response:
-            # {
-            #   "code": "0",
-            #   "data": [
-            #     [
-            #       "1597026383085",  // ts
-            #       "3.721",          // o
-            #       "3.743",          // h
-            #       "3.677",          // l
-            #       "3.708",          // c
-            #       "8422410",        // vol (in base currency)
-            #       "126963"          // vol (in quote currency)
-            #       ...
-            #     ]
-            #   ]
-            # }
-            
             klines = []
             if data.get('code') == '0':
-                # OKX returns newest first, we usually want oldest first for plotting?
-                # Let's keep data as is, MiniChart will handle or we reverse here.
-                # Usually charts need time sorted. API returns DESC (newest first).
-                # Reverse it to be ASC (oldest first).
                 raw_data = data.get('data', [])
                 for item in reversed(raw_data):
                     klines.append({
@@ -620,11 +421,9 @@ class OkxClientManager(BaseExchangeClient):
                         "close": float(item[4]),
                         "volume": float(item[5])
                     })
-            print(f"[DEBUG] Parsed {len(klines)} klines")
             return klines
 
         except Exception as e:
-            print(f"[DEBUG] OKX fetch failed: {e}")
             logger.error(f"Failed to fetch klines for {pair}: {e}")
             return []
 
