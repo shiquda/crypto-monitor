@@ -35,6 +35,7 @@ class SettingsWindow(QMainWindow):
     auto_scroll_changed = pyqtSignal(bool, int)
     display_limit_changed = pyqtSignal(int)
     data_source_changed = pyqtSignal()
+    minimalist_view_changed = pyqtSignal()
 
     def __init__(self, settings_manager: SettingsManager, parent: Optional[QWidget] = None):
         super().__init__(parent)
@@ -203,6 +204,7 @@ class SettingsWindow(QMainWindow):
         self.appearance_page.display_card.set_color_schema(s.color_schema)
         self.appearance_page.display_card.set_dynamic_background(s.dynamic_background)
         self.appearance_page.display_card.set_display_limit(s.display_limit)
+        self.appearance_page.display_card.set_minimalist_view(s.minimalist_view)
         self.appearance_page.display_card.set_auto_scroll(s.auto_scroll, s.scroll_interval)
         self.appearance_page.hover_card.set_values(
             s.hover_enabled, s.hover_show_stats, s.hover_show_chart,
@@ -235,6 +237,7 @@ class SettingsWindow(QMainWindow):
         new_schema = self.appearance_page.display_card.get_color_schema()
         new_dynamic_bg = self.appearance_page.display_card.get_dynamic_background()
         new_limit = self.appearance_page.display_card.get_display_limit()
+        new_mini_view = self.appearance_page.display_card.get_minimalist_view()
         new_auto_scroll, new_scroll_int = self.appearance_page.display_card.get_auto_scroll()
         hover_vals = self.appearance_page.hover_card.get_values()
         
@@ -251,6 +254,7 @@ class SettingsWindow(QMainWindow):
         source_changed = s.data_source != new_source
         dynamic_bg_changed = s.dynamic_background != new_dynamic_bg
         limit_changed = s.display_limit != new_limit
+        mini_view_changed = s.minimalist_view != new_mini_view
         auto_scroll_changed = (s.auto_scroll != new_auto_scroll) or (s.scroll_interval != new_scroll_int)
         
         # Updates
@@ -259,6 +263,7 @@ class SettingsWindow(QMainWindow):
         self._settings_manager.update_color_schema(new_schema)
         self._settings_manager.update_dynamic_background(new_dynamic_bg)
         self._settings_manager.update_display_limit(new_limit)
+        self._settings_manager.update_minimalist_view(new_mini_view)
         self._settings_manager.update_auto_scroll(new_auto_scroll, new_scroll_int)
         
         self._settings_manager.update_hover_settings(
@@ -292,6 +297,7 @@ class SettingsWindow(QMainWindow):
         if theme_changed: QTimer.singleShot(100, lambda: self.theme_changed.emit(new_theme))
         if source_changed: QTimer.singleShot(100, lambda: self.data_source_changed.emit())
         if dynamic_bg_changed: QTimer.singleShot(100, lambda: self.display_changed.emit())
+        if mini_view_changed: QTimer.singleShot(100, lambda: self.minimalist_view_changed.emit())
         if auto_scroll_changed: QTimer.singleShot(100, lambda: self.auto_scroll_changed.emit(new_auto_scroll, new_scroll_int))
         if limit_changed: self.display_limit_changed.emit(new_limit)
 

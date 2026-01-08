@@ -120,6 +120,7 @@ class AppSettings:
     display_limit: int = 3  # Number of pairs to display per page (1-5)
     auto_scroll: bool = False   # Auto-cycle pages
     scroll_interval: int = 30   # Auto-scroll interval in seconds
+    minimalist_view: bool = False  # Minimalist view mode (hide chrome when not hovered)
     crypto_pairs: list = field(default_factory=lambda: ["BTC-USDT", "ETH-USDT"])
     proxy: ProxyConfig = field(default_factory=ProxyConfig)
     window_x: int = 100
@@ -215,7 +216,7 @@ class SettingsManager:
                 recognized_fields = {
                     'version', 'data_source', 'theme_mode', 'color_schema', 'dynamic_background', 'kline_period', 
                     'chart_cache_ttl', 'hover_enabled', 'hover_show_stats', 'hover_show_chart',
-                    'opacity', 'crypto_pairs', 'display_limit',
+                    'opacity', 'crypto_pairs', 'display_limit', 'minimalist_view',
                     'auto_scroll', 'scroll_interval',
                     'window_x', 'window_y', 'always_on_top', 'language'
                 }
@@ -315,6 +316,11 @@ class SettingsManager:
         """Update auto scroll settings."""
         self.settings.auto_scroll = enabled
         self.settings.scroll_interval = interval
+        self.save()
+
+    def update_minimalist_view(self, enabled: bool) -> None:
+        """Update minimalist view setting."""
+        self.settings.minimalist_view = enabled
         self.save()
 
     def update_language(self, language: str) -> None:

@@ -7,10 +7,10 @@ import logging
 from typing import Optional, Dict
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QScrollArea,
-    QApplication
+    QApplication, QGraphicsOpacityEffect
 )
-from PyQt6.QtCore import Qt, QPoint, QTimer
-from PyQt6.QtGui import QIcon, QMouseEvent
+from PyQt6.QtCore import Qt, QPoint, QTimer, QPropertyAnimation, QEasingCurve, QRect
+from PyQt6.QtGui import QIcon, QMouseEvent, QCursor
 from qfluentwidgets import setTheme, Theme
 
 from ui.widgets.toolbar import Toolbar
@@ -46,7 +46,11 @@ class MainWindow(QMainWindow):
         # Core components
         self._settings_manager = get_settings_manager()
         self._market_controller = MarketDataController(self)
-
+        
+        # Minimalist view state (must be initialized before _setup_ui)
+        self._minimalist_collapsed = False
+        self._is_adjusting_height = False
+        self._last_state_change_time = 0
 
         # Apply theme based on settings
         theme_mode = self._settings_manager.settings.theme_mode
@@ -54,6 +58,17 @@ class MainWindow(QMainWindow):
 
         self._setup_ui()
         self._connect_signals()
+        
+        # Debounce timer for minimalist view collapse
+        self._collapse_timer = QTimer(self)
+        self._collapse_timer.setSingleShot(True)
+        self._collapse_timer.timeout.connect(self._check_and_collapse)
+
+        # Polling timer for hover detection (more stable than enter/leave during resize)
+        self._hover_polling_timer = QTimer(self)
+        self._hover_polling_timer.setInterval(200)
+        self._hover_polling_timer.timeout.connect(self._poll_minimalist_hover)
+        self._hover_polling_timer.start()
         
         # Auto scroll timer
         self._auto_scroll_timer = QTimer(self)
@@ -78,8 +93,6 @@ class MainWindow(QMainWindow):
         self.setWindowIcon(QIcon("assets/icons/crypto-monitor.png"))
         self.setWindowTitle(_("Crypto Monitor"))
 
-        # Initial size adjustment
-        self._adjust_window_height()
 
         # Move to saved position
         self.move(
@@ -124,49 +137,191 @@ class MainWindow(QMainWindow):
         self.pagination = Pagination()
         layout.addWidget(self.pagination)
 
-    def _adjust_window_height(self, limit: int = None):
-        """Adjust window height based on display limit."""
+        # Initialize animations before first resize
+        self._setup_animations()
+
+        # Initial size adjustment - use timer to allow layout to initialize
+        QTimer.singleShot(100, self._adjust_window_height)
+
+    def _setup_animations(self):
+        """Setup animations for minimalist view mode."""
+        # Opacity effect for toolbar
+        self.toolbar_opacity = QGraphicsOpacityEffect(self.toolbar)
+        self.toolbar_opacity.setOpacity(1.0)
+        self.toolbar.setGraphicsEffect(self.toolbar_opacity)
+        
+        self.toolbar_anim = QPropertyAnimation(self.toolbar_opacity, b"opacity")
+        self.toolbar_anim.setDuration(250)
+        self.toolbar_anim.setEasingCurve(QEasingCurve.Type.InOutQuad)
+        
+        # Opacity effect for pagination
+        self.pagination_opacity = QGraphicsOpacityEffect(self.pagination)
+        self.pagination_opacity.setOpacity(1.0)
+        self.pagination.setGraphicsEffect(self.pagination_opacity)
+        
+        self.pagination_anim = QPropertyAnimation(self.pagination_opacity, b"opacity")
+        self.pagination_anim.setDuration(250)
+        self.pagination_anim.setEasingCurve(QEasingCurve.Type.InOutQuad)
+
+        # Window height animation
+        # We animate the 'geometry' of the window to change height
+        self.window_anim = QPropertyAnimation(self, b"geometry")
+        self.window_anim.setDuration(250)
+        self.window_anim.setEasingCurve(QEasingCurve.Type.InOutQuad)
+        
+        # Initial state
+        if self._settings_manager.settings.minimalist_view:
+            self.toolbar_opacity.setOpacity(0.0)
+            self.pagination_opacity.setOpacity(0.0)
+            # We will trigger the first resize in _adjust_window_height
+
+    def _adjust_window_height(self, limit: int = None, collapsed: bool = None):
+        """Adjust window height with state locking and precise visibility management."""
+        if self._is_adjusting_height:
+            return
+        
         if limit is None:
             limit = self._settings_manager.settings.display_limit
         
-        # Height Calculation:
-        # Base UI (Toolbar + Pagination + Margins + Window Frame) ~ 90px
-        # Per Item (Card + Spacing) ~ 78px
-        # We want to be slightly generous to avoid scrollbars
+        is_minimalist = self._settings_manager.settings.minimalist_view
+        if collapsed is None:
+            pos = QCursor.pos()
+            collapsed = is_minimalist and not self.geometry().contains(pos)
+
+        # Skip logic with state verification
+        if hasattr(self, '_last_collapsed') and self._last_collapsed == collapsed and limit == self._last_limit:
+            # If we are expanded, ensure the toolbar hasn't drifted to hidden
+            if not collapsed and self.toolbar.isHidden():
+                 pass # Continue to fix it
+            else:
+                 return
         
-        # Refined measurements:
-        # Toolbar: ~40px
-        # Pagination: ~35px
-        # Top Margin: 8px
-        # Bottom Margin: 8px
-        # Layout Spacing: 5px * 2 (Toolbar-Scroll, Scroll-Pag) = 10px
-        # Total Static Height = 40 + 35 + 8 + 8 + 10 = 101px
+        self._is_adjusting_height = True
+        try:
+            self._last_collapsed = collapsed
+            self._last_limit = limit
+
+            # Precise dimensions
+            # Reverting to explicit calculation as sizeHint is unreliable during rapid layout changes
+            CARD_H = 67 # Tighter fit to reduce whitespace
+            CARD_SPACING = 8
+            content_height = (limit * CARD_H) + (max(0, limit - 1) * CARD_SPACING)
+            
+            top_margin, bottom_margin = 7, 8
+            layout_spacing = 5
+            # Corrected actual heights based on widget layout (margin 5+5 + icon 24 = 34)
+            toolbar_h, pagination_h = 34, 34
+            
+            EXPANDED_TOP_GAP = top_margin + toolbar_h + layout_spacing
+            EXPANDED_BOTTOM_GAP = layout_spacing + pagination_h + bottom_margin
+            COLLAPSED_GAP = 8 # Balanced padding
+            
+            # Use explicit calculation for reliable alignment
+            
+            current_geom = self.geometry()
+            target_w = 160
+            
+            if collapsed:
+                target_h = content_height + (COLLAPSED_GAP * 2)
+                
+                # Shifting logic (Stable Cards)
+                if not self.toolbar.isHidden():
+                    dy = EXPANDED_TOP_GAP - COLLAPSED_GAP
+                    new_y = current_geom.y() + dy
+                else:
+                    new_y = current_geom.y()
+
+                self.toolbar.hide()
+                self.pagination.hide()
+                self.centralWidget().layout().setContentsMargins(10, COLLAPSED_GAP, 10, COLLAPSED_GAP)
+                self.centralWidget().layout().setSpacing(0)
+                
+                if hasattr(self, 'toolbar_opacity'):
+                    self.toolbar_anim.stop()
+                    self.toolbar_opacity.setOpacity(0.0)
+                if hasattr(self, 'pagination_opacity'):
+                    self.pagination_anim.stop()
+                    self.pagination_opacity.setOpacity(0.0)
+            else:
+                target_h = content_height + EXPANDED_TOP_GAP + EXPANDED_BOTTOM_GAP
+                
+                # Expand upwards
+                if self.toolbar.isHidden():
+                    dy = EXPANDED_TOP_GAP - COLLAPSED_GAP
+                    new_y = current_geom.y() - dy
+                else:
+                    new_y = current_geom.y()
+                    
+                # FORCE VISIBILITY: Order matters
+                self.toolbar.show()
+                self.pagination.show()
+                
+                # Reset opacity effect IMMEDIATELY before layout updates
+                if hasattr(self, 'toolbar_opacity'):
+                    self.toolbar_anim.stop()
+                    self.toolbar_opacity.setOpacity(1.0)
+                if hasattr(self, 'pagination_opacity'):
+                    self.pagination_anim.stop()
+                    self.pagination_opacity.setOpacity(1.0)
+
+                self.centralWidget().layout().setContentsMargins(10, top_margin, 10, bottom_margin)
+                self.centralWidget().layout().setSpacing(layout_spacing)
+                
+                # Ensure they are at top of stacking order
+                self.toolbar.raise_()
+                self.pagination.raise_()
+
+            logger.info(f"Setting window state: Collapsed={collapsed}, Limit={limit}, TotalH={target_h}")
+            
+            # Atomic update of geometry
+            if self.height() != int(target_h) or self.y() != int(new_y):
+                self.setFixedSize(target_w, int(target_h))
+                self.move(current_geom.x(), int(new_y))
+                import time
+                self._last_state_change_time = time.time()
+            
+            self.update() # Force repaint
+            QApplication.processEvents() # Let internal layout sync
+        finally:
+            self._is_adjusting_height = False
+
+    def _poll_minimalist_hover(self):
+        """Unified poll for minimalist state (highly stable)."""
+        if not self._settings_manager.settings.minimalist_view:
+            return
         
-        # CryptoCard Height:
-        # Padding: 10 + 10 = 20px
-        # Header: 20px (icon/btn)
-        # Spacing: 8px
-        # Price: ~20px (font 16 + margins)
-        # Total Card Content ~ 68px
-        # Let's say ~72px per card including border/shadow
+        if self._is_adjusting_height:
+            return
+
+        import time
+        # Reduced cooldown for polling transitions
+        if time.time() - self._last_state_change_time < 0.2:
+            return
+
+        pos = QCursor.pos()
+        is_hovering = self.geometry().contains(pos)
         
-        # Card Layout Spacing: 8px
-        
-        # Formula:
-        # H = Static + (Limit * CardHeight) + ((Limit - 1) * Spacing)
-        
-        base_height = 105  # Toolbar + Pagination + Margins
-        item_height = 72   # Card height including padding
-        spacing = 8
-        
-        content_height = (limit * item_height) + (max(0, limit - 1) * spacing)
-        total_height = base_height + content_height
-        
-        logger.info(f"Adjusting window height. Limit: {limit}, Calculated Height: {total_height}")
-        
-        # Force resize sequence
-        self.setFixedSize(160, total_height)
-        self.updateGeometry()
+        if is_hovering and self.toolbar.isHidden():
+            # Mouse is inside but window is collapsed -> EXPAND
+            self._collapse_timer.stop()
+            self._adjust_window_height(collapsed=False)
+        elif not is_hovering and not self.toolbar.isHidden():
+            # Mouse is outside but window is expanded -> COLLAPSE (with debounce)
+            # Use the hysteresis rect for collapse to avoid edge flickering
+            hysteresis_rect = self.geometry().adjusted(-5, -5, 5, 5)
+            if not hysteresis_rect.contains(pos):
+                if not self._collapse_timer.isActive():
+                    self._collapse_timer.start(300)
+
+    def _check_and_collapse(self):
+        """Final check before collapsing window."""
+        if not self._settings_manager.settings.minimalist_view:
+            return
+            
+        pos = QCursor.pos()
+        # Use a slightly more aggressive check for final collapse
+        if not self.geometry().contains(pos):
+             self._adjust_window_height(collapsed=True)
         
     def _on_display_limit_changed(self, limit: int):
         """Handle display limit change."""
@@ -175,6 +330,16 @@ class MainWindow(QMainWindow):
         self._load_pairs()
         # Adjust window size
         self._adjust_window_height(limit)
+
+    def _on_minimalist_view_changed(self, enabled: bool):
+        """Handle minimalist view toggle."""
+        logger.info(f"Minimalist view changed to {enabled}")
+        self._settings_manager.update_minimalist_view(enabled)
+        # Clear state to force resize
+        if hasattr(self, '_last_collapsed'):
+            delattr(self, '_last_collapsed')
+        # Trigger immediate adjustment
+        self._adjust_window_height()
 
     def _open_settings(self):
         """Open settings window."""
@@ -187,6 +352,7 @@ class MainWindow(QMainWindow):
             self._settings_window.display_changed.connect(self._on_display_changed)
             self._settings_window.auto_scroll_changed.connect(self._on_auto_scroll_changed)
             self._settings_window.display_limit_changed.connect(self._on_display_limit_changed)
+            self._settings_window.minimalist_view_changed.connect(self._on_minimalist_view_changed)
             
             self._settings_window.show()
         else:
@@ -261,6 +427,9 @@ class MainWindow(QMainWindow):
             card = self._cards[pair]
             card.set_edit_mode(self._edit_mode)
             self.cards_layout.insertWidget(self.cards_layout.count() - 1, card)
+            
+        # Ensure window height is correct for newly added cards
+        self._adjust_window_height()
 
     def _on_page_changed(self, page: int):
         """Handle page change."""
@@ -324,6 +493,23 @@ class MainWindow(QMainWindow):
             self._auto_scroll_timer.start(interval * 1000)
         else:
             self._auto_scroll_timer.stop()
+
+    def _on_minimalist_view_changed(self):
+        """Handle minimalist view mode change."""
+        enabled = self._settings_manager.settings.minimalist_view
+        if enabled:
+            # If not hovered, hide immediately
+            if not self.underMouse():
+                self.toolbar_opacity.setOpacity(0.0)
+                self.pagination_opacity.setOpacity(0.0)
+        else:
+            # Show everything
+            self.toolbar_opacity.setOpacity(1.0)
+            self.pagination_opacity.setOpacity(1.0)
+            
+        self._adjust_window_height()
+        # Update cards
+        self._update_cards_display()
 
     def _on_auto_scroll_timer(self):
         """Handle auto scroll timer timeout."""
@@ -488,4 +674,32 @@ class MainWindow(QMainWindow):
         """Handle mouse release."""
         self._drag_pos = None
         super().mouseReleaseEvent(event)
+
+    def enterEvent(self, event):
+        """Handle mouse enter for minimalist view."""
+        if self._settings_manager.settings.minimalist_view:
+            self._collapse_timer.stop()
+            if self.toolbar.isHidden():
+                # Immediate expansion on enter event for better responsiveness
+                self._adjust_window_height(collapsed=False)
+        super().enterEvent(event)
+
+    def leaveEvent(self, event):
+        """Handle mouse leave for minimalist view."""
+        if self._settings_manager.settings.minimalist_view:
+            # We rely on the polling timer and _check_and_collapse for stable transitions.
+            # But we can start the fade out here for immediate visual feedback.
+            pos = QCursor.pos()
+            if not self.geometry().contains(pos):
+                if not self._collapse_timer.isActive():
+                    self._collapse_timer.start(300)
+                
+                if not self.toolbar.isHidden():
+                    self.toolbar_anim.stop()
+                    self.toolbar_anim.setEndValue(0.0)
+                    self.toolbar_anim.start()
+                    self.pagination_anim.stop()
+                    self.pagination_anim.setEndValue(0.0)
+                    self.pagination_anim.start()
+        super().leaveEvent(event)
 

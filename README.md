@@ -1,22 +1,22 @@
 # Crypto Monitor
 
+[![GitHub release (latest by date)](https://img.shields.io/github/v/release/shiquda/crypto-monitor)](https://github.com/shiquda/crypto-monitor/releases)
+[![Python Version](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
+[![Release Workflows](https://github.com/shiquda/crypto-monitor/actions/workflows/release.yml/badge.svg)](https://github.com/shiquda/crypto-monitor/actions)
+[![UI Style](https://img.shields.io/badge/UI-Fluent%20Design-orange)](https://github.com/zhiyiYo/PyQt-Fluent-Widgets)
+
 A modern, elegant, and cross-platform cryptocurrency price monitor built with Python and PyQt6, featuring a stunning Fluent Design interface.
 
 ![Crypto Monitor](./imgs/crypto-monitor.png)
 
 ## Features
 
-- **Real-time Monitoring**: Live price updates from OKX via WebSocket connection.
 - **Fluent Design UI**: A beautiful, modern interface with Acrylic effects, supporting both Light and Dark themes.
-- **Advanced Alert System**:
+- **Real-time Monitoring**: Live price updates from OKX/Binance via WebSocket connection.
+- **Advanced Alert System**: Powerful price alert features with native system notifications, including:
     - **Price Thresholds**: Alerts when price goes above, below, or touches a target.
     - **Step Alerts**: Trigger alerts at regular price intervals (e.g., every $1,000) or percentage changes (e.g., every 5% daily change).
-    - **Flexible Reminders**: Configure alerts to trigger once or repeat with a customizable cooldown period.
-- **Alert Management**: Dedicated interface to view, edit, and manage alerts for each trading pair.
-- **Desktop Integration**:
-    - **System Tray**: Minimize to tray to keep running in the background.
-    - **Native Notifications**: Receive Windows native notifications for price alerts.
-    - **Draggable UI**: Custom frameless windows that can be dragged and positioned anywhere.
+- **Mini Chart**: Quick-view chart for monitoring price changes at a glance.
 - **Customization**:
     - **Theme Manager**: Switch between Light and Dark modes.
     - **Trading Pairs**: Easily add or remove cryptocurrency pairs.
@@ -24,23 +24,29 @@ A modern, elegant, and cross-platform cryptocurrency price monitor built with Py
 
 ## Usage
 
-1. **Running the App**:
-    ```bash
-    uv run main.py
-    ```
-2. **Managing Pairs**:
-    - Click `+` to add a new trading pair (e.g., `BTC-USDT`).
-    - Right-click a card to access the context menu:
-        - **Add Alert**: Create a new price alert.
-        - **View Alerts**: Manage existing alerts for the pair.
-    - Double-click a card to open the trading page in your browser.
-3. **Settings**:
-    - Click the Settings icon (Gear) to configure:
-        - **Appearance**: Toggle themes or transparency.
-        - **Network**: Configure HTTP/Socks5 proxy.
-        - **notification**: Manage notification preferences.
+1. **Installing the App**:
 
-## Documentation
+As a user, you can install the latest release of the software from the [Releases](https://github.com/shiquda/crypto-monitor/releases) page.
+
+As a developer, you can use the following command to run the app:
+
+```bash
+uv run main.py
+```
+
+2. **Managing Pairs**:
+- Click `+` to add a new trading pair (e.g., `BTC-USDT`).
+- Right-click a card to access the context menu:
+    - **Add Alert**: Create a new price alert.
+    - **View Alerts**: Manage existing alerts for the pair.
+- Double-click a card to open the trading page in your browser.
+
+3. **Pin to Top**:
+- Click the Pin icon *(Pin)* to pin/unpin the window to the top of the screen.
+
+4. **Settings**:
+- Click the Settings icon *(Gear)* to configure.
+
 For detailed usage instructions, please refer to the User Manual:
 
 [English](docs/user_manual_en.md) | [简体中文](docs/user_manual_zh.md)
@@ -54,4 +60,6 @@ For detailed usage instructions, please refer to the User Manual:
 ## Credits
 
 - [QFluentWidgets](https://github.com/zhiyiYo/PyQt-Fluent-Widgets) for the amazing UI components.
-
+- Data Providers:
+    - [OKX](https://www.okx.com/)
+    - [Binance](https://www.binance.com/)

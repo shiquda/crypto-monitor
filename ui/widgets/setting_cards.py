@@ -411,6 +411,7 @@ class DisplaySettingCard(ExpandGroupSettingCard):
     period_changed = pyqtSignal(str)        # Emitted when kline period changes
     display_limit_changed = pyqtSignal(int) # Emitted when display limit changes
     auto_scroll_changed = pyqtSignal(bool, int) # Emitted when auto scroll settings change
+    minimalist_view_changed = pyqtSignal(bool) # Emitted when minimalist view mode changes
 
     def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(
@@ -534,6 +535,32 @@ class DisplaySettingCard(ExpandGroupSettingCard):
         
         layout.addWidget(scroll_container)
         
+        # Minimalist View
+        mini_container = QWidget()
+        mini_layout = QHBoxLayout(mini_container)
+        mini_layout.setContentsMargins(0, 0, 0, 0)
+        
+        mini_info_container = QWidget()
+        mini_info_layout = QVBoxLayout(mini_info_container)
+        mini_info_layout.setContentsMargins(0, 0, 0, 0)
+        mini_info_layout.setSpacing(2)
+        
+        self.mini_label = BodyLabel(_("Minimalist View Mode"))
+        self.mini_desc = CaptionLabel(_("Hide toolbar and pagination when not hovered"))
+        mini_info_layout.addWidget(self.mini_label)
+        mini_info_layout.addWidget(self.mini_desc)
+        
+        mini_layout.addWidget(mini_info_container)
+        mini_layout.addStretch(1)
+        
+        self.mini_switch = SwitchButton()
+        self.mini_switch.setOnText(_("On"))
+        self.mini_switch.setOffText(_("Off"))
+        self.mini_switch.checkedChanged.connect(self.minimalist_view_changed.emit)
+        mini_layout.addWidget(self.mini_switch)
+        
+        layout.addWidget(mini_container)
+        
         self.addGroupWidget(container)
 
     def _on_scroll_switch_changed(self, checked: bool):
@@ -585,6 +612,14 @@ class DisplaySettingCard(ExpandGroupSettingCard):
     def get_auto_scroll(self) -> tuple[bool, int]:
         """Get current auto scroll settings."""
         return self.scroll_switch.isChecked(), self.interval_spin.value()
+
+    def set_minimalist_view(self, enabled: bool):
+        """Set minimalist view state."""
+        self.mini_switch.setChecked(enabled)
+
+    def get_minimalist_view(self) -> bool:
+        """Get current minimalist view state."""
+        return self.mini_switch.isChecked()
 
 
 class HoverSettingCard(ExpandGroupSettingCard):

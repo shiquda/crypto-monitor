@@ -4,8 +4,8 @@ Crypto card widget for displaying a single cryptocurrency pair using Fluent Desi
 
 import os
 from typing import Optional
-from PyQt6.QtWidgets import QVBoxLayout, QHBoxLayout, QLabel, QWidget, QMenu
-from PyQt6.QtCore import Qt, pyqtSignal, QByteArray
+from PyQt6.QtWidgets import QVBoxLayout, QHBoxLayout, QLabel, QWidget, QMenu, QGraphicsOpacityEffect
+from PyQt6.QtCore import Qt, pyqtSignal, QByteArray, QPropertyAnimation, QEasingCurve
 from PyQt6.QtGui import QMouseEvent, QContextMenuEvent, QAction, QColor
 from PyQt6.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
 from PyQt6.QtCore import QUrl
@@ -60,6 +60,7 @@ class CryptoCard(CardWidget):
         # Apply current theme to hover card
         self.hover_card.update_theme(self._theme_mode)
 
+
     # ... (methods _setup_ui to update_price remain same, skip to update_state)
 
 
@@ -87,6 +88,10 @@ class CryptoCard(CardWidget):
         """Show hover card on mouse enter."""
         from config.settings import get_settings_manager
         settings = get_settings_manager().settings
+        
+        # Minimalist view logic
+        # Removed fading per user request
+
         if not settings.hover_enabled:
             super().enterEvent(event)
             return
