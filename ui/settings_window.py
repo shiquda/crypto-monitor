@@ -268,14 +268,16 @@ class SettingsWindow(QMainWindow):
         
         # Version Card
         # Using PrimaryPushSettingCard but disabling button for static display
+        from core.version import __version__
         self.version_card = PrimaryPushSettingCard(
             _("Check Update"),
             FluentIcon.INFO,
             _("Current Version"),
-            "0.3.1",
+            __version__,
             self.about_group
         )
-        self.version_card.button.hide()
+        # self.version_card.button.hide()   <-- Enable button
+        self.version_card.button.clicked.connect(self._check_for_updates)
         self.about_group.addSettingCard(self.version_card)
         
         # GitHub Card
@@ -667,3 +669,63 @@ class SettingsWindow(QMainWindow):
             log_dir.mkdir(parents=True, exist_ok=True)
             
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(log_dir)))
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(log_dir)))
+
+    def _check_for_updates(self):
+        """Check for updates using GitHub API."""
+        self.version_card.button.setEnabled(False)
+        self.version_card.button.setText(_("Checking..."))
+        
+        from core.update_checker import UpdateChecker
+        from core.version import __version__
+        
+        self._update_checker = UpdateChecker(__version__, self)
+        self._update_checker.update_available.connect(self._on_update_available)
+        self._update_checker.up_to_date.connect(self._on_up_to_date)
+        self._update_checker.check_failed.connect(self._on_check_failed)
+        self._update_checker.finished.connect(lambda: self.version_card.button.setEnabled(True))
+        self._update_checker.finished.connect(lambda: self.version_card.button.setText(_("Check Update")))
+        self._update_checker.start()
+
+    def _on_update_available(self, release_info: dict):
+        """Handle update available."""
+        from qfluentwidgets import MessageBox
+        
+        tag_name = release_info.get("tag_name", "Unknown")
+        body = release_info.get("body", "")
+        html_url = release_info.get("html_url", "")
+        
+        w = MessageBox(
+            _("New Version Available"),
+            f"{_('Version')} {tag_name} {_('is available.')}",
+            self
+        )
+        w.yesButton.setText(_("Go to Download"))
+        w.cancelButton.setText(_("Cancel"))
+        
+        if w.exec():
+            QDesktopServices.openUrl(QUrl(html_url))
+
+    def _on_up_to_date(self, version: str):
+        """Handle up to date."""
+        InfoBar.success(
+            title=_("Up to Date"),
+            content=f"{_('You are using the latest version')} ({version})",
+            orient=0,
+            isClosable=True,
+            position=InfoBarPosition.TOP,
+            duration=3000,
+            parent=self
+        )
+
+    def _on_check_failed(self, error: str):
+        """Handle check failed."""
+        InfoBar.error(
+            title=_("Check Failed"),
+            content=f"{_('Failed to check for updates')}: {error}",
+            orient=0,
+            isClosable=True,
+            position=InfoBarPosition.TOP,
+            duration=3000,
+            parent=self
+        )

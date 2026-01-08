@@ -20,7 +20,9 @@ def main():
 
     app = QApplication(sys.argv)
     app.setApplicationName("Crypto Monitor")
-    app.setApplicationVersion("2.0.0")
+    
+    from core.version import __version__
+    app.setApplicationVersion(__version__)
 
     # Initialize logging first (captures startup logs)
     from core.logger import setup_logging
