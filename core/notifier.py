@@ -135,7 +135,8 @@ class NotificationService(QObject):
         pair: str,
         alert_type: str,
         target_price: float,
-        current_price: float
+        current_price: float,
+        current_pct: float = 0.0
     ):
         """
         Send a price alert notification.
@@ -145,32 +146,54 @@ class NotificationService(QObject):
             alert_type: Alert type ("price_above", "price_below", "price_touch")
             target_price: The target price that triggered the alert
             current_price: The current price
+            current_pct: The current 24h change percentage
         """
         if not NOTIFIER_AVAILABLE or not self._worker:
             print(f"[Alert] {pair}: {alert_type} at {current_price} (target: {target_price})")
             return
 
+        from core.utils import format_price
+
         # Build notification message
         symbol = pair.split("-")[0]
+        
+        # Format current price with smart precision and percentage change
+        pct_sign = "+" if current_pct >= 0 else ""
+        current_display = f"${format_price(current_price)} ({pct_sign}{current_pct:.2f}%)"
 
         if alert_type == "price_above":
             title = f"{symbol} 📈 {_('Crossed Above Target')}"
-            message = f"{_('Price rose above')} ${target_price:,.2f}\n{_('Current:')} ${current_price:,.2f}"
+            message = f"{_('Price rose above')} ${format_price(target_price)}\n{_('Current:')} {current_display}"
         elif alert_type == "price_below":
             title = f"{symbol} 📉 {_('Crossed Below Target')}"
-            message = f"{_('Price fell below')} ${target_price:,.2f}\n{_('Current:')} ${current_price:,.2f}"
+            message = f"{_('Price fell below')} ${format_price(target_price)}\n{_('Current:')} {current_display}"
         elif alert_type == "price_touch":
             title = f"{symbol} 🎯 {_('Price Touched Target')}"
-            message = f"{_('Price reached')} ${target_price:,.2f}\n{_('Current:')} ${current_price:,.2f}"
+            message = f"{_('Price reached')} ${format_price(target_price)}\n{_('Current:')} {current_display}"
         elif alert_type == "price_multiple":
+            # Calculate the actual reached price step (floor of current_price / step * step)
+            import math
+            step = target_price
+            reached_price = math.floor(current_price / step) * step
             title = f"{symbol} 🔢 {_('Price Step Reached')}"
-            message = f"{_('Price hit multiple of')} ${target_price:,.0f}\n{_('Current:')} ${current_price:,.2f}"
+            message = f"{_('Reached')} ${format_price(reached_price)}\n{_('Current:')} {current_display}"
         elif alert_type == "price_change_pct":
+            # Calculate the actual reached percentage step
+            import math
+            step = target_price
+            reached_pct = math.floor(current_pct / step) * step
+            # Determine precision from step value (e.g., 0.01 -> 2 decimals)
+            if step < 1:
+                step_str = f"{step:.10f}".rstrip('0')
+                pct_precision = len(step_str.split('.')[1]) if '.' in step_str else 0
+            else:
+                pct_precision = 0
+            pct_display = f"+{reached_pct:.{pct_precision}f}%" if reached_pct >= 0 else f"{reached_pct:.{pct_precision}f}%"
             title = f"{symbol} 📊 {_('Percentage Step Reached')}"
-            message = f"{_('24h Change crossed')} {target_price:.2f}% {_('step')}\n{_('Current:')} ${current_price:,.2f}"
+            message = f"{_('24h Change reached')} {pct_display}\n{_('Current:')} {current_display}"
         else:
             title = f"{symbol} 🔔 {_('Price Alert')}"
-            message = f"{_('Target:')} {target_price}\n{_('Current:')} ${current_price:,.2f}"
+            message = f"{_('Target:')} {format_price(target_price)}\n{_('Current:')} {current_display}"
 
         # Schedule usage on the background loop
         loop = self._worker.get_loop()

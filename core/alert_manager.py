@@ -69,7 +69,7 @@ class AlertManager(QObject):
                 continue
 
             if self._should_trigger(alert, current_price, previous_price, percentage_val, previous_percentage):
-                self._trigger_alert(alert, current_price, previous_price)
+                self._trigger_alert(alert, current_price, previous_price, percentage_val)
 
     def reset(self):
         """Reset all price history. Call this when switching data sources."""
@@ -128,7 +128,7 @@ class AlertManager(QObject):
 
         return False
 
-    def _trigger_alert(self, alert: PriceAlert, current_price: float, previous_price: Optional[float] = None):
+    def _trigger_alert(self, alert: PriceAlert, current_price: float, previous_price: Optional[float] = None, current_pct: float = 0.0):
         """
         Trigger an alert notification.
         """
@@ -147,7 +147,8 @@ class AlertManager(QObject):
             pair=alert.pair,
             alert_type=notif_alert_type,
             target_price=alert.target_price,
-            current_price=current_price
+            current_price=current_price,
+            current_pct=current_pct
         )
 
         # Update alert state
