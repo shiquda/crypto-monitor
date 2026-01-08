@@ -1,6 +1,6 @@
 [project]
 name = "crypto-monitor"
-version = "0.3.1"
+version = "0.3.2"
 description = "A desktop cryptocurrency price monitor using PyQt6 and OKX API"
 readme = "README.md"
 requires-python = ">=3.10"

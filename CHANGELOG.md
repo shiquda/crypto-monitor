@@ -2,6 +2,27 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.2] - 2026-01-08
+
+### Added
+- **Feature**: Added **Symbol Search** functionality to easily find and add new cryptocurrency pairs.
+- **Feature**: Implemented **Update Checker** with a "Check Update" button in Settings to notify users of new versions.
+- **Feature**: Added configurable **Minichart Cache Time** setting (default 1 min) for performance optimization.
+- **Feature**: Added **User Manual** documentation to guide users through the application.
+
+### Changed
+- **Core**: Refactored `MainWindow` to decouple market data logic into `MarketDataController`.
+- **UI**: Refactored `SettingsWindow` to use modular page classes, improving code maintainability.
+- **UI**: Refined Settings Navigation sidebar (improved icons and spacing).
+- **UI**: Optimized **Minichart** appearance.
+- **Notification**: Optimized **Alert** notification content (including current price, percentage change, and better formatting).
+
+### Fixed
+- **Fix**: Resolved price display precision issues in mini-charts and notifications (now correctly handles >2 decimal places).
+- **Fix**: Fixed integer formatting bug in percentage step notifications.
+- **Fix**: Fixed various UI bugs including input field displays and potential crashes.
+- **Fix**: Resolved Binance network connection issues regarding proxy usage.
+
 ## [0.3.1] - 2026-01-07
 
 ### Added
