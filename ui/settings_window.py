@@ -474,13 +474,14 @@ class SettingsWindow(QMainWindow):
         scroll_interval = self._settings_manager.settings.scroll_interval
         self.display_card.set_auto_scroll(auto_scroll, scroll_interval)
 
-        # Load hover settings (including kline period)
+        # Load hover settings (including kline period and cache ttl)
         settings = self._settings_manager.settings
         self.hover_card.set_values(
             settings.hover_enabled,
             settings.hover_show_stats,
             settings.hover_show_chart,
-            settings.kline_period
+            settings.kline_period,
+            settings.chart_cache_ttl
         )
         
         # Load data source
@@ -562,6 +563,7 @@ class SettingsWindow(QMainWindow):
             hover_values['show_chart']
         )
         self._settings_manager.update_kline_period(hover_values['period'])
+        self._settings_manager.settings.chart_cache_ttl = hover_values['cache_ttl']
         
         # Update data source
         self._settings_manager.update_data_source(new_source)

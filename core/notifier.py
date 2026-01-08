@@ -136,7 +136,9 @@ class NotificationService(QObject):
         alert_type: str,
         target_price: float,
         current_price: float,
-        current_pct: float = 0.0
+        current_pct: float = 0.0,
+        previous_price: float = None,
+        previous_pct: float = None
     ):
         """
         Send a price alert notification.
@@ -147,6 +149,8 @@ class NotificationService(QObject):
             target_price: The target price that triggered the alert
             current_price: The current price
             current_pct: The current 24h change percentage
+            previous_price: The previous price (for step alerts)
+            previous_pct: The previous percentage (for percentage step alerts)
         """
         if not NOTIFIER_AVAILABLE or not self._worker:
             print(f"[Alert] {pair}: {alert_type} at {current_price} (target: {target_price})")
@@ -171,17 +175,40 @@ class NotificationService(QObject):
             title = f"{symbol} 🎯 {_('Price Touched Target')}"
             message = f"{_('Price reached')} ${format_price(target_price)}\n{_('Current:')} {current_display}"
         elif alert_type == "price_multiple":
-            # Calculate the actual reached price step (floor of current_price / step * step)
+            # Calculate the crossed price step using previous_price
+            # When price crosses a step boundary, we want to show the boundary that was crossed
             import math
             step = target_price
-            reached_price = math.floor(current_price / step) * step
+            if previous_price is not None:
+                prev_step = math.floor(previous_price / step)
+                curr_step = math.floor(current_price / step)
+                # The crossed boundary is the one between prev_step and curr_step
+                if curr_step > prev_step:
+                    # Price went up, crossed from prev_step to curr_step
+                    reached_price = curr_step * step
+                else:
+                    # Price went down, crossed from prev_step to curr_step
+                    reached_price = (prev_step) * step
+            else:
+                reached_price = math.floor(current_price / step) * step
             title = f"{symbol} 🔢 {_('Price Step Reached')}"
             message = f"{_('Reached')} ${format_price(reached_price)}\n{_('Current:')} {current_display}"
         elif alert_type == "price_change_pct":
-            # Calculate the actual reached percentage step
+            # Calculate the crossed percentage step using previous_pct
             import math
             step = target_price
-            reached_pct = math.floor(current_pct / step) * step
+            if previous_pct is not None:
+                prev_step = math.floor(previous_pct / step)
+                curr_step = math.floor(current_pct / step)
+                # The crossed boundary is the one between prev_step and curr_step
+                if curr_step > prev_step:
+                    # Percentage went up
+                    reached_pct = curr_step * step
+                else:
+                    # Percentage went down
+                    reached_pct = prev_step * step
+            else:
+                reached_pct = math.floor(current_pct / step) * step
             # Determine precision from step value (e.g., 0.01 -> 2 decimals)
             if step < 1:
                 step_str = f"{step:.10f}".rstrip('0')

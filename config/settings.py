@@ -112,6 +112,7 @@ class AppSettings:
     color_schema: str = "standard"  # "standard" (Green Up/Red Down) or "reverse" (Red Up/Green Down)
     dynamic_background: bool = True  # Enable dynamic background color based on price change
     kline_period: str = "24h" # "1h", "4h", "12h", "24h", "7d"
+    chart_cache_ttl: int = 60  # Mini chart cache duration in seconds (default 1 minute)
     hover_enabled: bool = True     # Master toggle for hover card
     hover_show_stats: bool = True  # Toggle for statistics in hover card
     hover_show_chart: bool = True  # Toggle for mini chart in hover card
@@ -213,7 +214,7 @@ class SettingsManager:
                 # Only keep recognized fields in data
                 recognized_fields = {
                     'version', 'data_source', 'theme_mode', 'color_schema', 'dynamic_background', 'kline_period', 
-                    'hover_enabled', 'hover_show_stats', 'hover_show_chart',
+                    'chart_cache_ttl', 'hover_enabled', 'hover_show_stats', 'hover_show_chart',
                     'opacity', 'crypto_pairs', 'display_limit',
                     'auto_scroll', 'scroll_interval',
                     'window_x', 'window_y', 'always_on_top', 'language'

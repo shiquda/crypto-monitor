@@ -685,6 +685,36 @@ class HoverSettingCard(ExpandGroupSettingCard):
         
         sub_layout.addWidget(self.period_container)
         
+        # 5. Advanced Settings - Chart Cache Duration
+        from qfluentwidgets import CaptionLabel
+        advanced_container = QWidget()
+        advanced_layout = QVBoxLayout(advanced_container)
+        advanced_layout.setContentsMargins(0, 10, 0, 0)
+        advanced_layout.setSpacing(8)
+        
+        # Advanced section header
+        advanced_header = CaptionLabel(_("Advanced Settings"))
+        advanced_header.setStyleSheet("QLabel { font-weight: bold; opacity: 0.7; }")
+        advanced_layout.addWidget(advanced_header)
+        
+        # Cache TTL setting
+        cache_container = QWidget()
+        cache_layout = QHBoxLayout(cache_container)
+        cache_layout.setContentsMargins(0, 0, 0, 0)
+        
+        self.cache_label = BodyLabel(_("Chart Cache Duration"))
+        self.cache_spin = SpinBox()
+        self.cache_spin.setRange(10, 600)  # 10s to 10min
+        self.cache_spin.setSuffix(" " + _("sec"))
+        self.cache_spin.setFixedWidth(150)
+        
+        cache_layout.addWidget(self.cache_label)
+        cache_layout.addStretch(1)
+        cache_layout.addWidget(self.cache_spin)
+        
+        advanced_layout.addWidget(cache_container)
+        sub_layout.addWidget(advanced_container)
+        
         layout.addWidget(self.sub_settings_widget)
         
         self.addGroupWidget(container)
@@ -708,12 +738,13 @@ class HoverSettingCard(ExpandGroupSettingCard):
     def _on_period_changed(self, text: str):
         self.period_changed.emit(text)
 
-    def set_values(self, enabled: bool, show_stats: bool, show_chart: bool, period: str):
+    def set_values(self, enabled: bool, show_stats: bool, show_chart: bool, period: str, cache_ttl: int = 60):
         """Set all values."""
         self.master_switch.setChecked(enabled)
         self.stats_switch.setChecked(show_stats)
         self.chart_switch.setChecked(show_chart)
         self.period_combo.setCurrentText(period)
+        self.cache_spin.setValue(cache_ttl)
         
         self.sub_settings_widget.setEnabled(enabled)
         self.period_container.setEnabled(show_chart)
@@ -724,5 +755,6 @@ class HoverSettingCard(ExpandGroupSettingCard):
             'enabled': self.master_switch.isChecked(),
             'show_stats': self.stats_switch.isChecked(),
             'show_chart': self.chart_switch.isChecked(),
-            'period': self.period_combo.currentText()
+            'period': self.period_combo.currentText(),
+            'cache_ttl': self.cache_spin.value()
         }

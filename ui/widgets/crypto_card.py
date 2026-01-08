@@ -49,7 +49,6 @@ class CryptoCard(CardWidget):
         # Chart data cache
         # {timestamp: float, data: list}
         self._chart_cache = {}
-        self._chart_cache_ttl = 300 # 5 minutes
 
         
         self._setup_ui()
@@ -464,12 +463,14 @@ class CryptoCard(CardWidget):
         # Check cache
         now = time.time()
         from config.settings import get_settings_manager
-        current_period = get_settings_manager().settings.kline_period.upper()
+        settings = get_settings_manager().settings
+        current_period = settings.kline_period.upper()
+        cache_ttl = settings.chart_cache_ttl
 
         if self._chart_cache:
             # Check TTL and if period matches
             cached_period = self._chart_cache.get("period", "24H") 
-            if (now - self._chart_cache.get("timestamp", 0) < self._chart_cache_ttl) and (cached_period == current_period):
+            if (now - self._chart_cache.get("timestamp", 0) < cache_ttl) and (cached_period == current_period):
                 # Cache hit
                 data = self._chart_cache.get("data", [])
                 if data:
