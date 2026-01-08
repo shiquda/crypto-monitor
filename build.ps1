@@ -2,11 +2,6 @@
 $i = $args -ccontains '-i' # Build and generate installer
 $I_flag = $args -ccontains '-I' # Generate installer only (skip build)
 
-# Define Inno Setup paths to check
-$isccPaths = @(
-    "D:\Program Files (x86)\Inno Setup 6\ISCC.exe"
-)
-
 # 1. Build Application (Default or if -i is specified, BUT NOT if -I is specified)
 # NOTE: If user passes both, -I takes precedence for skipping build, but we still generate installer if -i is present?
 # Logic: Build unless -I is present.
@@ -30,11 +25,19 @@ if (-not $I_flag) {
 
 # 2. Generate Installer (if -i or -I is specified)
 if ($i -or $I_flag) {
-    $isccPath = $null
-    foreach ($path in $isccPaths) {
-        if (Test-Path $path) {
-            $isccPath = $path
-            break
+    # Try to find ISCC in PATH first, then check common locations
+    $isccPath = Get-Command "ISCC.exe" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source
+    
+    if (-not $isccPath) {
+        $commonPaths = @(
+            "C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
+            "D:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+        )
+        foreach ($path in $commonPaths) {
+            if (Test-Path $path) {
+                $isccPath = $path
+                break
+            }
         }
     }
 
