@@ -1,6 +1,5 @@
 {
     "(optional)": "(可选)",
-    "{count} symbols available": "共 {count} 个可用交易对",
     "24h Amplitude": "24h振幅",
     "24h Change crossed": "24小时涨跌幅穿过",
     "24h Change hits multiple of (Step %)": "24小时涨跌幅达到 (步长 %) 的倍数",
@@ -20,6 +19,8 @@
     "Alert Type:": "提醒类型：",
     "Alerts for": "提醒列表",
     "Appearance": "外观",
+    "Auto Scroll": "自动轮播",
+    "Automatically cycle through pages": "自动循环切换页面",
     "Background opacity varies with price change magnitude": "背景透明度随涨跌幅大小变化",
     "Below": "低于",
     "Cancel": "取消",
@@ -61,8 +62,8 @@
     "Enable Hover Card": "启用悬浮卡片",
     "Enable Proxy": "启用代理",
     "Enter a symbol to search": "输入币种进行搜索",
-    "Enter trading pair (e.g., BTC-USDT):": "输入交易对 (例如 BTC-USDT)：",
     "Enter symbol (e.g., BTC, ETH-USDT)...": "输入币种 (例如 BTC, ETH-USDT)...",
+    "Enter trading pair (e.g., BTC-USDT):": "输入交易对 (例如 BTC-USDT)：",
     "Error": "错误",
     "Export Config": "导出配置",
     "Export Configuration": "导出配置",
@@ -83,8 +84,8 @@
     "Language": "语言",
     "Light Theme": "明亮主题",
     "Loading Chart...": "加载图表中...",
-    "Loading...": "加载中...",
     "Loading symbols...": "加载交易对中...",
+    "Loading...": "加载中...",
     "Log Directory": "日志目录",
     "Manage price alerts for trading pairs": "管理交易对的价格提醒",
     "Mini Chart Range": "迷你图表范围",
@@ -106,6 +107,7 @@
     "Open": "打开",
     "Open in Browser": "在浏览器打开",
     "Open the logs directory": "打开日志文件夹",
+    "Pairs per Page": "每页显示数量",
     "Password": "密码",
     "Percentage Step Reached": "达到涨跌幅步长",
     "Pin Window": "置顶窗口",
@@ -172,5 +174,6 @@
     "e.g. 2.0": "例如 2.0",
     "error code": "错误代码",
     "sec": "秒",
-    "step": "步长"
+    "step": "步长",
+    "{count} symbols available": "共 {count} 个可用交易对"
 }

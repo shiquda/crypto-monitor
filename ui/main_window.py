@@ -9,7 +9,7 @@ from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QScrollArea,
     QApplication
 )
-from PyQt6.QtCore import Qt, QPoint
+from PyQt6.QtCore import Qt, QPoint, QTimer
 from PyQt6.QtGui import QIcon, QMouseEvent
 from qfluentwidgets import setTheme, Theme
 
@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 class MainWindow(QMainWindow):
     """Main application window with Fluent Design components."""
 
-    ITEMS_PER_PAGE = 3
+    # ITEMS_PER_PAGE = 3  <-- Removed constant
 
     def __init__(self):
         super().__init__()
@@ -57,27 +57,29 @@ class MainWindow(QMainWindow):
 
         self._setup_ui()
         self._connect_signals()
+        
+        # Auto scroll timer
+        self._auto_scroll_timer = QTimer(self)
+        self._auto_scroll_timer.timeout.connect(self._on_auto_scroll_timer)
+        self._setup_auto_scroll()
+        
         self._load_pairs()
 
     def _setup_ui(self):
         """Setup the main window UI with Fluent Design components."""
-        # Window flags: frameless, stay on top optional
+        # ... (flags and attributes)
         flags = Qt.WindowType.FramelessWindowHint
         if self._settings_manager.settings.always_on_top:
             flags |= Qt.WindowType.WindowStaysOnTopHint
         self.setWindowFlags(flags)
 
-        # Enable translucent background for rounded corners
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 
-        # Window size and icon - 降低高度从 360 到 320
-        self.setFixedSize(160, 320)
         self.setWindowIcon(QIcon("assets/icons/crypto-monitor.png"))
         self.setWindowTitle(_("Crypto Monitor"))
 
-
-        # Move to saved position
-
+        # Initial size adjustment
+        self._adjust_window_height()
 
         # Move to saved position
         self.move(
@@ -85,9 +87,8 @@ class MainWindow(QMainWindow):
             self._settings_manager.settings.window_y
         )
 
-        # Central widget with rounded corners
+        # ... (rest of UI setup)
         central = QWidget()
-        # Apply theme-based background color
         theme_mode = self._settings_manager.settings.theme_mode
         bg_color = "#1B2636" if theme_mode == "dark" else "#FAFAFA"
         central.setStyleSheet(f"""
@@ -99,14 +100,12 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central)
 
         layout = QVBoxLayout(central)
-        layout.setContentsMargins(10, 8, 10, 8)  # 增加左右留白从 5 到 10
+        layout.setContentsMargins(10, 8, 10, 8)
         layout.setSpacing(5)
 
-        # Toolbar
         self.toolbar = Toolbar()
         layout.addWidget(self.toolbar)
 
-        # Cards container (scrollable)
         self.scroll_area = QScrollArea()
         self.scroll_area.setWidgetResizable(True)
         self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -116,15 +115,82 @@ class MainWindow(QMainWindow):
         self.cards_container = QWidget()
         self.cards_layout = QVBoxLayout(self.cards_container)
         self.cards_layout.setContentsMargins(0, 0, 0, 0)
-        self.cards_layout.setSpacing(8)  # 增加卡片间距从 5 到 8
+        self.cards_layout.setSpacing(8)
         self.cards_layout.addStretch()
 
         self.scroll_area.setWidget(self.cards_container)
         layout.addWidget(self.scroll_area, 1)
 
-        # Pagination
         self.pagination = Pagination()
         layout.addWidget(self.pagination)
+
+    def _adjust_window_height(self, limit: int = None):
+        """Adjust window height based on display limit."""
+        if limit is None:
+            limit = self._settings_manager.settings.display_limit
+        
+        # Height Calculation:
+        # Base UI (Toolbar + Pagination + Margins + Window Frame) ~ 90px
+        # Per Item (Card + Spacing) ~ 78px
+        # We want to be slightly generous to avoid scrollbars
+        
+        # Refined measurements:
+        # Toolbar: ~40px
+        # Pagination: ~35px
+        # Top Margin: 8px
+        # Bottom Margin: 8px
+        # Layout Spacing: 5px * 2 (Toolbar-Scroll, Scroll-Pag) = 10px
+        # Total Static Height = 40 + 35 + 8 + 8 + 10 = 101px
+        
+        # CryptoCard Height:
+        # Padding: 10 + 10 = 20px
+        # Header: 20px (icon/btn)
+        # Spacing: 8px
+        # Price: ~20px (font 16 + margins)
+        # Total Card Content ~ 68px
+        # Let's say ~72px per card including border/shadow
+        
+        # Card Layout Spacing: 8px
+        
+        # Formula:
+        # H = Static + (Limit * CardHeight) + ((Limit - 1) * Spacing)
+        
+        base_height = 105  # Toolbar + Pagination + Margins
+        item_height = 72   # Card height including padding
+        spacing = 8
+        
+        content_height = (limit * item_height) + (max(0, limit - 1) * spacing)
+        total_height = base_height + content_height
+        
+        logger.info(f"Adjusting window height. Limit: {limit}, Calculated Height: {total_height}")
+        
+        # Force resize sequence
+        self.setFixedSize(160, total_height)
+        self.updateGeometry()
+        
+    def _on_display_limit_changed(self, limit: int):
+        """Handle display limit change."""
+        logger.info(f"Display limit changed to {limit}, resizing window...")
+        # Reload pairs to refresh pagination
+        self._load_pairs()
+        # Adjust window size
+        self._adjust_window_height(limit)
+
+    def _open_settings(self):
+        """Open settings window."""
+        if self._settings_window is None or not self._settings_window.isVisible():
+            self._settings_window = SettingsWindow(self._settings_manager)
+            self._settings_window.proxy_changed.connect(self._on_proxy_changed)
+            self._settings_window.pairs_changed.connect(self._on_pairs_changed)
+            self._settings_window.theme_changed.connect(self._on_theme_changed)
+            self._settings_window.data_source_changed.connect(self._on_data_source_changed)
+            self._settings_window.display_changed.connect(self._on_display_changed)
+            self._settings_window.auto_scroll_changed.connect(self._on_auto_scroll_changed)
+            self._settings_window.display_limit_changed.connect(self._on_display_limit_changed)
+            
+            self._settings_window.show()
+        else:
+            self._settings_window.raise_()
 
     def _connect_signals(self):
         """Connect signals to slots."""
@@ -146,9 +212,10 @@ class MainWindow(QMainWindow):
     def _load_pairs(self):
         """Load pairs from settings and subscribe."""
         pairs = self._settings_manager.settings.crypto_pairs
+        items_per_page = self._settings_manager.settings.display_limit
 
         # Calculate pagination
-        total_pages = max(1, (len(pairs) + self.ITEMS_PER_PAGE - 1) // self.ITEMS_PER_PAGE)
+        total_pages = max(1, (len(pairs) + items_per_page - 1) // items_per_page)
         self.pagination.set_total_pages(total_pages)
         self.pagination.setVisible(total_pages > 1)
 
@@ -163,10 +230,11 @@ class MainWindow(QMainWindow):
         """Update the displayed cards based on current page."""
         pairs = self._settings_manager.settings.crypto_pairs
         current_page = self.pagination.current_page()
+        items_per_page = self._settings_manager.settings.display_limit
 
         # Calculate slice for current page
-        start = (current_page - 1) * self.ITEMS_PER_PAGE
-        end = start + self.ITEMS_PER_PAGE
+        start = (current_page - 1) * items_per_page
+        end = start + items_per_page
         visible_pairs = pairs[start:end]
 
         # Clear existing cards from layout (but keep them cached)
@@ -221,20 +289,6 @@ class MainWindow(QMainWindow):
         for card in self._cards.values():
             card.set_connection_state(state)
 
-    def _open_settings(self):
-        """Open settings window."""
-        if self._settings_window is None or not self._settings_window.isVisible():
-            self._settings_window = SettingsWindow(self._settings_manager)
-            self._settings_window.proxy_changed.connect(self._on_proxy_changed)
-            self._settings_window.pairs_changed.connect(self._on_pairs_changed)
-            self._settings_window.theme_changed.connect(self._on_theme_changed)
-            self._settings_window.data_source_changed.connect(self._on_data_source_changed)
-            self._settings_window.display_changed.connect(self._on_display_changed)
-            self._settings_window.show()
-        else:
-            self._settings_window.activateWindow()
-            self._settings_window.raise_()
-
     def _on_proxy_changed(self):
         """Handle proxy configuration change."""
         # Reconnect with new proxy settings
@@ -255,6 +309,33 @@ class MainWindow(QMainWindow):
         # Force update all cards
         for card in self._cards.values():
             card.refresh_style()
+
+    def _setup_auto_scroll(self):
+        """Setup or update auto scroll based on settings."""
+        if self._settings_manager.settings.auto_scroll:
+            interval_ms = self._settings_manager.settings.scroll_interval * 1000
+            self._auto_scroll_timer.start(interval_ms)
+        else:
+            self._auto_scroll_timer.stop()
+
+    def _on_auto_scroll_changed(self, enabled: bool, interval: int):
+        """Handle auto scroll settings change."""
+        if enabled:
+            self._auto_scroll_timer.start(interval * 1000)
+        else:
+            self._auto_scroll_timer.stop()
+
+    def _on_auto_scroll_timer(self):
+        """Handle auto scroll timer timeout."""
+        if not self.isVisible():
+            return
+            
+        next_page = self.pagination.current_page() + 1
+        if next_page > self.pagination.total_pages():
+            next_page = 1
+        
+        self.pagination.set_current_page(next_page)
+        self._update_cards_display()
 
     def _on_data_source_changed(self):
         """Handle data source change."""
@@ -292,6 +373,11 @@ class MainWindow(QMainWindow):
         self._exchange_client.ticker_updated.connect(self._on_ticker_update)
         self._exchange_client.connection_status.connect(self._on_connection_status)
         self._exchange_client.connection_state_changed.connect(self._on_connection_state_changed)
+        
+        # Auto scroll timer
+        self._auto_scroll_timer = QTimer(self)
+        self._auto_scroll_timer.timeout.connect(self._on_auto_scroll_timer)
+        self._setup_auto_scroll()
         
         # Resubscribe
         self._load_pairs()
@@ -395,6 +481,24 @@ class MainWindow(QMainWindow):
         QApplication.quit()
 
     # Window dragging
+    def wheelEvent(self, event):
+        """Handle mouse wheel for page switching."""
+        delta = event.angleDelta().y()
+        if delta != 0:
+            current_page = self.pagination.current_page()
+            total_pages = self.pagination.total_pages()
+            
+            if delta > 0: # Scroll up -> Prev page
+                new_page = max(1, current_page - 1)
+            else: # Scroll down -> Next page
+                new_page = min(total_pages, current_page + 1)
+                
+            if new_page != current_page:
+                self.pagination.set_current_page(new_page)
+                self._update_cards_display()
+                
+        super().wheelEvent(event)
+
     def mousePressEvent(self, event: QMouseEvent):
         """Handle mouse press for window dragging."""
         if event.button() == Qt.MouseButton.LeftButton:

@@ -9,7 +9,7 @@ from PyQt6.QtCore import pyqtSignal
 from qfluentwidgets import (
     ExpandGroupSettingCard, FluentIcon, SwitchButton,
     PrimaryPushButton, InfoBar, InfoBarPosition,
-    BodyLabel, PushButton, ToolButton, ComboBox
+    BodyLabel, PushButton, ToolButton, ComboBox, SpinBox
 )
 
 from .proxy_form import ProxyForm
@@ -409,6 +409,8 @@ class DisplaySettingCard(ExpandGroupSettingCard):
     color_schema_changed = pyqtSignal(str)  # Emitted when color schema changes
     dynamic_bg_changed = pyqtSignal(bool)   # Emitted when dynamic background setting changes
     period_changed = pyqtSignal(str)        # Emitted when kline period changes
+    display_limit_changed = pyqtSignal(int) # Emitted when display limit changes
+    auto_scroll_changed = pyqtSignal(bool, int) # Emitted when auto scroll settings change
 
     def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(
@@ -476,7 +478,70 @@ class DisplaySettingCard(ExpandGroupSettingCard):
         
         layout.addWidget(bg_container)
         
+        # Display Limit
+        limit_container = QWidget()
+        limit_layout = QHBoxLayout(limit_container)
+        limit_layout.setContentsMargins(0, 0, 0, 0)
+        
+        self.limit_label = BodyLabel(_("Pairs per Page"))
+        self.limit_spin = SpinBox()
+        self.limit_spin.setRange(1, 5)
+        self.limit_spin.setFixedWidth(150)
+        self.limit_spin.valueChanged.connect(self.display_limit_changed.emit)
+        
+        limit_layout.addWidget(self.limit_label)
+        limit_layout.addStretch(1)
+        limit_layout.addWidget(self.limit_spin)
+        
+        layout.addWidget(limit_container)
+        
+        # Auto Scroll
+        scroll_container = QWidget()
+        scroll_layout = QHBoxLayout(scroll_container)
+        scroll_layout.setContentsMargins(0, 0, 0, 0)
+        
+        # Configure container for label and description
+        from qfluentwidgets import CaptionLabel
+        scroll_info_container = QWidget()
+        scroll_info_layout = QVBoxLayout(scroll_info_container)
+        scroll_info_layout.setContentsMargins(0, 0, 0, 0)
+        scroll_info_layout.setSpacing(2)
+        
+        self.scroll_label = BodyLabel(_("Auto Scroll"))
+        self.scroll_desc = CaptionLabel(_("Automatically cycle through pages"))
+        scroll_info_layout.addWidget(self.scroll_label)
+        scroll_info_layout.addWidget(self.scroll_desc)
+        
+        scroll_layout.addWidget(scroll_info_container)
+        scroll_layout.addStretch(1)
+        
+        # Interval SpinBox
+        self.interval_spin = SpinBox()
+        self.interval_spin.setRange(5, 300) # 5s to 300s
+        self.interval_spin.setSuffix(" s")
+        self.interval_spin.setFixedWidth(150)
+        self.interval_spin.valueChanged.connect(self._emit_auto_scroll_changed)
+        scroll_layout.addWidget(self.interval_spin)
+        
+        scroll_layout.addSpacing(10)
+        
+        # Switch
+        self.scroll_switch = SwitchButton()
+        self.scroll_switch.setOnText(_("On"))
+        self.scroll_switch.setOffText(_("Off"))
+        self.scroll_switch.checkedChanged.connect(self._on_scroll_switch_changed)
+        scroll_layout.addWidget(self.scroll_switch)
+        
+        layout.addWidget(scroll_container)
+        
         self.addGroupWidget(container)
+
+    def _on_scroll_switch_changed(self, checked: bool):
+        self.interval_spin.setEnabled(checked)
+        self._emit_auto_scroll_changed()
+
+    def _emit_auto_scroll_changed(self):
+        self.auto_scroll_changed.emit(self.scroll_switch.isChecked(), self.interval_spin.value())
 
     def _on_schema_changed(self, text: str):
         """Handle color schema change."""
@@ -501,6 +566,25 @@ class DisplaySettingCard(ExpandGroupSettingCard):
     def get_dynamic_background(self) -> bool:
         """Get current dynamic background state."""
         return self.bg_switch.isChecked()
+
+    def set_display_limit(self, limit: int):
+        """Set display limit."""
+        if 1 <= limit <= 5:
+            self.limit_spin.setValue(limit)
+
+    def get_display_limit(self) -> int:
+        """Get current display limit."""
+        return self.limit_spin.value()
+
+    def set_auto_scroll(self, enabled: bool, interval: int):
+        """Set auto scroll settings."""
+        self.scroll_switch.setChecked(enabled)
+        self.interval_spin.setValue(interval)
+        self.interval_spin.setEnabled(enabled)
+
+    def get_auto_scroll(self) -> tuple[bool, int]:
+        """Get current auto scroll settings."""
+        return self.scroll_switch.isChecked(), self.interval_spin.value()
 
 
 class HoverSettingCard(ExpandGroupSettingCard):

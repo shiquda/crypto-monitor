@@ -116,6 +116,9 @@ class AppSettings:
     hover_show_stats: bool = True  # Toggle for statistics in hover card
     hover_show_chart: bool = True  # Toggle for mini chart in hover card
     opacity: int = 100
+    display_limit: int = 3  # Number of pairs to display per page (1-5)
+    auto_scroll: bool = False   # Auto-cycle pages
+    scroll_interval: int = 30   # Auto-scroll interval in seconds
     crypto_pairs: list = field(default_factory=lambda: ["BTC-USDT", "ETH-USDT"])
     proxy: ProxyConfig = field(default_factory=ProxyConfig)
     window_x: int = 100
@@ -211,7 +214,8 @@ class SettingsManager:
                 recognized_fields = {
                     'version', 'data_source', 'theme_mode', 'color_schema', 'dynamic_background', 'kline_period', 
                     'hover_enabled', 'hover_show_stats', 'hover_show_chart',
-                    'opacity', 'crypto_pairs',
+                    'opacity', 'crypto_pairs', 'display_limit',
+                    'auto_scroll', 'scroll_interval',
                     'window_x', 'window_y', 'always_on_top', 'language'
                 }
                 filtered_data = {k: v for k, v in data.items() if k in recognized_fields}
@@ -298,6 +302,18 @@ class SettingsManager:
             self.settings.hover_show_stats = show_stats
         if show_chart is not None:
             self.settings.hover_show_chart = show_chart
+        self.save()
+
+    def update_display_limit(self, limit: int) -> None:
+        """Update display limit (items per page)."""
+        if 1 <= limit <= 5:
+            self.settings.display_limit = limit
+            self.save()
+
+    def update_auto_scroll(self, enabled: bool, interval: int) -> None:
+        """Update auto scroll settings."""
+        self.settings.auto_scroll = enabled
+        self.settings.scroll_interval = interval
         self.save()
 
     def update_language(self, language: str) -> None:

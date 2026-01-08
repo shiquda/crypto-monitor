@@ -32,6 +32,8 @@ class SettingsWindow(QMainWindow):
     pairs_changed = pyqtSignal()  # Emitted when crypto pairs change
     theme_changed = pyqtSignal(str)  # Emitted when theme settings change
     display_changed = pyqtSignal()  # Emitted when display settings (like dynamic bg) change
+    auto_scroll_changed = pyqtSignal(bool, int)  # Emitted when auto scroll settings change
+    display_limit_changed = pyqtSignal(int)  # Emitted when display limit changes
     data_source_changed = pyqtSignal()  # Emitted when data source changes
 
     def __init__(self, settings_manager: SettingsManager, parent: Optional[QWidget] = None):
@@ -461,6 +463,15 @@ class SettingsWindow(QMainWindow):
         dynamic_bg = self._settings_manager.settings.dynamic_background
         self.display_card.set_dynamic_background(dynamic_bg)
         
+        # Load display limit
+        limit = self._settings_manager.settings.display_limit
+        self.display_card.set_display_limit(limit)
+
+        # Load auto scroll
+        auto_scroll = self._settings_manager.settings.auto_scroll
+        scroll_interval = self._settings_manager.settings.scroll_interval
+        self.display_card.set_auto_scroll(auto_scroll, scroll_interval)
+
         # Load hover settings (including kline period)
         settings = self._settings_manager.settings
         self.hover_card.set_values(
@@ -510,6 +521,15 @@ class SettingsWindow(QMainWindow):
         new_dynamic_bg = self.display_card.get_dynamic_background()
         dynamic_bg_changed = old_dynamic_bg != new_dynamic_bg 
 
+        # Check if display limit changed
+        old_limit = self._settings_manager.settings.display_limit
+        new_limit = self.display_card.get_display_limit()
+        limit_changed = old_limit != new_limit
+        
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"Saving settings. Old Limit: {old_limit}, New Limit: {new_limit}, Changed: {limit_changed}")
+        
         # Get theme mode from card
         self._settings_manager.update_theme(new_theme)
         
@@ -521,6 +541,16 @@ class SettingsWindow(QMainWindow):
         
         # Update dynamic background
         self._settings_manager.update_dynamic_background(new_dynamic_bg)
+        
+        # Update display limit
+        self._settings_manager.update_display_limit(new_limit)
+
+        # Update auto scroll
+        new_auto_scroll, new_scroll_interval = self.display_card.get_auto_scroll()
+        old_auto_scroll = self._settings_manager.settings.auto_scroll
+        old_scroll_interval = self._settings_manager.settings.scroll_interval
+        auto_scroll_changed = (new_auto_scroll != old_auto_scroll) or (new_scroll_interval != old_scroll_interval)
+        self._settings_manager.update_auto_scroll(new_auto_scroll, new_scroll_interval)
         
         # Update hover settings
         hover_values = self.hover_card.get_values()
@@ -574,6 +604,10 @@ class SettingsWindow(QMainWindow):
             QTimer.singleShot(100, lambda: self.data_source_changed.emit())
         if dynamic_bg_changed:
             QTimer.singleShot(100, lambda: self.display_changed.emit())
+        if auto_scroll_changed:
+            QTimer.singleShot(100, lambda: self.auto_scroll_changed.emit(new_auto_scroll, new_scroll_interval))
+        if limit_changed:
+            self.display_limit_changed.emit(new_limit)
 
     def _reset_settings(self):
         """Reset settings to defaults."""

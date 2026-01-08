@@ -1,6 +1,5 @@
 {
     "(optional)": "(optional)",
-    "{count} symbols available": "{count} symbols available",
     "24h Amplitude": "24h Amplitude",
     "24h Change crossed": "24h Change crossed",
     "24h Change hits multiple of (Step %)": "24h Change hits multiple of (Step %)",
@@ -20,6 +19,8 @@
     "Alert Type:": "Alert Type:",
     "Alerts for": "Alerts for",
     "Appearance": "Appearance",
+    "Auto Scroll": "Auto Scroll",
+    "Automatically cycle through pages": "Automatically cycle through pages",
     "Background opacity varies with price change magnitude": "Background opacity varies with price change magnitude",
     "Below": "Below",
     "Cancel": "Cancel",
@@ -61,8 +62,8 @@
     "Enable Hover Card": "Enable Hover Card",
     "Enable Proxy": "Enable Proxy",
     "Enter a symbol to search": "Enter a symbol to search",
-    "Enter trading pair (e.g., BTC-USDT):": "Enter trading pair (e.g., BTC-USDT):",
     "Enter symbol (e.g., BTC, ETH-USDT)...": "Enter symbol (e.g., BTC, ETH-USDT)...",
+    "Enter trading pair (e.g., BTC-USDT):": "Enter trading pair (e.g., BTC-USDT):",
     "Error": "Error",
     "Export Config": "Export Config",
     "Export Configuration": "Export Configuration",
@@ -83,8 +84,8 @@
     "Language": "Language",
     "Light Theme": "Light Theme",
     "Loading Chart...": "Loading Chart...",
-    "Loading...": "Loading...",
     "Loading symbols...": "Loading symbols...",
+    "Loading...": "Loading...",
     "Log Directory": "Log Directory",
     "Manage price alerts for trading pairs": "Manage price alerts for trading pairs",
     "Mini Chart Range": "Mini Chart Range",
@@ -106,6 +107,7 @@
     "Open": "Open",
     "Open in Browser": "Open in Browser",
     "Open the logs directory": "Open the logs directory",
+    "Pairs per Page": "Pairs per Page",
     "Password": "Password",
     "Percentage Step Reached": "Percentage Step Reached",
     "Pin Window": "Pin Window",
@@ -172,5 +174,6 @@
     "e.g. 2.0": "e.g. 2.0",
     "error code": "error code",
     "sec": "sec",
-    "step": "step"
+    "step": "step",
+    "{count} symbols available": "{count} symbols available"
 }
