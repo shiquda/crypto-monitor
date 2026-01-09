@@ -16,12 +16,16 @@ from core.i18n import _
 from core.utils import suppress_output
 from config.settings import get_settings_manager
 
+import logging
+logger = logging.getLogger(__name__)
+
 try:
     from desktop_notifier import DesktopNotifier, Urgency, DEFAULT_SOUND, Sound
     NOTIFIER_AVAILABLE = True
-except ImportError:
+except Exception:
     NOTIFIER_AVAILABLE = False
-    print("Warning: desktop-notifier not installed. Notifications will be disabled.")
+    import traceback
+    logger.error(f"Failed to import desktop-notifier:\n{traceback.format_exc()}")
 
 
 class AsyncLoopThread(QThread):
@@ -111,8 +115,9 @@ class NotificationService(QObject):
                     app_name="Crypto Monitor",
                     app_icon=None
                 )
+                logger.info("DesktopNotifier initialized successfully")
             except Exception as e:
-                print(f"Failed to initialize DesktopNotifier: {e}")
+                logger.error(f"Failed to initialize DesktopNotifier: {e}")
 
     def _play_sound(self, sound_path: str):
         """Play a custom sound using Qt Multimedia."""
@@ -173,7 +178,7 @@ class NotificationService(QObject):
                     sound=sound_file,
                 )
         except Exception as e:
-            print(f"Failed to send notification: {e}")
+            logger.error(f"Failed to send notification: {e}", exc_info=True)
 
     def send_price_alert(
         self,
@@ -286,13 +291,19 @@ class NotificationService(QObject):
 
     def send_test_notification(self):
         """Send a test notification."""
-        if not NOTIFIER_AVAILABLE or not self._worker:
-            print("[Test] Notification service not available")
+        logger.info("Manual test notification requested")
+        if not NOTIFIER_AVAILABLE:
+            logger.error("Notification service not available: desktop-notifier failed to import")
+            return
+            
+        if not self._worker:
+            logger.error("Notification service not available: background worker not started")
             return
 
         loop = self._worker.get_loop()
         if loop and loop.is_running() and not loop.is_closed():
             try:
+                logger.info("Scheduling test notification task on background loop")
                 asyncio.run_coroutine_threadsafe(
                     self._send_notification_task(
                         title=_("Crypto Monitor"),
@@ -301,8 +312,10 @@ class NotificationService(QObject):
                     ),
                     loop
                 )
-            except RuntimeError:
-                pass
+            except RuntimeError as e:
+                logger.error(f"Failed to schedule test notification: {e}")
+        else:
+            logger.error(f"Cannot send test notification: Loop state invalid (running={loop.is_running() if loop else False}, closed={loop.is_closed() if loop else True})")
 
     @property
     def is_available(self) -> bool:

@@ -7,6 +7,10 @@ import sys
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtCore import Qt
 
+# Initialize logging as early as possible
+from core.logger import setup_logging
+setup_logging()
+
 from ui.main_window import MainWindow
 from config.settings import get_settings_manager
 
@@ -23,10 +27,6 @@ def main():
     
     from core.version import __version__
     app.setApplicationVersion(__version__)
-
-    # Initialize logging first (captures startup logs)
-    from core.logger import setup_logging
-    setup_logging()  # Uses default path: AppData/crypto-monitor/logs
 
     # Load settings (which initializes language loader)
     settings_manager = get_settings_manager()

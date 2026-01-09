@@ -14,7 +14,7 @@ if (-not $I_flag) {
         $iconParam = ""
     }
     Remove-Item -Recurse -Force build, dist -ErrorAction SilentlyContinue
-    uv run pyinstaller --onefile --windowed --name="crypto-monitor" $iconParam --add-data="assets/icons;assets/icons" --add-data="assets/sounds;assets/sounds" --add-data="i18n;i18n" main.py
+    uv run pyinstaller crypto-monitor.spec
     
     if (-not $env:CI) {
         explorer dist

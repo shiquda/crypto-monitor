@@ -159,6 +159,11 @@ class AlertSettingCard(ExpandGroupSettingCard):
         self.add_btn.clicked.connect(self._add_alert)
         btn_layout.addWidget(self.add_btn)
 
+        self.test_btn = PushButton(FluentIcon.SEND, _("Test"))
+        self.test_btn.setFixedWidth(140)
+        self.test_btn.clicked.connect(self._on_test_notification)
+        btn_layout.addWidget(self.test_btn)
+
         btn_layout.addStretch()
 
         self.clear_btn = PushButton(FluentIcon.DELETE, _("Clear All"))
@@ -266,6 +271,11 @@ class AlertSettingCard(ExpandGroupSettingCard):
         """Update clear button enabled state."""
         has_alerts = len(self._settings_manager.settings.alerts) > 0
         self.clear_btn.setEnabled(has_alerts)
+
+    def _on_test_notification(self):
+        """Send a test notification."""
+        from core.notifier import get_notification_service
+        get_notification_service().send_test_notification()
 
     def refresh(self):
         """Refresh the alerts list."""
