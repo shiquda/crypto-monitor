@@ -7,7 +7,9 @@
 
 A modern, elegant, and cross-platform cryptocurrency price monitor built with Python and PyQt6, featuring a stunning Fluent Design interface.
 
-![Crypto Monitor](./imgs/crypto-monitor.png)
+<p align="center">
+  <img src="./imgs/crypto-monitor.png" alt="Crypto Monitor" width="150">
+</p>
 
 ## Features
 
