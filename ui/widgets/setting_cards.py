@@ -364,8 +364,15 @@ class LanguageSettingCard(ExpandGroupSettingCard):
         self.lang_combo = ComboBox()
         # Map display names to internal codes
         self.languages = {
+            _("Auto"): "auto",
             "English (US)": "en_US",
-            "Chinese (Simplified)": "zh_CN"
+            "简体中文 (Simplified Chinese)": "zh_CN",
+            "Español (Spanish)": "es_ES",
+            "Français (French)": "fr_FR",
+            "Deutsch (German)": "de_DE",
+            "日本語 (Japanese)": "ja_JP",
+            "Русский (Russian)": "ru_RU",
+            "Português (Portuguese)": "pt_BR"
         }
         self.lang_combo.addItems(list(self.languages.keys()))
         self.lang_combo.currentTextChanged.connect(self._on_lang_changed)
@@ -385,13 +392,13 @@ class LanguageSettingCard(ExpandGroupSettingCard):
 
     def _on_lang_changed(self, text: str):
         """Handle language selection change."""
-        code = self.languages.get(text, "en_US")
+        code = self.languages.get(text, "auto")
         self.language_changed.emit(code)
 
     def get_language(self) -> str:
         """Get current language code."""
         text = self.lang_combo.currentText()
-        return self.languages.get(text, "en_US")
+        return self.languages.get(text, "auto")
 
     def set_language(self, code: str):
         """Set language."""
@@ -400,7 +407,12 @@ class LanguageSettingCard(ExpandGroupSettingCard):
             if lang_code == code:
                 self.lang_combo.setCurrentText(name)
                 return
-        self.lang_combo.setCurrentText("English (US)")
+        
+        # Fallback
+        if code == "auto":
+             self.lang_combo.setCurrentText(_("Auto"))
+        else:
+             self.lang_combo.setCurrentText("English (US)")
 
 
 class DisplaySettingCard(ExpandGroupSettingCard):

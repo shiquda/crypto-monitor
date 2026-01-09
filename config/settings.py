@@ -126,7 +126,7 @@ class AppSettings:
     window_x: int = 100
     window_y: int = 100
     always_on_top: bool = False
-    language: str = "en_US"  # "en_US", "zh_CN", etc.
+    language: str = "auto"  # "auto", "en_US", "zh_CN", etc.
 
     # V2.0.0 features
     compact_mode: CompactModeConfig = field(default_factory=CompactModeConfig)
