@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.3] - 2026-01-09
+
+### Added
+- **Feature**: Implemented **Configurable Sound Alerts** with chime support.
+- **Feature**: Implemented **Price Change Basis** setting (24h Rolling vs UTC-0).
+- **Feature**: Implemented **Minimalist View Mode** with robust auto-collapse/expand logic.
+- **I18n**: Comprehensive **Internationalization Support** for 8 languages (EN, ZH, ES, FR, DE, RU, JP, PT) with auto-detection.
+- **Docs**: Comprehensive **User Manual** update with detailed instructions and screenshots.
+- **Docs**: Added **Platform Support Note** to README (Windows focused).
+- **Docs**: Added LICENSE file.
+
+### Fixed
+- **CI**: Made Inno Setup command detection more robust in build script.
+- **Core**: Fixed SyntaxError in binance_client and TypeError in settings_window.
+- **UI**: Optimized window height calculation for dynamic content fitting.
+
 ## [0.3.2] - 2026-01-08
 
 ### Added
