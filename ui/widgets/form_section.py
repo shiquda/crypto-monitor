@@ -3,11 +3,7 @@
 用于分组相关的表单字段。
 """
 
-from typing import Optional, List
-from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QGroupBox, QLabel
-)
-from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import QGroupBox, QLabel, QVBoxLayout, QWidget
 
 
 class FormSection(QWidget):
@@ -27,7 +23,7 @@ class FormSection(QWidget):
         title: str,
         show_border: bool = True,
         spacing: int = 12,
-        parent: Optional[QWidget] = None
+        parent: QWidget | None = None,
     ):
         """
         初始化表单区域。
@@ -61,7 +57,9 @@ class FormSection(QWidget):
         if not self._show_border:
             # 如果没有边框，添加标题
             title_label = QLabel(self._title)
-            title_label.setStyleSheet("font-size: 16px; font-weight: bold; margin: 10px 0px 5px 0px;")
+            title_label.setStyleSheet(
+                "font-size: 16px; font-weight: bold; margin: 10px 0px 5px 0px;"
+            )
             main_layout = QVBoxLayout(self)
             main_layout.setContentsMargins(0, 0, 0, 0)
             main_layout.addWidget(title_label)

@@ -4,15 +4,17 @@ Main entry point.
 """
 
 import sys
-from PyQt6.QtWidgets import QApplication
+
 from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import QApplication
 
 # Initialize logging as early as possible
 from core.logger import setup_logging
+
 setup_logging()
 
-from ui.main_window import MainWindow
 from config.settings import get_settings_manager
+from ui.main_window import MainWindow
 
 
 def main():
@@ -24,8 +26,9 @@ def main():
 
     app = QApplication(sys.argv)
     app.setApplicationName("Crypto Monitor")
-    
+
     from core.version import __version__
+
     app.setApplicationVersion(__version__)
 
     # Load settings (which initializes language loader)

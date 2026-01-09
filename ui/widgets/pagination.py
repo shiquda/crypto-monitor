@@ -2,9 +2,8 @@
 Pagination widget for navigating between pages.
 """
 
-from typing import Optional
-from PyQt6.QtWidgets import QWidget, QHBoxLayout, QPushButton, QLabel
-from PyQt6.QtCore import pyqtSignal, Qt
+from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QWidget
 
 
 class Pagination(QWidget):
@@ -12,7 +11,7 @@ class Pagination(QWidget):
 
     page_changed = pyqtSignal(int)  # Emits new page number (1-indexed)
 
-    def __init__(self, parent: Optional[QWidget] = None):
+    def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
         self._current_page = 1
         self._total_pages = 1
@@ -53,8 +52,9 @@ class Pagination(QWidget):
 
         # Apply theme-aware styles
         from config.settings import get_settings_manager
+
         theme_mode = get_settings_manager().settings.theme_mode
-        
+
         if theme_mode == "dark":
             style = """
                 QPushButton#pageButton {

@@ -1,10 +1,16 @@
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QGraphicsDropShadowEffect, QStackedWidget
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor
-
-from ui.widgets.mini_chart import MiniChart
+from PyQt6.QtWidgets import (
+    QGraphicsDropShadowEffect,
+    QLabel,
+    QStackedWidget,
+    QVBoxLayout,
+    QWidget,
+)
 
 from core.i18n import _
+from ui.widgets.mini_chart import MiniChart
+
 
 class HoverCard(QWidget):
     """
@@ -26,14 +32,14 @@ class HoverCard(QWidget):
         # Main container with background
         self.container = QWidget(self)
         self.container.setObjectName("container")
-        
-        # Determine theme-based colors (Defaulting to light/dark detection logic later, 
-        # or accepting it via method. For now, we'll try to be somewhat dynamic or 
+
+        # Determine theme-based colors (Defaulting to light/dark detection logic later,
+        # or accepting it via method. For now, we'll try to be somewhat dynamic or
         # let the styles be set by the caller/theme manager).
         # We'll set a base style here.
-        
+
         self.layout = QVBoxLayout(self)
-        self.layout.setContentsMargins(10, 10, 10, 10) # Margin for shadow
+        self.layout.setContentsMargins(10, 10, 10, 10)  # Margin for shadow
         self.layout.addWidget(self.container)
 
         # Internal layout
@@ -56,17 +62,17 @@ class HoverCard(QWidget):
         # Chart Section
         self.chart_container = QStackedWidget()
         self.chart_container.setFixedHeight(60)
-        
+
         # 1. Loading state
         self.loading_label = QLabel(_("Loading Chart..."))
         self.loading_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.loading_label.setStyleSheet("color: #888888; font-size: 10px;")
         self.chart_container.addWidget(self.loading_label)
-        
+
         # 2. Chart widget
         self.mini_chart = MiniChart()
         self.chart_container.addWidget(self.mini_chart)
-        
+
         self.content_layout.addWidget(self.chart_container)
 
         # Shadow effect
@@ -82,14 +88,23 @@ class HoverCard(QWidget):
         label.setStyleSheet("font-family: 'Microsoft YaHei', sans-serif; font-size: 11px;")
         return label
 
-    def update_data(self, high: str, low: str, volume: str, quote_currency: str, amplitude: str = "0.00%"):
+    def update_data(
+        self,
+        high: str,
+        low: str,
+        volume: str,
+        quote_currency: str,
+        amplitude: str = "0.00%",
+    ):
         """Update the displayed data."""
         # Use bold for keys
         self.high_label.setText(f"<b>{_('24h High')}:</b> {high}")
         self.low_label.setText(f"<b>{_('24h Low')}:</b> {low}")
         self.amplitude_label.setText(f"<b>{_('24h Amplitude')}:</b> {amplitude}")
-        self.vol_label.setText(f"<b>{_('24h Vol')}:</b> {self._format_volume(volume)} {quote_currency}")
-        
+        self.vol_label.setText(
+            f"<b>{_('24h Vol')}:</b> {self._format_volume(volume)} {quote_currency}"
+        )
+
         # Adjust size to fit content
         # Adjust size to fit content
         self.adjustSize()
@@ -99,14 +114,14 @@ class HoverCard(QWidget):
         if error:
             self.chart_container.setCurrentWidget(self.loading_label)
             self.loading_label.setText(f"Error: {error}")
-            self.loading_label.setToolTip(error) # Show full error on hover
+            self.loading_label.setToolTip(error)  # Show full error on hover
             return
 
         if not data:
             self.chart_container.setCurrentWidget(self.loading_label)
             self.loading_label.setText(_("No Data"))
             return
-            
+
         self.mini_chart.set_data(data, period)
         self.chart_container.setCurrentWidget(self.mini_chart)
 
@@ -118,20 +133,25 @@ class HoverCard(QWidget):
     def set_visibility(self, show_stats: bool, show_chart: bool):
         """Set visibility of components."""
         # Stats labels
-        stats_widgets = [self.high_label, self.low_label, self.vol_label, self.amplitude_label]
+        stats_widgets = [
+            self.high_label,
+            self.low_label,
+            self.vol_label,
+            self.amplitude_label,
+        ]
         for w in stats_widgets:
-             w.setVisible(show_stats)
-             
+            w.setVisible(show_stats)
+
         # Chart
         self.chart_container.setVisible(show_chart)
-        
+
         # Adjust size immediately
         self.adjustSize()
 
     def update_theme(self, theme_mode: str):
         """Update style based on theme."""
         if theme_mode == "dark":
-            bg_color = "#2D3B4E" # Slightly lighter than main bg #1B2636
+            bg_color = "#2D3B4E"  # Slightly lighter than main bg #1B2636
             text_color = "#FFFFFF"
             border_color = "rgba(255, 255, 255, 0.08)"
         else:
@@ -156,7 +176,7 @@ class HoverCard(QWidget):
             vol = float(volume_str)
         except ValueError:
             return volume_str
-            
+
         if vol >= 1_000_000_000:
             return f"{vol / 1_000_000_000:.2f}B"
         elif vol >= 1_000_000:

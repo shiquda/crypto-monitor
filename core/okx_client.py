@@ -5,9 +5,10 @@ Enhanced with automatic reconnection and incremental subscription.
 """
 
 import json
-import time
 import logging
-from typing import Optional, Set, List, Dict, Any
+import time
+from typing import Any
+
 from PyQt6.QtCore import QObject, pyqtSignal
 
 try:
@@ -20,8 +21,9 @@ _dying_workers = []
 
 logger = logging.getLogger(__name__)
 
-from core.websocket_worker import BaseWebSocketWorker, ConnectionState
 from core.base_client import BaseExchangeClient
+from core.websocket_worker import BaseWebSocketWorker
+
 
 class TickerData:
     """Ticker data container."""
@@ -42,9 +44,9 @@ class OkxWebSocketWorker(BaseWebSocketWorker):
     # OKX WebSocket URL
     WS_PUBLIC_URL = "wss://ws.okx.com:8443/ws/v5/public"
 
-    def __init__(self, pairs: List[str], parent: Optional[QObject] = None):
+    def __init__(self, pairs: list[str], parent: QObject | None = None):
         super().__init__(pairs, parent)
-        self._ws_client: Optional[WsPublicAsync] = None
+        self._ws_client: WsPublicAsync | None = None
         self._heartbeat_interval = 30  # seconds
 
     async def _connect_and_subscribe(self):
@@ -77,12 +79,12 @@ class OkxWebSocketWorker(BaseWebSocketWorker):
             if new_pairs or not self._subscribed_pairs:
                 subscribe_msg = {
                     "op": "subscribe",
-                    "args": [{"channel": "tickers", "instId": pair} for pair in current_pairs]
+                    "args": [{"channel": "tickers", "instId": pair} for pair in current_pairs],
                 }
-                if self._ws_client: # Should be valid in simple mode too? distinct var?
-                     # In simple mode we don't have self._ws_client as WsPublicAsync
-                     # logic in _simple_websocket_subscribe handles subscription sending.
-                     pass 
+                if self._ws_client:  # Should be valid in simple mode too? distinct var?
+                    # In simple mode we don't have self._ws_client as WsPublicAsync
+                    # logic in _simple_websocket_subscribe handles subscription sending.
+                    pass
             return
 
         # Subscribe to new pairs
@@ -110,23 +112,23 @@ class OkxWebSocketWorker(BaseWebSocketWorker):
         try:
             async with websockets.connect(self.WS_PUBLIC_URL) as ws:
                 self.connection_status.emit(True, "Connected to OKX")
-                
-                # We need to expose ws for update_subscriptions? 
+
+                # We need to expose ws for update_subscriptions?
                 # The original simplified implementation didn't support incremental updates fully inside simple mode gracefully
                 # or it re-sent list.
                 # Original logic:
                 # subscribe_msg = ...
                 # await ws.send(...)
                 # while self._running: ...
-                
+
                 # To support incremental updates here we'd need more complex logic.
                 # For refactoring, I should preserve original behavior.
                 # Original behavior:
                 # Just subscribed once at start.
-                
+
                 subscribe_msg = {
                     "op": "subscribe",
-                    "args": [{"channel": "tickers", "instId": pair} for pair in self.pairs]
+                    "args": [{"channel": "tickers", "instId": pair} for pair in self.pairs],
                 }
                 await ws.send(json.dumps(subscribe_msg))
 
@@ -153,7 +155,7 @@ class OkxWebSocketWorker(BaseWebSocketWorker):
             if isinstance(message, str):
                 data = json.loads(message)
             elif isinstance(message, bytes):
-                data = json.loads(message.decode('utf-8'))
+                data = json.loads(message.decode("utf-8"))
             else:
                 data = message
 
@@ -161,28 +163,29 @@ class OkxWebSocketWorker(BaseWebSocketWorker):
             self._update_stats()
 
             # Skip non-data messages (like subscription confirmations)
-            if 'data' not in data:
+            if "data" not in data:
                 return
 
-            for ticker in data.get('data', []):
-                pair = ticker.get('instId', '')
-                last_price = ticker.get('last', '0')
-                sod_utc0 = ticker.get('sodUtc0', '0')
+            for ticker in data.get("data", []):
+                pair = ticker.get("instId", "")
+                last_price = ticker.get("last", "0")
+                sod_utc0 = ticker.get("sodUtc0", "0")
 
                 # Calculate percentage
                 try:
                     from config.settings import get_settings_manager
+
                     settings = get_settings_manager().settings
                     basis = settings.price_change_basis
 
                     last = float(last_price)
-                    
+
                     if basis == "utc_0":
                         open_price = float(sod_utc0)
                     else:
                         # For 24h rolling, we need open24h.
                         # open24h is explicitly available in OKX ticker channel as 'open24h'
-                        open_price_str = ticker.get('open24h', '0')
+                        open_price_str = ticker.get("open24h", "0")
                         open_price = float(open_price_str)
 
                     if open_price > 0:
@@ -194,16 +197,16 @@ class OkxWebSocketWorker(BaseWebSocketWorker):
                     percentage = "0.00%"
 
                 # Extract extended data
-                high_24h = ticker.get('high24h', '0')
-                low_24h = ticker.get('low24h', '0')
-                quote_volume = ticker.get('volCcy24h', '0')
+                high_24h = ticker.get("high24h", "0")
+                low_24h = ticker.get("low24h", "0")
+                quote_volume = ticker.get("volCcy24h", "0")
 
                 ticker_data = {
                     "price": last_price,
                     "percentage": percentage,
                     "high_24h": high_24h,
                     "low_24h": low_24h,
-                    "quote_volume_24h": quote_volume
+                    "quote_volume_24h": quote_volume,
                 }
 
                 # Emit signal (thread-safe)
@@ -219,7 +222,7 @@ class OkxWebSocketWorker(BaseWebSocketWorker):
     def update_pairs(self, pairs: list[str]):
         """Update subscription pairs (requires reconnection or incremental)."""
         self.pairs = pairs
-        # Base class handles reconnection logic if needed via main loop, 
+        # Base class handles reconnection logic if needed via main loop,
         # but here we rely on _maintain_connection loop checking for differences.
         # Original: _maintain_connection loop checks:
         # if set(self.pairs) != self._subscribed_pairs: await self._update_subscriptions()
@@ -230,7 +233,7 @@ class OkxClientManager(BaseExchangeClient):
     """
     Manages OKX WebSocket connections.
     Handles multiple subscriptions and reconnection with automatic retry.
-    
+
     Key features:
     - Automatic reconnection with exponential backoff
     - Incremental subscription updates (no full reconnect needed)
@@ -243,9 +246,9 @@ class OkxClientManager(BaseExchangeClient):
     connection_state_changed = pyqtSignal(str, str, int)  # state, message, retry_count
     stats_updated = pyqtSignal(dict)  # connection statistics
 
-    def __init__(self, parent: Optional[QObject] = None):
+    def __init__(self, parent: QObject | None = None):
         super().__init__(parent)
-        self._worker: Optional[OkxWebSocketWorker] = None
+        self._worker: OkxWebSocketWorker | None = None
         self._pairs: list[str] = []
 
     def _detach_and_stop_worker(self, worker: OkxWebSocketWorker):
@@ -258,11 +261,11 @@ class OkxClientManager(BaseExchangeClient):
 
         # CRITICAL: Remove parent before moving to module-level list
         worker.setParent(None)
-        
+
         # Keep worker alive in module-level list until it finishes
         if worker.isRunning():
             _dying_workers.append(worker)
-            
+
             def cleanup():
                 if worker in _dying_workers:
                     try:
@@ -270,7 +273,7 @@ class OkxClientManager(BaseExchangeClient):
                     except ValueError:
                         pass
                 worker.deleteLater()
-            
+
             worker.finished.connect(cleanup)
             worker.stop()
         else:
@@ -362,50 +365,47 @@ class OkxClientManager(BaseExchangeClient):
         if self._pairs:
             self._create_worker(self._pairs)
 
-    def get_stats(self) -> Optional[Dict[str, Any]]:
+    def get_stats(self) -> dict[str, Any] | None:
         """Get current connection statistics."""
         if self._worker is not None:
             # Safely access _connection_state from base worker
-            state = 'unknown'
-            if hasattr(self._worker, '_connection_state'):
-                 state = self._worker._connection_state.value
-            
+            state = "unknown"
+            if hasattr(self._worker, "_connection_state"):
+                state = self._worker._connection_state.value
+
             return {
-                'state': state,
-                'subscribed_pairs': len(self._pairs),
-                'worker_running': self._worker.isRunning(),
+                "state": state,
+                "subscribed_pairs": len(self._pairs),
+                "worker_running": self._worker.isRunning(),
             }
         return None
 
-    def fetch_klines(self, pair: str, interval: str, limit: int = 24) -> List[Dict]:
+    def fetch_klines(self, pair: str, interval: str, limit: int = 24) -> list[dict]:
         """
         Fetch klines from OKX.
         GET /api/v5/market/candles
         """
         import requests
-        
+
         okx_interval = interval
-        if interval.lower() == '1h':
-            okx_interval = '1H'
-        elif interval.lower() == '4h':
-            okx_interval = '4H'
-        elif interval.lower() == '1d':
-            okx_interval = '1D'
-            
+        if interval.lower() == "1h":
+            okx_interval = "1H"
+        elif interval.lower() == "4h":
+            okx_interval = "4H"
+        elif interval.lower() == "1d":
+            okx_interval = "1D"
+
         url = "https://www.okx.com/api/v5/market/candles"
-        params = {
-            "instId": pair,
-            "bar": okx_interval,
-            "limit": limit
-        }
-        
+        params = {"instId": pair, "bar": okx_interval, "limit": limit}
+
         try:
-             # Construct proxies dict if needed. 
+            # Construct proxies dict if needed.
             from config.settings import get_settings_manager
+
             settings = get_settings_manager().settings
             proxies = {}
             if settings.proxy.enabled:
-                if settings.proxy.type.lower() == 'http':
+                if settings.proxy.type.lower() == "http":
                     proxy_url = f"http://{settings.proxy.host}:{settings.proxy.port}"
                     if settings.proxy.username:
                         proxy_url = f"http://{settings.proxy.username}:{settings.proxy.password}@{settings.proxy.host}:{settings.proxy.port}"
@@ -414,25 +414,27 @@ class OkxClientManager(BaseExchangeClient):
                     # SOCKS5
                     proxy_url = f"socks5://{settings.proxy.host}:{settings.proxy.port}"
                     if settings.proxy.username:
-                         proxy_url = f"socks5://{settings.proxy.username}:{settings.proxy.password}@{settings.proxy.host}:{settings.proxy.port}"
+                        proxy_url = f"socks5://{settings.proxy.username}:{settings.proxy.password}@{settings.proxy.host}:{settings.proxy.port}"
                     proxies = {"http": proxy_url, "https": proxy_url}
 
             response = requests.get(url, params=params, proxies=proxies, timeout=5)
             response.raise_for_status()
             data = response.json()
-            
+
             klines = []
-            if data.get('code') == '0':
-                raw_data = data.get('data', [])
+            if data.get("code") == "0":
+                raw_data = data.get("data", [])
                 for item in reversed(raw_data):
-                    klines.append({
-                        "timestamp": int(item[0]),
-                        "open": float(item[1]),
-                        "high": float(item[2]),
-                        "low": float(item[3]),
-                        "close": float(item[4]),
-                        "volume": float(item[5])
-                    })
+                    klines.append(
+                        {
+                            "timestamp": int(item[0]),
+                            "open": float(item[1]),
+                            "high": float(item[2]),
+                            "low": float(item[3]),
+                            "close": float(item[4]),
+                            "volume": float(item[5]),
+                        }
+                    )
             return klines
 
         except Exception as e:
@@ -446,8 +448,9 @@ class OkxClientManager(BaseExchangeClient):
             return False
 
         # Check if we have a recent message (within last 30 seconds)
-        if hasattr(self._worker, '_last_message_time'):
+        if hasattr(self._worker, "_last_message_time"):
             import time
+
             return (time.time() - self._worker._last_message_time) < 30
 
         return False

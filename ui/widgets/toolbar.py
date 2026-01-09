@@ -2,13 +2,13 @@
 Toolbar widget with window controls using Fluent Design.
 """
 
-from typing import Optional
-from PyQt6.QtWidgets import QWidget, QHBoxLayout
-from PyQt6.QtCore import pyqtSignal, Qt
-from qfluentwidgets import TransparentToolButton, FluentIcon as FIF
-
+from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtWidgets import QHBoxLayout, QWidget
+from qfluentwidgets import FluentIcon as FIF
+from qfluentwidgets import TransparentToolButton
 
 from core.i18n import _
+
 
 class Toolbar(QWidget):
     """Toolbar with application control buttons."""
@@ -19,7 +19,7 @@ class Toolbar(QWidget):
     pin_clicked = pyqtSignal(bool)  # Emits new pin state
     close_clicked = pyqtSignal()
 
-    def __init__(self, parent: Optional[QWidget] = None):
+    def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
         self._pinned = False
         self._setup_ui()

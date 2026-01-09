@@ -35,25 +35,24 @@ COLORS = LIGHT_COLORS
 STYLESHEETS = {
     "main_window": f"""
         QMainWindow, QWidget#centralWidget {{
-            background-color: {COLORS['background']};
+            background-color: {COLORS["background"]};
         }}
     """,
-
     "crypto_card": f"""
         QWidget#cryptoCard {{
-            background-color: {COLORS['card_background']};
+            background-color: {COLORS["card_background"]};
             border-radius: 8px;
         }}
         QWidget#cryptoCard:hover {{
             background-color: #1A2228;
         }}
         QLabel#symbolLabel {{
-            color: {COLORS['text']};
+            color: {COLORS["text"]};
             font-size: 16px;
             font-weight: bold;
         }}
         QLabel#priceLabel {{
-            color: {COLORS['text']};
+            color: {COLORS["text"]};
             font-size: 16px;
             font-weight: bold;
         }}
@@ -70,16 +69,15 @@ STYLESHEETS = {
             border-radius: 4px;
         }}
     """,
-
     "settings_window": f"""
         QMainWindow {{
-            background-color: {COLORS['background']};
+            background-color: {COLORS["background"]};
         }}
         QWidget {{
-            color: {COLORS['text']};
+            color: {COLORS["text"]};
         }}
         QGroupBox {{
-            border: 1px solid {COLORS['border']};
+            border: 1px solid {COLORS["border"]};
             border-radius: 8px;
             margin-top: 10px;
             padding-top: 10px;
@@ -92,13 +90,13 @@ STYLESHEETS = {
         }}
         QLineEdit, QSpinBox, QComboBox {{
             background-color: #2A3A4A;
-            border: 1px solid {COLORS['border']};
+            border: 1px solid {COLORS["border"]};
             border-radius: 4px;
             padding: 8px;
-            color: {COLORS['text']};
+            color: {COLORS["text"]};
         }}
         QLineEdit:focus, QSpinBox:focus, QComboBox:focus {{
-            border-color: {COLORS['accent']};
+            border-color: {COLORS["accent"]};
         }}
         QCheckBox {{
             spacing: 8px;
@@ -107,18 +105,18 @@ STYLESHEETS = {
             width: 18px;
             height: 18px;
             border-radius: 4px;
-            border: 1px solid {COLORS['border']};
+            border: 1px solid {COLORS["border"]};
         }}
         QCheckBox::indicator:checked {{
-            background-color: {COLORS['accent']};
-            border-color: {COLORS['accent']};
+            background-color: {COLORS["accent"]};
+            border-color: {COLORS["accent"]};
         }}
         QPushButton {{
             background-color: #3A4A5A;
             border: none;
             border-radius: 4px;
             padding: 10px 20px;
-            color: {COLORS['text']};
+            color: {COLORS["text"]};
             font-weight: bold;
         }}
         QPushButton:hover {{
@@ -128,7 +126,7 @@ STYLESHEETS = {
             background-color: #2A3A4A;
         }}
         QPushButton#testButton {{
-            background-color: {COLORS['accent']};
+            background-color: {COLORS["accent"]};
         }}
         QPushButton#testButton:hover {{
             background-color: #5AAA5A;
@@ -175,25 +173,24 @@ def get_stylesheet(name: str, theme_mode: str = "light") -> str:
     stylesheets = {
         "main_window": f"""
             QMainWindow, QWidget#centralWidget {{
-                background-color: {colors['background']};
+                background-color: {colors["background"]};
             }}
         """,
-
         "crypto_card": f"""
             QWidget#cryptoCard {{
-                background-color: {colors['card_background']};
+                background-color: {colors["card_background"]};
                 border-radius: 8px;
             }}
             QWidget#cryptoCard:hover {{
-                background-color: {colors['hover']};
+                background-color: {colors["hover"]};
             }}
             QLabel#symbolLabel {{
-                color: {colors['text']};
+                color: {colors["text"]};
                 font-size: 16px;
                 font-weight: bold;
             }}
             QLabel#priceLabel {{
-                color: {colors['text']};
+                color: {colors["text"]};
                 font-size: 16px;
                 font-weight: bold;
             }}
@@ -210,16 +207,15 @@ def get_stylesheet(name: str, theme_mode: str = "light") -> str:
                 border-radius: 4px;
             }}
         """,
-
         "settings_window": f"""
             QMainWindow {{
-                background-color: {colors['background']};
+                background-color: {colors["background"]};
             }}
             QWidget {{
-                color: {colors['text']};
+                color: {colors["text"]};
             }}
             QGroupBox {{
-                border: 1px solid {colors['border']};
+                border: 1px solid {colors["border"]};
                 border-radius: 8px;
                 margin-top: 10px;
                 padding-top: 10px;
@@ -231,14 +227,14 @@ def get_stylesheet(name: str, theme_mode: str = "light") -> str:
                 padding: 0 5px;
             }}
             QLineEdit, QSpinBox, QComboBox {{
-                background-color: {colors['card_background']};
-                border: 1px solid {colors['border']};
+                background-color: {colors["card_background"]};
+                border: 1px solid {colors["border"]};
                 border-radius: 4px;
                 padding: 8px;
-                color: {colors['text']};
+                color: {colors["text"]};
             }}
             QLineEdit:focus, QSpinBox:focus, QComboBox:focus {{
-                border-color: {colors['accent']};
+                border-color: {colors["accent"]};
             }}
             QCheckBox {{
                 spacing: 8px;
@@ -247,31 +243,31 @@ def get_stylesheet(name: str, theme_mode: str = "light") -> str:
                 width: 18px;
                 height: 18px;
                 border-radius: 4px;
-                border: 1px solid {colors['border']};
+                border: 1px solid {colors["border"]};
             }}
             QCheckBox::indicator:checked {{
-                background-color: {colors['accent']};
-                border-color: {colors['accent']};
+                background-color: {colors["accent"]};
+                border-color: {colors["accent"]};
             }}
             QPushButton {{
-                background-color: {colors['card_background']};
+                background-color: {colors["card_background"]};
                 border: none;
                 border-radius: 4px;
                 padding: 10px 20px;
-                color: {colors['text']};
+                color: {colors["text"]};
                 font-weight: bold;
             }}
             QPushButton:hover {{
-                background-color: {colors['hover']};
+                background-color: {colors["hover"]};
             }}
             QPushButton:pressed {{
-                background-color: {colors['border']};
+                background-color: {colors["border"]};
             }}
             QPushButton#testButton {{
-                background-color: {colors['accent']};
+                background-color: {colors["accent"]};
             }}
             QPushButton#testButton:hover {{
-                background-color: {colors['accent']};
+                background-color: {colors["accent"]};
             }}
             QPushButton#resetButton {{
                 background-color: #5A4A4A;

@@ -2,35 +2,37 @@
 Dialog for adding/editing price alerts using Fluent Design.
 """
 
-from typing import Optional, List
-from PyQt6.QtWidgets import QVBoxLayout, QHBoxLayout, QWidget, QLabel
 from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
 from qfluentwidgets import (
-    Dialog, LineEdit, ComboBox, SpinBox, BodyLabel,
-    RadioButton, PrimaryPushButton, PushButton
+    BodyLabel,
+    ComboBox,
+    Dialog,
+    LineEdit,
+    RadioButton,
+    SpinBox,
 )
 
 from config.settings import PriceAlert, get_settings_manager
-
-
 from core.i18n import _
+
 
 class AlertDialog(Dialog):
     """Fluent Design dialog for adding/editing a price alert."""
 
     def __init__(
         self,
-        parent: Optional[QWidget] = None,
-        pair: Optional[str] = None,
-        current_price: Optional[float] = None,
-        available_pairs: Optional[List[str]] = None,
-        edit_alert: Optional[PriceAlert] = None
+        parent: QWidget | None = None,
+        pair: str | None = None,
+        current_price: float | None = None,
+        available_pairs: list[str] | None = None,
+        edit_alert: PriceAlert | None = None,
     ):
         """Initialize the alert dialog."""
         title = _("Edit Price Alert") if edit_alert else _("Add Price Alert")
         super().__init__(title=title, content="", parent=parent)
 
-        self._alert: Optional[PriceAlert] = None
+        self._alert: PriceAlert | None = None
         self._edit_alert = edit_alert
         self._pair = pair
         self._current_price = current_price
@@ -42,12 +44,16 @@ class AlertDialog(Dialog):
         # Set dialog size - Increased height to accommodate new radio buttons
         self.setFixedSize(420, 520)
         # Set window flags
-        flags = Qt.WindowType.Dialog | Qt.WindowType.WindowTitleHint | Qt.WindowType.WindowCloseButtonHint
-        
+        flags = (
+            Qt.WindowType.Dialog
+            | Qt.WindowType.WindowTitleHint
+            | Qt.WindowType.WindowCloseButtonHint
+        )
+
         # Inherit AlwaysOnTop from parent if present
         if parent and (parent.windowFlags() & Qt.WindowType.WindowStaysOnTopHint):
             flags |= Qt.WindowType.WindowStaysOnTopHint
-            
+
         self.setWindowFlags(flags)
 
         self._drag_pos = None
@@ -93,7 +99,7 @@ class AlertDialog(Dialog):
         self.type_touch = RadioButton(_("Price touches target"))
         self.type_multiple = RadioButton(_("Price hits multiple of (Step)"))
         self.type_change = RadioButton(_("24h Change hits multiple of (Step %)"))
-        
+
         self.type_above.setChecked(True)
         self.type_above.toggled.connect(self._on_type_changed)
         self.type_below.toggled.connect(self._on_type_changed)
@@ -132,7 +138,7 @@ class AlertDialog(Dialog):
 
         self.mode_once = RadioButton(_("Once (disable after triggered)"))
         self.mode_repeat = RadioButton(_("Repeat (with cooldown)"))
-        self.mode_repeat.setChecked(True) # Default to Repeat
+        self.mode_repeat.setChecked(True)  # Default to Repeat
         self.mode_repeat.toggled.connect(self._on_repeat_toggled)
 
         mode_layout.addWidget(self.mode_once)
@@ -147,7 +153,7 @@ class AlertDialog(Dialog):
         self.cooldown_spin.setValue(300)
         self.cooldown_spin.setSuffix(f" {_('sec')}")
         self.cooldown_spin.setFixedWidth(150)
-        self.cooldown_spin.setEnabled(True) # Enabled by default for Repeat
+        self.cooldown_spin.setEnabled(True)  # Enabled by default for Repeat
         repeat_layout.addWidget(self.cooldown_spin)
         repeat_layout.addStretch()
 
@@ -218,7 +224,7 @@ class AlertDialog(Dialog):
         else:
             self.price_label.setText(_("Target Price:"))
             self.price_input.setPlaceholderText("0.00")
-            
+
         self._validate_input()
 
     def _validate_input(self, text: str = None):
@@ -230,8 +236,8 @@ class AlertDialog(Dialog):
                 self.yesButton.setEnabled(False)
                 return
 
-            price = float(price_text.replace(',', ''))
-            
+            price = float(price_text.replace(",", ""))
+
             # Additional validation logic could go here
             if price <= 0:
                 self.error_label.setText(_("Value must be greater than 0"))
@@ -248,7 +254,7 @@ class AlertDialog(Dialog):
     def _on_confirm(self):
         """Handle confirm button click."""
         try:
-            price = float(self.price_input.text().strip().replace(',', ''))
+            price = float(self.price_input.text().strip().replace(",", ""))
             if price <= 0:
                 return
 
@@ -279,7 +285,7 @@ class AlertDialog(Dialog):
                     enabled=self._edit_alert.enabled,
                     cooldown_seconds=cooldown,
                     last_triggered=self._edit_alert.last_triggered,
-                    created_at=self._edit_alert.created_at
+                    created_at=self._edit_alert.created_at,
                 )
             else:
                 self._alert = PriceAlert(
@@ -287,23 +293,23 @@ class AlertDialog(Dialog):
                     alert_type=alert_type,
                     target_price=price,
                     repeat_mode=repeat_mode,
-                    cooldown_seconds=cooldown
+                    cooldown_seconds=cooldown,
                 )
 
         except ValueError:
             pass
 
-    def get_alert(self) -> Optional[PriceAlert]:
+    def get_alert(self) -> PriceAlert | None:
         """Get the created/edited alert, or None if cancelled."""
         return self._alert
 
     @staticmethod
     def create_alert(
-        parent: Optional[QWidget] = None,
-        pair: Optional[str] = None,
-        current_price: Optional[float] = None,
-        available_pairs: Optional[List[str]] = None
-    ) -> Optional[PriceAlert]:
+        parent: QWidget | None = None,
+        pair: str | None = None,
+        current_price: float | None = None,
+        available_pairs: list[str] | None = None,
+    ) -> PriceAlert | None:
         """
         Static method to show dialog and create a new alert.
 
@@ -314,7 +320,7 @@ class AlertDialog(Dialog):
             parent=parent,
             pair=pair,
             current_price=current_price,
-            available_pairs=available_pairs
+            available_pairs=available_pairs,
         )
         if dialog.exec():
             return dialog.get_alert()
@@ -323,10 +329,10 @@ class AlertDialog(Dialog):
     @staticmethod
     def edit_alert(
         alert: PriceAlert,
-        parent: Optional[QWidget] = None,
-        current_price: Optional[float] = None,
-        available_pairs: Optional[List[str]] = None
-    ) -> Optional[PriceAlert]:
+        parent: QWidget | None = None,
+        current_price: float | None = None,
+        available_pairs: list[str] | None = None,
+    ) -> PriceAlert | None:
         """
         Static method to show dialog and edit an existing alert.
 
@@ -338,7 +344,7 @@ class AlertDialog(Dialog):
             pair=alert.pair,
             current_price=current_price,
             available_pairs=available_pairs,
-            edit_alert=alert
+            edit_alert=alert,
         )
         if dialog.exec():
             return dialog.get_alert()

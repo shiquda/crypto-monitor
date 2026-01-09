@@ -3,7 +3,7 @@ Reconnect strategy for WebSocket connections.
 """
 
 import random
-from typing import Optional
+
 
 class ReconnectStrategy:
     """
@@ -11,8 +11,13 @@ class ReconnectStrategy:
     Implements jitter to prevent thundering herd problem.
     """
 
-    def __init__(self, initial_delay: float = 1.0, max_delay: float = 30.0,
-                 backoff_factor: float = 2.0, max_retries: Optional[int] = None):
+    def __init__(
+        self,
+        initial_delay: float = 1.0,
+        max_delay: float = 30.0,
+        backoff_factor: float = 2.0,
+        max_retries: int | None = None,
+    ):
         self.initial_delay = initial_delay
         self.max_delay = max_delay
         self.backoff_factor = backoff_factor
@@ -25,8 +30,8 @@ class ReconnectStrategy:
             delay = self.initial_delay
         else:
             delay = min(
-                self.initial_delay * (self.backoff_factor ** self.retry_count),
-                self.max_delay
+                self.initial_delay * (self.backoff_factor**self.retry_count),
+                self.max_delay,
             )
 
         # Add jitter (±25% random variation)

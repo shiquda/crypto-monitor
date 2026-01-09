@@ -4,10 +4,8 @@
 使用 QFluentWidgets 原生组件。
 """
 
-from typing import Optional, Union
-from PyQt6.QtWidgets import QWidget, QHBoxLayout
-from PyQt6.QtCore import Qt
-from qfluentwidgets import LineEdit, ComboBox, SpinBox, BodyLabel
+from PyQt6.QtWidgets import QHBoxLayout, QWidget
+from qfluentwidgets import BodyLabel, ComboBox, LineEdit, SpinBox
 
 
 class LabeledField(QWidget):
@@ -28,7 +26,7 @@ class LabeledField(QWidget):
         stretch_widget: int = 1,
         min_label_width: int = 80,
         min_widget_width: int = 200,
-        parent: Optional[QWidget] = None
+        parent: QWidget | None = None,
     ):
         """
         初始化标签字段组件。
@@ -43,7 +41,14 @@ class LabeledField(QWidget):
             parent: 父控件
         """
         super().__init__(parent)
-        self._setup_ui(label, widget, stretch_label, stretch_widget, min_label_width, min_widget_width)
+        self._setup_ui(
+            label,
+            widget,
+            stretch_label,
+            stretch_widget,
+            min_label_width,
+            min_widget_width,
+        )
 
     def _setup_ui(
         self,
@@ -52,7 +57,7 @@ class LabeledField(QWidget):
         stretch_label: int,
         stretch_widget: int,
         min_label_width: int,
-        min_widget_width: int
+        min_widget_width: int,
     ):
         """设置UI布局"""
         layout = QHBoxLayout(self)
@@ -85,7 +90,7 @@ class LabeledLineEdit(LabeledField):
         placeholder: str = "",
         is_password: bool = False,
         min_width: int = 250,
-        parent: Optional[QWidget] = None
+        parent: QWidget | None = None,
     ):
         # 使用 QFluentWidgets 的 LineEdit
         edit = LineEdit()
@@ -94,6 +99,7 @@ class LabeledLineEdit(LabeledField):
 
         if is_password:
             from PyQt6.QtWidgets import QLineEdit as QtLineEdit
+
             edit.setEchoMode(QtLineEdit.EchoMode.Password)
 
         super().__init__(label, edit, min_widget_width=min_width, parent=parent)
@@ -117,7 +123,7 @@ class LabeledSpinBox(LabeledField):
         max_val: int,
         default: int,
         min_width: int = 150,
-        parent: Optional[QWidget] = None
+        parent: QWidget | None = None,
     ):
         # 使用 QFluentWidgets 的 SpinBox
         spin = SpinBox()
@@ -143,7 +149,7 @@ class LabeledComboBox(LabeledField):
         label: str,
         items: list,
         min_width: int = 150,
-        parent: Optional[QWidget] = None
+        parent: QWidget | None = None,
     ):
         # 使用 QFluentWidgets 的 ComboBox
         combo = ComboBox()
@@ -163,12 +169,7 @@ class LabeledComboBox(LabeledField):
 class LabeledCheckBox(QWidget):
     """带标签的复选框（占用整行）"""
 
-    def __init__(
-        self,
-        label: str,
-        checked: bool = False,
-        parent: Optional[QWidget] = None
-    ):
+    def __init__(self, label: str, checked: bool = False, parent: QWidget | None = None):
         super().__init__(parent)
         self._setup_ui(label, checked)
 

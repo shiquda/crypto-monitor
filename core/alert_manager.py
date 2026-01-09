@@ -4,10 +4,10 @@ Monitors prices and triggers notifications when alert conditions are met.
 """
 
 import time
-from typing import Dict, Optional, List
+
 from PyQt6.QtCore import QObject, pyqtSignal
 
-from config.settings import get_settings_manager, PriceAlert
+from config.settings import PriceAlert, get_settings_manager
 from core.notifier import get_notification_service
 
 
@@ -21,16 +21,13 @@ class AlertManager(QObject):
 
     alert_triggered = pyqtSignal(str, str, float, float)  # pair, alert_type, target, current
 
-    # Price touch tolerance (0.1% of target price)
-    TOUCH_TOLERANCE = 0.001
-
     def __init__(self, parent=None):
         super().__init__(parent)
         self._settings_manager = get_settings_manager()
         self._notification_service = get_notification_service()
-        self._current_prices: Dict[str, float] = {}
+        self._current_prices = {}
 
-    def check_alerts(self, pair: str, price: 'str | float', percentage_str: str = "0.00%"):
+    def check_alerts(self, pair, price, percentage_str="0.00%"):
         """
         Check if any alerts should be triggered for the given price.
 
@@ -44,19 +41,19 @@ class AlertManager(QObject):
             if isinstance(price, (int, float)):
                 current_price = float(price)
             else:
-                current_price = float(str(price).replace(',', ''))
+                current_price = float(str(price).replace(",", ""))
             # Parse percentage string (e.g., "+1.23%")
-            percentage_val = float(percentage_str.strip('%').replace('+', ''))
+            percentage_val = float(percentage_str.strip("%").replace("+", ""))
         except (ValueError, AttributeError):
             return
 
         # Store previous price for reference
         previous_price = self._current_prices.get(pair)
         self._current_prices[pair] = current_price
-        
+
         # Store previous percentage (we can use a separate dict or just rely on stateless checks if previous is needed)
         # For this feature, we need previous percentage for "change step" detection
-        if not hasattr(self, '_current_percentages'):
+        if not hasattr(self, "_current_percentages"):
             self._current_percentages = {}
         previous_percentage = self._current_percentages.get(pair)
         self._current_percentages[pair] = percentage_val
@@ -68,23 +65,35 @@ class AlertManager(QObject):
             if not alert.enabled:
                 continue
 
-            if self._should_trigger(alert, current_price, previous_price, percentage_val, previous_percentage):
-                self._trigger_alert(alert, current_price, previous_price, percentage_val, previous_percentage)
+            if self._should_trigger(
+                alert,
+                current_price,
+                previous_price,
+                percentage_val,
+                previous_percentage,
+            ):
+                self._trigger_alert(
+                    alert,
+                    current_price,
+                    previous_price,
+                    percentage_val,
+                    previous_percentage,
+                )
 
     def reset(self):
         """Reset all price history. Call this when switching data sources."""
         self._current_prices.clear()
-        if hasattr(self, '_current_percentages'):
+        if hasattr(self, "_current_percentages"):
             self._current_percentages.clear()
 
     def _should_trigger(
-        self, 
-        alert: PriceAlert, 
-        current_price: float, 
-        previous_price: Optional[float] = None,
-        current_pct: float = 0.0,
-        previous_pct: Optional[float] = None
-    ) -> bool:
+        self,
+        alert,
+        current_price,
+        previous_price=None,
+        current_pct=0.0,
+        previous_pct=None,
+    ):
         """
         Check if an alert should be triggered.
         """
@@ -102,46 +111,86 @@ class AlertManager(QObject):
             return current_price < alert.target_price
 
         elif alert.alert_type == "price_touch":
-            # Check if price is within tolerance of target
-            tolerance = alert.target_price * self.TOUCH_TOLERANCE
-            return abs(current_price - alert.target_price) <= tolerance
-            
+            if previous_price is None:
+                # If first price, ONLY trigger if exactly equal
+                return current_price == alert.target_price
+
+            # Trigger if:
+            # 1. Precise hit: current_price == target
+            # 2. Crossed from below: prev < target and curr > target
+            # 3. Crossed from above: prev > target and curr < target
+            crossed_up = previous_price < alert.target_price and current_price > alert.target_price
+            crossed_down = (
+                previous_price > alert.target_price and current_price < alert.target_price
+            )
+
+            return current_price == alert.target_price or crossed_up or crossed_down
+
         elif alert.alert_type == "price_multiple":
             if previous_price is None or alert.target_price <= 0:
                 return False
-            # Check if we crossed a multiple of target_price (which acts as step here)
-            # Example: step=1000. Prev=95800, Curr=96100. 
-            # floor(95800/1000) = 95. floor(96100/1000) = 96. Changed -> Trigger.
+
             import math
+
             step = alert.target_price
-            return math.floor(previous_price / step) != math.floor(current_price / step)
-            
+            curr_step = math.floor(current_price / step)
+            prev_step = math.floor(previous_price / step)
+
+            if curr_step == prev_step:
+                return False
+
+            # The boundary crossed is the higher of the two steps
+            # e.g., 9.9 -> 10.1 crosses boundary 10. 10.1 -> 9.9 also crosses boundary 10.
+            boundary = max(curr_step, prev_step)
+
+            is_new_boundary = (
+                alert.last_triggered_value is None or boundary != alert.last_triggered_value
+            )
+            return is_new_boundary
+
         elif alert.alert_type == "price_change_pct":
             if previous_pct is None or alert.target_price <= 0:
                 return False
-            # Check if percentage crossed a multiple of target_price (step)
-            # Example: step=2. Prev=1.9, Curr=2.1.
-            # floor(1.9/2) = 0. floor(2.1/2) = 1. Changed -> Trigger.
+
             import math
+
             step = alert.target_price
-            return math.floor(previous_pct / step) != math.floor(current_pct / step)
+            curr_step = math.floor(current_pct / step)
+            prev_step = math.floor(previous_pct / step)
+
+            if curr_step == prev_step:
+                return False
+
+            boundary = max(curr_step, prev_step)
+
+            is_new_boundary = (
+                alert.last_triggered_value is None or boundary != alert.last_triggered_value
+            )
+            return is_new_boundary
 
         return False
 
-    def _trigger_alert(self, alert: PriceAlert, current_price: float, previous_price: Optional[float] = None, current_pct: float = 0.0, previous_pct: Optional[float] = None):
+    def _trigger_alert(
+        self,
+        alert,
+        current_price,
+        previous_price=None,
+        current_pct=0.0,
+        previous_pct=None,
+    ):
         """
         Trigger an alert notification.
         """
         # Determine notification type
         notif_alert_type = alert.alert_type
-        
+
         # Infer direction for touch alerts
         if alert.alert_type == "price_touch" and previous_price is not None:
             if current_price > previous_price:
                 notif_alert_type = "price_above"  # Treated as crossing above
             elif current_price < previous_price:
                 notif_alert_type = "price_below"  # Treated as crossing below
-        
+
         # Send notification
         self._notification_service.send_price_alert(
             pair=alert.pair,
@@ -150,11 +199,34 @@ class AlertManager(QObject):
             current_price=current_price,
             current_pct=current_pct,
             previous_price=previous_price,
-            previous_pct=previous_pct
+            previous_pct=previous_pct,
         )
 
         # Update alert state
         alert.last_triggered = time.time()
+
+        # Record step value if applicable
+        if alert.alert_type == "price_multiple" and alert.target_price > 0:
+            import math
+
+            curr_step = math.floor(current_price / alert.target_price)
+            prev_step = (
+                math.floor(previous_price / alert.target_price)
+                if previous_price is not None
+                else curr_step
+            )
+            # Record the boundary we just crossed
+            alert.last_triggered_value = max(curr_step, prev_step)
+        elif alert.alert_type == "price_change_pct" and alert.target_price > 0:
+            import math
+
+            curr_step = math.floor(current_pct / alert.target_price)
+            prev_step = (
+                math.floor(previous_pct / alert.target_price)
+                if previous_pct is not None
+                else curr_step
+            )
+            alert.last_triggered_value = max(curr_step, prev_step)
 
         if alert.repeat_mode == "once":
             # Disable one-time alerts after triggering
@@ -164,25 +236,13 @@ class AlertManager(QObject):
         self._settings_manager.update_alert(alert)
 
         # Emit signal
-        self.alert_triggered.emit(
-            alert.pair,
-            alert.alert_type,
-            alert.target_price,
-            current_price
-        )
+        self.alert_triggered.emit(alert.pair, alert.alert_type, alert.target_price, current_price)
 
-    def get_current_price(self, pair: str) -> Optional[float]:
+    def get_current_price(self, pair):
         """Get the current price for a pair."""
         return self._current_prices.get(pair)
 
-    def add_alert(
-        self,
-        pair: str,
-        alert_type: str,
-        target_price: float,
-        repeat_mode: str = "once",
-        cooldown_seconds: int = 60
-    ) -> PriceAlert:
+    def add_alert(self, pair, alert_type, target_price, repeat_mode="once", cooldown_seconds=60):
         """
         Add a new price alert.
 
@@ -201,24 +261,24 @@ class AlertManager(QObject):
             alert_type=alert_type,
             target_price=target_price,
             repeat_mode=repeat_mode,
-            cooldown_seconds=cooldown_seconds
+            cooldown_seconds=cooldown_seconds,
         )
         self._settings_manager.add_alert(alert)
         return alert
 
-    def remove_alert(self, alert_id: str) -> bool:
+    def remove_alert(self, alert_id):
         """Remove an alert by ID."""
         return self._settings_manager.remove_alert(alert_id)
 
-    def get_alerts(self) -> List[PriceAlert]:
+    def get_alerts(self):
         """Get all alerts."""
         return self._settings_manager.settings.alerts
 
-    def get_alerts_for_pair(self, pair: str) -> List[PriceAlert]:
+    def get_alerts_for_pair(self, pair):
         """Get all alerts for a specific pair."""
         return self._settings_manager.get_alerts_for_pair(pair)
 
-    def toggle_alert(self, alert_id: str) -> bool:
+    def toggle_alert(self, alert_id):
         """Toggle alert enabled state."""
         for alert in self._settings_manager.settings.alerts:
             if alert.id == alert_id:
@@ -229,10 +289,10 @@ class AlertManager(QObject):
 
 
 # Global alert manager instance
-_alert_manager: Optional[AlertManager] = None
+_alert_manager = None
 
 
-def get_alert_manager() -> AlertManager:
+def get_alert_manager():
     """Get the global alert manager instance."""
     global _alert_manager
     if _alert_manager is None:

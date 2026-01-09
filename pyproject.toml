@@ -24,5 +24,29 @@ fluent = [
 
 [tool.uv]
 dev-dependencies = [
+    "pre-commit>=4.5.1",
     "pyinstaller>=6.0.0",
+    "ruff>=0.14.11",
 ]
+
+[tool.ruff]
+# 设置每行最大长度
+line-length = 100
+# 目标 Python 版本
+target-version = "py310"
+
+[tool.ruff.lint]
+# 启用默认规则 (E/F) 加上一些额外的常用规则
+select = ["E", "F", "I", "W", "UP"]
+# I: isort (自动排序 import)
+# UP: pyupgrade (升级到较新的语法)
+
+[tool.ruff.format]
+# 强制使用双引号
+quote-style = "double"
+# 使用空格缩进
+indent-style = "space"
+# 跳过未引用的 docstring 格式化
+skip-magic-trailing-comma = false
+# 自动检测缩进
+line-ending = "auto"

@@ -1,24 +1,29 @@
-from PyQt6.QtWidgets import QWidget, QHBoxLayout
 from PyQt6.QtCore import Qt
-from qfluentwidgets import SettingCard, RadioButton, ComboBox, ExpandLayout
+from qfluentwidgets import ComboBox, SettingCard
 from qfluentwidgets import FluentIcon as FIF
 
-from core.i18n import _
 from config.settings import get_settings_manager
+from core.i18n import _
+
 
 class DataSourceSettingCard(SettingCard):
     """Setting card for selecting cryptocurrency data source."""
 
     def __init__(self, parent=None):
-        super().__init__(FIF.SYNC, _("Data Source"), _("Select the exchange for real-time data"), parent)
-        
+        super().__init__(
+            FIF.SYNC,
+            _("Data Source"),
+            _("Select the exchange for real-time data"),
+            parent,
+        )
+
         self.combo = ComboBox(self)
         self.combo.addItem("OKX", "OKX")
         self.combo.addItem("Binance", "Binance")
-        
+
         self.hBoxLayout.addWidget(self.combo, 0, Qt.AlignmentFlag.AlignRight)
         self.hBoxLayout.addSpacing(16)
-        
+
         self._load_setting()
         self.combo.currentIndexChanged.connect(self._on_changed)
 

@@ -5,13 +5,11 @@ Handles automatic migration of configuration files across application versions.
 
 import json
 import re
-import shutil
-import time
 from abc import ABC, abstractmethod
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Any
 
 
 class ConfigVersion(Enum):
@@ -33,7 +31,7 @@ class ConfigVersion(Enum):
     V3_0_0 = "3.0.0"
 
     @classmethod
-    def from_string(cls, version_str: Optional[str]) -> 'ConfigVersion':
+    def from_string(cls, version_str: str | None) -> "ConfigVersion":
         """Convert version string to enum, defaulting to V1_0_0 for legacy configs."""
         if not version_str:
             return cls.V1_0_0
@@ -51,6 +49,7 @@ class ConfigVersion(Enum):
 
 class MigrationError(Exception):
     """Exception raised during configuration migration."""
+
     pass
 
 
@@ -74,7 +73,7 @@ class BaseMigration(ABC):
         pass
 
     @abstractmethod
-    def validate(self, config: Dict[str, Any]) -> bool:
+    def validate(self, config: dict[str, Any]) -> bool:
         """
         Validate that the config is eligible for this migration.
 
@@ -87,7 +86,7 @@ class BaseMigration(ABC):
         pass
 
     @abstractmethod
-    def migrate(self, config: Dict[str, Any]) -> Dict[str, Any]:
+    def migrate(self, config: dict[str, Any]) -> dict[str, Any]:
         """
         Perform the actual migration.
 
@@ -125,24 +124,24 @@ class MigrationV1ToV2(BaseMigration):
     def to_version(self) -> ConfigVersion:
         return ConfigVersion.V2_0_0
 
-    def validate(self, config: Dict[str, Any]) -> bool:
+    def validate(self, config: dict[str, Any]) -> bool:
         """Validate that this is a V1.0.0 config (no version)."""
         # V1.0.0 configs don't have a version field
         # compact_mode may exist but be a bool or other type (migration artifact)
-        return 'version' not in config
+        return "version" not in config
 
-    def migrate(self, config: Dict[str, Any]) -> Dict[str, Any]:
+    def migrate(self, config: dict[str, Any]) -> dict[str, Any]:
         """Perform V1.0.0 → V2.0.0 migration."""
         # Add version field
-        config['version'] = '2.0.0'
+        config["version"] = "2.0.0"
 
         # Add compact mode configuration
-        config['compact_mode'] = {
-            'enabled': False,
-            'auto_scroll': True,
-            'scroll_interval': 5,
-            'window_x': config.get('window_x', 100),
-            'window_y': config.get('window_y', 100)
+        config["compact_mode"] = {
+            "enabled": False,
+            "auto_scroll": True,
+            "scroll_interval": 5,
+            "window_x": config.get("window_x", 100),
+            "window_y": config.get("window_y", 100),
         }
 
         return config
@@ -165,25 +164,25 @@ class MigrationV2ToV21(BaseMigration):
     def to_version(self) -> ConfigVersion:
         return ConfigVersion.V2_1_0
 
-    def validate(self, config: Dict[str, Any]) -> bool:
+    def validate(self, config: dict[str, Any]) -> bool:
         """Validate that this is a V2.0.0 config."""
-        return config.get('version') == '2.0.0'
+        return config.get("version") == "2.0.0"
 
-    def migrate(self, config: Dict[str, Any]) -> Dict[str, Any]:
+    def migrate(self, config: dict[str, Any]) -> dict[str, Any]:
         """Perform V2.0.0 → V2.1.0 migration."""
         # Add WebSocket reconnection settings
-        if 'websocket' not in config:
-            config['websocket'] = {
-                'auto_reconnect': True,
-                'reconnect_initial_delay': 1.0,
-                'reconnect_max_delay': 30.0,
-                'backoff_factor': 2.0,
-                'heartbeat_timeout': 60,
-                'connection_timeout': 60
+        if "websocket" not in config:
+            config["websocket"] = {
+                "auto_reconnect": True,
+                "reconnect_initial_delay": 1.0,
+                "reconnect_max_delay": 30.0,
+                "backoff_factor": 2.0,
+                "heartbeat_timeout": 60,
+                "connection_timeout": 60,
             }
 
         # Update version
-        config['version'] = '2.1.0'
+        config["version"] = "2.1.0"
 
         return config
 
@@ -205,18 +204,18 @@ class MigrationV21ToV22(BaseMigration):
     def to_version(self) -> ConfigVersion:
         return ConfigVersion.V2_2_0
 
-    def validate(self, config: Dict[str, Any]) -> bool:
+    def validate(self, config: dict[str, Any]) -> bool:
         """Validate that this is a V2.1.0 config."""
-        return config.get('version') == '2.1.0'
+        return config.get("version") == "2.1.0"
 
-    def migrate(self, config: Dict[str, Any]) -> Dict[str, Any]:
+    def migrate(self, config: dict[str, Any]) -> dict[str, Any]:
         """Perform V2.1.0 → V2.2.0 migration."""
         # Add alerts configuration (empty list)
-        if 'alerts' not in config:
-            config['alerts'] = []
+        if "alerts" not in config:
+            config["alerts"] = []
 
         # Update version
-        config['version'] = '2.2.0'
+        config["version"] = "2.2.0"
 
         return config
 
@@ -229,7 +228,7 @@ class ConfigValidator:
     """
 
     @staticmethod
-    def validate_required_fields(config: Dict[str, Any]) -> Tuple[bool, str]:
+    def validate_required_fields(config: dict[str, Any]) -> tuple[bool, str]:
         """
         Validate that all required fields are present.
 
@@ -239,7 +238,7 @@ class ConfigValidator:
         Returns:
             Tuple of (is_valid, error_message)
         """
-        required_fields = ['theme_mode', 'opacity', 'crypto_pairs']
+        required_fields = ["theme_mode", "opacity", "crypto_pairs"]
 
         for field in required_fields:
             if field not in config:
@@ -248,7 +247,7 @@ class ConfigValidator:
         return True, ""
 
     @staticmethod
-    def validate_pairs(config: Dict[str, Any]) -> Tuple[bool, str]:
+    def validate_pairs(config: dict[str, Any]) -> tuple[bool, str]:
         """
         Validate crypto pairs format.
 
@@ -258,7 +257,7 @@ class ConfigValidator:
         Returns:
             Tuple of (is_valid, error_message)
         """
-        pairs = config.get('crypto_pairs', [])
+        pairs = config.get("crypto_pairs", [])
 
         if not isinstance(pairs, list):
             return False, "crypto_pairs must be a list"
@@ -267,13 +266,13 @@ class ConfigValidator:
             if not isinstance(pair, str):
                 return False, f"Invalid pair type: {pair} (must be string)"
 
-            if not re.match(r'^[A-Z0-9]+-[A-Z0-9]+$', pair):
+            if not re.match(r"^[A-Z0-9]+-[A-Z0-9]+$", pair):
                 return False, f"Invalid pair format: {pair} (must be like BTC-USDT)"
 
         return True, ""
 
     @staticmethod
-    def validate_theme_mode(config: Dict[str, Any]) -> Tuple[bool, str]:
+    def validate_theme_mode(config: dict[str, Any]) -> tuple[bool, str]:
         """
         Validate theme mode value.
 
@@ -283,16 +282,19 @@ class ConfigValidator:
         Returns:
             Tuple of (is_valid, error_message)
         """
-        valid_modes = ['light', 'dark', 'auto']
-        theme_mode = config.get('theme_mode', 'light')
+        valid_modes = ["light", "dark", "auto"]
+        theme_mode = config.get("theme_mode", "light")
 
         if theme_mode not in valid_modes:
-            return False, f"Invalid theme_mode: {theme_mode} (must be one of {valid_modes})"
+            return (
+                False,
+                f"Invalid theme_mode: {theme_mode} (must be one of {valid_modes})",
+            )
 
         return True, ""
 
     @staticmethod
-    def validate_opacity(config: Dict[str, Any]) -> Tuple[bool, str]:
+    def validate_opacity(config: dict[str, Any]) -> tuple[bool, str]:
         """
         Validate opacity value.
 
@@ -302,7 +304,7 @@ class ConfigValidator:
         Returns:
             Tuple of (is_valid, error_message)
         """
-        opacity = config.get('opacity', 100)
+        opacity = config.get("opacity", 100)
 
         if not isinstance(opacity, int):
             return False, f"opacity must be an integer, got {type(opacity).__name__}"
@@ -313,7 +315,7 @@ class ConfigValidator:
         return True, ""
 
     @staticmethod
-    def validate_proxy(config: Dict[str, Any]) -> Tuple[bool, str]:
+    def validate_proxy(config: dict[str, Any]) -> tuple[bool, str]:
         """
         Validate proxy configuration.
 
@@ -323,25 +325,25 @@ class ConfigValidator:
         Returns:
             Tuple of (is_valid, error_message)
         """
-        proxy = config.get('proxy', {})
+        proxy = config.get("proxy", {})
 
         if not isinstance(proxy, dict):
             return False, "proxy must be a dictionary"
 
         # Check type field
-        proxy_type = proxy.get('type', 'http')
-        if proxy_type not in ['http', 'socks5']:
+        proxy_type = proxy.get("type", "http")
+        if proxy_type not in ["http", "socks5"]:
             return False, f"proxy.type must be 'http' or 'socks5', got {proxy_type}"
 
         # Check port
-        port = proxy.get('port', 7890)
+        port = proxy.get("port", 7890)
         if not isinstance(port, int) or not 1 <= port <= 65535:
             return False, f"proxy.port must be between 1 and 65535, got {port}"
 
         return True, ""
 
     @staticmethod
-    def validate_all(config: Dict[str, Any]) -> Tuple[bool, List[str]]:
+    def validate_all(config: dict[str, Any]) -> tuple[bool, list[str]]:
         """
         Run all validations.
 
@@ -390,8 +392,8 @@ class MigrationManager:
         """
         self.config_file = config_file
         self.current_version = current_version
-        self.migrations: List[BaseMigration] = []
-        self.backup_dir = config_file.parent / 'backups'
+        self.migrations: list[BaseMigration] = []
+        self.backup_dir = config_file.parent / "backups"
         self.backup_dir.mkdir(exist_ok=True)
 
         # Register built-in migrations
@@ -415,7 +417,7 @@ class MigrationManager:
         # Keep migrations in order
         self.migrations.sort(key=lambda m: m.from_version.value)
 
-    def _get_config_version(self, config: Dict[str, Any]) -> ConfigVersion:
+    def _get_config_version(self, config: dict[str, Any]) -> ConfigVersion:
         """
         Detect configuration version.
 
@@ -425,10 +427,12 @@ class MigrationManager:
         Returns:
             Detected version
         """
-        version_str = config.get('version')
+        version_str = config.get("version")
         return ConfigVersion.from_string(version_str)
 
-    def _find_migration_path(self, from_version: ConfigVersion, to_version: ConfigVersion) -> List[BaseMigration]:
+    def _find_migration_path(
+        self, from_version: ConfigVersion, to_version: ConfigVersion
+    ) -> list[BaseMigration]:
         """
         Find migration path from one version to another.
 
@@ -466,7 +470,7 @@ class MigrationManager:
 
         return path
 
-    def _create_backup(self, config: Dict[str, Any], version: ConfigVersion) -> Path:
+    def _create_backup(self, config: dict[str, Any], version: ConfigVersion) -> Path:
         """
         Create a backup of the configuration.
 
@@ -477,11 +481,11 @@ class MigrationManager:
         Returns:
             Path to backup file
         """
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         backup_filename = f"settings_{timestamp}_v{version.value}.json"
         backup_path = self.backup_dir / backup_filename
 
-        with open(backup_path, 'w', encoding='utf-8') as f:
+        with open(backup_path, "w", encoding="utf-8") as f:
             json.dump(config, f, indent=2, ensure_ascii=False)
 
         return backup_path
@@ -494,15 +498,15 @@ class MigrationManager:
             max_backups: Maximum number of backups to keep
         """
         backup_files = sorted(
-            self.backup_dir.glob('settings_*.json'),
+            self.backup_dir.glob("settings_*.json"),
             key=lambda p: p.stat().st_mtime,
-            reverse=True
+            reverse=True,
         )
 
         for backup_file in backup_files[max_backups:]:
             backup_file.unlink()
 
-    def migrate_if_needed(self, force: bool = False) -> Tuple[bool, Optional[str], Optional[Path]]:
+    def migrate_if_needed(self, force: bool = False) -> tuple[bool, str | None, Path | None]:
         """
         Migrate configuration if needed.
 
@@ -524,9 +528,9 @@ class MigrationManager:
             return False, "No configuration file found", None
 
         try:
-            with open(self.config_file, 'r', encoding='utf-8') as f:
+            with open(self.config_file, encoding="utf-8") as f:
                 config = json.load(f)
-        except (json.JSONDecodeError, IOError) as e:
+        except (OSError, json.JSONDecodeError) as e:
             raise MigrationError(f"Failed to read configuration file: {e}")
 
         # Detect current config version
@@ -534,7 +538,11 @@ class MigrationManager:
 
         # Check if migration is needed
         if not force and config_version == self.current_version:
-            return False, f"Configuration already at version {self.current_version.value}", None
+            return (
+                False,
+                f"Configuration already at version {self.current_version.value}",
+                None,
+            )
 
         # Find migration path
         try:
@@ -543,7 +551,11 @@ class MigrationManager:
             raise MigrationError(f"Migration path not found: {e}")
 
         if not migration_path:
-            return False, f"Configuration already at version {self.current_version.value}", None
+            return (
+                False,
+                f"Configuration already at version {self.current_version.value}",
+                None,
+            )
 
         # Create backup before migration
         backup_path = self._create_backup(config, config_version)
@@ -553,9 +565,7 @@ class MigrationManager:
         for migration in migration_path:
             # Validate before migration
             if not migration.validate(current_config):
-                raise MigrationError(
-                    f"Configuration is not valid for migration {migration.name}"
-                )
+                raise MigrationError(f"Configuration is not valid for migration {migration.name}")
 
             # Perform migration
             current_config = migration.migrate(current_config)
@@ -568,7 +578,7 @@ class MigrationManager:
                 )
 
         # Save migrated configuration
-        with open(self.config_file, 'w', encoding='utf-8') as f:
+        with open(self.config_file, "w", encoding="utf-8") as f:
             json.dump(current_config, f, indent=2, ensure_ascii=False)
 
         # Clean up old backups
@@ -577,11 +587,18 @@ class MigrationManager:
         # Create migration log entry
         self._log_migration(config_version, self.current_version, migration_path, backup_path)
 
-        message = f"Migrated configuration from {config_version.value} to {self.current_version.value}"
+        message = (
+            f"Migrated configuration from {config_version.value} to {self.current_version.value}"
+        )
         return True, message, backup_path
 
-    def _log_migration(self, from_version: ConfigVersion, to_version: ConfigVersion,
-                       migration_path: List[BaseMigration], backup_path: Path):
+    def _log_migration(
+        self,
+        from_version: ConfigVersion,
+        to_version: ConfigVersion,
+        migration_path: list[BaseMigration],
+        backup_path: Path,
+    ):
         """
         Log migration event.
 
@@ -591,7 +608,7 @@ class MigrationManager:
             migration_path: Applied migrations
             backup_path: Backup file path
         """
-        log_file = self.config_file.parent / 'migrations.log'
+        log_file = self.config_file.parent / "migrations.log"
         timestamp = datetime.now().isoformat()
 
         migration_names = " -> ".join([m.name for m in migration_path])
@@ -602,5 +619,5 @@ class MigrationManager:
             f"  Backup: {backup_path}\n\n"
         )
 
-        with open(log_file, 'a', encoding='utf-8') as f:
+        with open(log_file, "a", encoding="utf-8") as f:
             f.write(log_entry)

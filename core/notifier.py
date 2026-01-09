@@ -4,27 +4,31 @@ Uses desktop-notifier for cross-platform system notifications.
 """
 
 import asyncio
-import webbrowser
+import logging
+import os
+import sys
+
 # Keeping imports clean
 import threading
-import sys
-import os
-from typing import Optional
-from PyQt6.QtCore import QObject, pyqtSignal, QThread, QUrl
-from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
+import webbrowser
+
+from PyQt6.QtCore import QObject, QThread, QUrl, pyqtSignal
+from PyQt6.QtMultimedia import QAudioOutput, QMediaPlayer
+
+from config.settings import get_settings_manager
 from core.i18n import _
 from core.utils import suppress_output
-from config.settings import get_settings_manager
 
-import logging
 logger = logging.getLogger(__name__)
 
 try:
-    from desktop_notifier import DesktopNotifier, Urgency, DEFAULT_SOUND, Sound
+    from desktop_notifier import DEFAULT_SOUND, DesktopNotifier, Urgency
+
     NOTIFIER_AVAILABLE = True
 except Exception:
     NOTIFIER_AVAILABLE = False
     import traceback
+
     logger.error(f"Failed to import desktop-notifier:\n{traceback.format_exc()}")
 
 
@@ -45,7 +49,7 @@ class AsyncLoopThread(QThread):
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
         self._ready.set()
-        
+
         try:
             self.loop.run_forever()
         finally:
@@ -84,13 +88,13 @@ class NotificationService(QObject):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._worker: Optional[AsyncLoopThread] = None
-        self._notifier: Optional['DesktopNotifier'] = None
-        
+        self._worker: AsyncLoopThread | None = None
+        self._notifier: DesktopNotifier | None = None
+
         if NOTIFIER_AVAILABLE:
             self._worker = AsyncLoopThread(self)
             self._worker.start()
-            
+
         # Initialize media player for custom sounds
         self._player = QMediaPlayer()
         self._audio_output = QAudioOutput()
@@ -111,10 +115,7 @@ class NotificationService(QObject):
         """Ensure DesktopNotifier is initialized (lazy init in loop)."""
         if self._notifier is None:
             try:
-                self._notifier = DesktopNotifier(
-                    app_name="Crypto Monitor",
-                    app_icon=None
-                )
+                self._notifier = DesktopNotifier(app_name="Crypto Monitor", app_icon=None)
                 logger.info("DesktopNotifier initialized successfully")
             except Exception as e:
                 logger.error(f"Failed to initialize DesktopNotifier: {e}")
@@ -134,14 +135,10 @@ class NotificationService(QObject):
             print(f"Error playing sound: {e}")
 
     async def _send_notification_task(
-        self,
-        title: str,
-        message: str,
-        pair: str,
-        urgency: 'Urgency' = None
+        self, title: str, message: str, pair: str, urgency: "Urgency" = None
     ):
         """
-        Coroutine to send notification. 
+        Coroutine to send notification.
         Runs in the background thread's loop.
         """
         if urgency is None:
@@ -152,19 +149,19 @@ class NotificationService(QObject):
             if self._notifier:
                 settings = get_settings_manager().settings
                 sound_file = None
-                
+
                 if settings.sound_mode == "system":
                     sound_file = DEFAULT_SOUND
                 elif settings.sound_mode == "chime":
                     # Resolve path for chime sound
-                    if getattr(sys, 'frozen', False):
+                    if getattr(sys, "frozen", False):
                         # Running in PyInstaller bundle
                         base_path = sys._MEIPASS
                     else:
                         # Running in dev mode
                         base_path = os.getcwd()
-                    
-                    chime_path = os.path.join(base_path, 'assets', 'sounds', 'chime-alert.mp3')
+
+                    chime_path = os.path.join(base_path, "assets", "sounds", "chime-alert.mp3")
                     # Play sound directly using Qt
                     self._play_sound(chime_path)
                     # Don't use system notification sound
@@ -188,7 +185,7 @@ class NotificationService(QObject):
         current_price: float,
         current_pct: float = 0.0,
         previous_price: float = None,
-        previous_pct: float = None
+        previous_pct: float = None,
     ):
         """
         Send a price alert notification.
@@ -210,7 +207,7 @@ class NotificationService(QObject):
 
         # Build notification message
         symbol = pair.split("-")[0]
-        
+
         # Format current price with smart precision and percentage change
         pct_sign = "+" if current_pct >= 0 else ""
         current_display = f"${format_price(current_price)} ({pct_sign}{current_pct:.2f}%)"
@@ -228,6 +225,7 @@ class NotificationService(QObject):
             # Calculate the crossed price step using previous_price
             # When price crosses a step boundary, we want to show the boundary that was crossed
             import math
+
             step = target_price
             if previous_price is not None:
                 prev_step = math.floor(previous_price / step)
@@ -242,10 +240,13 @@ class NotificationService(QObject):
             else:
                 reached_price = math.floor(current_price / step) * step
             title = f"{symbol} 🔢 {_('Price Step Reached')}"
-            message = f"{_('Reached')} ${format_price(reached_price)}\n{_('Current:')} {current_display}"
+            message = (
+                f"{_('Reached')} ${format_price(reached_price)}\n{_('Current:')} {current_display}"
+            )
         elif alert_type == "price_change_pct":
             # Calculate the crossed percentage step using previous_pct
             import math
+
             step = target_price
             if previous_pct is not None:
                 prev_step = math.floor(previous_pct / step)
@@ -261,33 +262,36 @@ class NotificationService(QObject):
                 reached_pct = math.floor(current_pct / step) * step
             # Determine precision from step value (e.g., 0.01 -> 2 decimals)
             if step < 1:
-                step_str = f"{step:.10f}".rstrip('0')
-                pct_precision = len(step_str.split('.')[1]) if '.' in step_str else 0
+                step_str = f"{step:.10f}".rstrip("0")
+                pct_precision = len(step_str.split(".")[1]) if "." in step_str else 0
             else:
                 pct_precision = 0
-            pct_display = f"+{reached_pct:.{pct_precision}f}%" if reached_pct >= 0 else f"{reached_pct:.{pct_precision}f}%"
+            pct_display = (
+                f"+{reached_pct:.{pct_precision}f}%"
+                if reached_pct >= 0
+                else f"{reached_pct:.{pct_precision}f}%"
+            )
             title = f"{symbol} 📊 {_('Percentage Step Reached')}"
             message = f"{_('24h Change reached')} {pct_display}\n{_('Current:')} {current_display}"
         else:
             title = f"{symbol} 🔔 {_('Price Alert')}"
-            message = f"{_('Target:')} {format_price(target_price)}\n{_('Current:')} {current_display}"
+            message = (
+                f"{_('Target:')} {format_price(target_price)}\n{_('Current:')} {current_display}"
+            )
 
         # Schedule usage on the background loop
         loop = self._worker.get_loop()
         if loop and loop.is_running() and not loop.is_closed():
-             try:
-                 asyncio.run_coroutine_threadsafe(
+            try:
+                asyncio.run_coroutine_threadsafe(
                     self._send_notification_task(
-                        title=title,
-                        message=message,
-                        pair=pair,
-                        urgency=Urgency.Normal
+                        title=title, message=message, pair=pair, urgency=Urgency.Normal
                     ),
-                    loop
+                    loop,
                 )
-             except RuntimeError:
-                 # Loop might be closed during execution
-                 pass
+            except RuntimeError:
+                # Loop might be closed during execution
+                pass
 
     def send_test_notification(self):
         """Send a test notification."""
@@ -295,7 +299,7 @@ class NotificationService(QObject):
         if not NOTIFIER_AVAILABLE:
             logger.error("Notification service not available: desktop-notifier failed to import")
             return
-            
+
         if not self._worker:
             logger.error("Notification service not available: background worker not started")
             return
@@ -308,14 +312,16 @@ class NotificationService(QObject):
                     self._send_notification_task(
                         title=_("Crypto Monitor"),
                         message=_("Notifications are working!"),
-                        pair="BTC-USDT"
+                        pair="BTC-USDT",
                     ),
-                    loop
+                    loop,
                 )
             except RuntimeError as e:
                 logger.error(f"Failed to schedule test notification: {e}")
         else:
-            logger.error(f"Cannot send test notification: Loop state invalid (running={loop.is_running() if loop else False}, closed={loop.is_closed() if loop else True})")
+            logger.error(
+                f"Cannot send test notification: Loop state invalid (running={loop.is_running() if loop else False}, closed={loop.is_closed() if loop else True})"
+            )
 
     @property
     def is_available(self) -> bool:
@@ -329,7 +335,7 @@ class NotificationService(QObject):
 
 
 # Global notification service instance
-_notification_service: Optional[NotificationService] = None
+_notification_service: NotificationService | None = None
 
 
 def get_notification_service() -> NotificationService:

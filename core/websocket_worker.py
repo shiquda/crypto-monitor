@@ -4,24 +4,27 @@ Handles connection management, reconnection logic, and thread lifecycle.
 """
 
 import asyncio
-import time
 import logging
+import time
 from abc import abstractmethod
-from typing import Optional, Set, List
 from enum import Enum
-from PyQt6.QtCore import QThread, pyqtSignal, QObject
+
+from PyQt6.QtCore import QObject, QThread, pyqtSignal
 
 from core.reconnect_strategy import ReconnectStrategy
 
 logger = logging.getLogger(__name__)
 
+
 class ConnectionState(Enum):
     """WebSocket connection states."""
+
     DISCONNECTED = "disconnected"
     CONNECTING = "connecting"
     CONNECTED = "connected"
     RECONNECTING = "reconnecting"
     FAILED = "failed"
+
 
 class BaseWebSocketWorker(QThread):
     """
@@ -37,14 +40,14 @@ class BaseWebSocketWorker(QThread):
     connection_state_changed = pyqtSignal(str, str, int)  # state, message, retry_count
     stats_updated = pyqtSignal(dict)  # connection statistics
 
-    def __init__(self, pairs: List[str], parent: Optional[QObject] = None):
+    def __init__(self, pairs: list[str], parent: QObject | None = None):
         super().__init__(parent)
         self.pairs = list(pairs)  # Store initial pairs
         self._running = False
-        self._loop: Optional[asyncio.AbstractEventLoop] = None
+        self._loop: asyncio.AbstractEventLoop | None = None
         self._reconnect_strategy = ReconnectStrategy()
         self._connection_state = ConnectionState.DISCONNECTED
-        self._subscribed_pairs: Set[str] = set()
+        self._subscribed_pairs: set[str] = set()
         self._last_message_time = 0
         self._connection_start_time = 0
         self._total_reconnect_count = 0
@@ -55,7 +58,9 @@ class BaseWebSocketWorker(QThread):
     def _update_connection_state(self, state: ConnectionState, message: str = ""):
         """Update connection state and emit signals."""
         self._connection_state = state
-        retry_count = self._reconnect_strategy.retry_count if state == ConnectionState.RECONNECTING else 0
+        retry_count = (
+            self._reconnect_strategy.retry_count if state == ConnectionState.RECONNECTING else 0
+        )
         self.connection_state_changed.emit(state.value, message, retry_count)
 
         # Emit old-style signal for backward compatibility
@@ -65,19 +70,25 @@ class BaseWebSocketWorker(QThread):
     def _update_stats(self):
         """Update connection statistics."""
         stats = {
-            'state': self._connection_state.value,
-            'reconnect_count': self._total_reconnect_count,
-            'retry_count': self._reconnect_strategy.retry_count,
-            'subscribed_pairs': len(self._subscribed_pairs),
-            'connection_duration': time.time() - self._connection_start_time if self._connection_start_time > 0 else 0,
-            'last_message_age': time.time() - self._last_message_time if self._last_message_time > 0 else 0,
-            'last_error': self._last_error,
+            "state": self._connection_state.value,
+            "reconnect_count": self._total_reconnect_count,
+            "retry_count": self._reconnect_strategy.retry_count,
+            "subscribed_pairs": len(self._subscribed_pairs),
+            "connection_duration": time.time() - self._connection_start_time
+            if self._connection_start_time > 0
+            else 0,
+            "last_message_age": time.time() - self._last_message_time
+            if self._last_message_time > 0
+            else 0,
+            "last_error": self._last_error,
         }
         self.stats_updated.emit(stats)
 
     def run(self):
         """Run the WebSocket client in asyncio event loop with auto-reconnect."""
-        logger.info(f"[{self.__class__.__name__}] Starting run loop (Thread: {int(QThread.currentThreadId())})")
+        logger.info(
+            f"[{self.__class__.__name__}] Starting run loop (Thread: {int(QThread.currentThreadId())})"
+        )
         self._running = True
         self._loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self._loop)
@@ -109,7 +120,7 @@ class BaseWebSocketWorker(QThread):
                 logger.info(f"[{self.__class__.__name__}] Loop closed.")
             except Exception as e:
                 logger.error(f"Loop cleanup error: {e}")
-                
+
             self._update_connection_state(ConnectionState.DISCONNECTED, "Connection closed")
 
     async def _maintain_connection(self):
@@ -121,8 +132,10 @@ class BaseWebSocketWorker(QThread):
             try:
                 # Attempt to connect
                 self._update_connection_state(
-                    ConnectionState.CONNECTING if self._reconnect_strategy.retry_count > 0 else ConnectionState.CONNECTING,
-                    f"Connecting... (attempt {self._reconnect_strategy.retry_count + 1})"
+                    ConnectionState.CONNECTING
+                    if self._reconnect_strategy.retry_count > 0
+                    else ConnectionState.CONNECTING,
+                    f"Connecting... (attempt {self._reconnect_strategy.retry_count + 1})",
                 )
 
                 await self._connect_and_subscribe()
@@ -146,7 +159,7 @@ class BaseWebSocketWorker(QThread):
                             self._last_error = f"Heartbeat timeout: {time_since_last:.1f}s"
                             self._update_connection_state(
                                 ConnectionState.RECONNECTING,
-                                f"Heartbeat timeout after {time_since_last:.1f}s, reconnecting..."
+                                f"Heartbeat timeout after {time_since_last:.1f}s, reconnecting...",
                             )
                             break
 
@@ -164,7 +177,9 @@ class BaseWebSocketWorker(QThread):
                     delay = self._reconnect_strategy.next_delay()
                     await asyncio.sleep(delay)
                 else:
-                    self._update_connection_state(ConnectionState.FAILED, f"Max retries exceeded: {e}")
+                    self._update_connection_state(
+                        ConnectionState.FAILED, f"Max retries exceeded: {e}"
+                    )
                     raise
 
     @abstractmethod
@@ -189,8 +204,8 @@ class BaseWebSocketWorker(QThread):
         if self._loop and self._loop.is_running():
             # Thread-safe cancellation
             self._loop.call_soon_threadsafe(self._cancel_task_safe)
-            
+
     def _cancel_task_safe(self):
         """Helper to cancel the main task from within the loop."""
-        if hasattr(self, '_main_task') and self._main_task:
+        if hasattr(self, "_main_task") and self._main_task:
             self._main_task.cancel()

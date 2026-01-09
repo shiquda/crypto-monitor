@@ -5,16 +5,17 @@ Enhanced with automatic migration support.
 """
 
 import json
+import logging
 import os
 import time
 import uuid
-from dataclasses import dataclass, field, asdict
-from typing import Optional, Dict, Any, List
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
+from typing import Any
 
-from .migration import MigrationManager, ConfigVersion
 from core.i18n import load_language
-import logging
+
+from .migration import ConfigVersion, MigrationManager
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +23,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ProxyConfig:
     """Proxy configuration settings."""
+
     enabled: bool = False
     type: str = "http"  # "http" or "socks5"
     host: str = "127.0.0.1"
@@ -29,7 +31,7 @@ class ProxyConfig:
     username: str = ""
     password: str = ""
 
-    def get_proxy_url(self) -> Optional[str]:
+    def get_proxy_url(self) -> str | None:
         """Get proxy URL string for requests."""
         if not self.enabled:
             return None
@@ -45,6 +47,7 @@ class ProxyConfig:
 @dataclass
 class CompactModeConfig:
     """Compact mode configuration."""
+
     enabled: bool = False
     auto_scroll: bool = True
     scroll_interval: int = 5  # seconds
@@ -55,6 +58,7 @@ class CompactModeConfig:
 @dataclass
 class WebSocketConfig:
     """WebSocket configuration."""
+
     auto_reconnect: bool = True
     reconnect_initial_delay: float = 1.0
     reconnect_max_delay: float = 30.0
@@ -66,15 +70,17 @@ class WebSocketConfig:
 @dataclass
 class PriceAlert:
     """Price alert configuration."""
-    id: str = ""                           # Unique identifier (UUID)
-    pair: str = ""                         # Trading pair, e.g., "BTC-USDT"
-    alert_type: str = "price_above"        # "price_above" | "price_below" | "price_touch"
-    target_price: float = 0.0              # Target price
-    repeat_mode: str = "once"              # "once" | "repeat"
-    enabled: bool = True                   # Whether the alert is enabled
-    cooldown_seconds: int = 60             # Cooldown time (only for repeat mode)
-    last_triggered: Optional[float] = None # Last triggered timestamp
-    created_at: float = 0.0                # Creation timestamp
+
+    id: str = ""  # Unique identifier (UUID)
+    pair: str = ""  # Trading pair, e.g., "BTC-USDT"
+    alert_type: str = "price_above"  # "price_above" | "price_below" | "price_touch"
+    target_price: float = 0.0  # Target price
+    repeat_mode: str = "once"  # "once" | "repeat"
+    enabled: bool = True  # Whether the alert is enabled
+    cooldown_seconds: int = 60  # Cooldown time (only for repeat mode)
+    last_triggered: float | None = None  # Last triggered timestamp
+    last_triggered_value: float | None = None  # Last value that triggered a step alert
+    created_at: float = 0.0  # Creation timestamp
 
     def __post_init__(self):
         """Initialize default values if not set."""
@@ -84,24 +90,26 @@ class PriceAlert:
             self.created_at = time.time()
 
     @staticmethod
-    def from_dict(data: Dict[str, Any]) -> 'PriceAlert':
+    def from_dict(data: dict[str, Any]) -> "PriceAlert":
         """Create PriceAlert from dictionary."""
         return PriceAlert(
-            id=data.get('id', str(uuid.uuid4())),
-            pair=data.get('pair', ''),
-            alert_type=data.get('alert_type', 'price_above'),
-            target_price=data.get('target_price', 0.0),
-            repeat_mode=data.get('repeat_mode', 'once'),
-            enabled=data.get('enabled', True),
-            cooldown_seconds=data.get('cooldown_seconds', 60),
-            last_triggered=data.get('last_triggered'),
-            created_at=data.get('created_at', time.time())
+            id=data.get("id", str(uuid.uuid4())),
+            pair=data.get("pair", ""),
+            alert_type=data.get("alert_type", "price_above"),
+            target_price=data.get("target_price", 0.0),
+            repeat_mode=data.get("repeat_mode", "once"),
+            enabled=data.get("enabled", True),
+            cooldown_seconds=data.get("cooldown_seconds", 60),
+            last_triggered=data.get("last_triggered"),
+            last_triggered_value=data.get("last_triggered_value"),
+            created_at=data.get("created_at", time.time()),
         )
 
 
 @dataclass
 class AppSettings:
     """Application settings."""
+
     # Current version
     version: str = "2.3.0"  # Bump version
     data_source: str = "OKX"  # "OKX" or "Binance"
@@ -109,17 +117,19 @@ class AppSettings:
     # Basic settings
     # Basic settings
     theme_mode: str = "light"  # "light", "dark", or "auto"
-    color_schema: str = "standard"  # "standard" (Green Up/Red Down) or "reverse" (Red Up/Green Down)
+    color_schema: str = (
+        "standard"  # "standard" (Green Up/Red Down) or "reverse" (Red Up/Green Down)
+    )
     dynamic_background: bool = True  # Enable dynamic background color based on price change
-    kline_period: str = "24h" # "1h", "4h", "12h", "24h", "7d"
+    kline_period: str = "24h"  # "1h", "4h", "12h", "24h", "7d"
     chart_cache_ttl: int = 60  # Mini chart cache duration in seconds (default 1 minute)
-    hover_enabled: bool = True     # Master toggle for hover card
+    hover_enabled: bool = True  # Master toggle for hover card
     hover_show_stats: bool = True  # Toggle for statistics in hover card
     hover_show_chart: bool = True  # Toggle for mini chart in hover card
     opacity: int = 100
     display_limit: int = 3  # Number of pairs to display per page (1-5)
-    auto_scroll: bool = False   # Auto-cycle pages
-    scroll_interval: int = 30   # Auto-scroll interval in seconds
+    auto_scroll: bool = False  # Auto-cycle pages
+    scroll_interval: int = 30  # Auto-scroll interval in seconds
     minimalist_view: bool = False  # Minimalist view mode (hide chrome when not hovered)
     crypto_pairs: list = field(default_factory=lambda: ["BTC-USDT", "ETH-USDT"])
     proxy: ProxyConfig = field(default_factory=ProxyConfig)
@@ -136,9 +146,9 @@ class AppSettings:
     websocket: WebSocketConfig = field(default_factory=WebSocketConfig)
 
     # V2.2.0 features
-    alerts: List[PriceAlert] = field(default_factory=list)
+    alerts: list[PriceAlert] = field(default_factory=list)
     # V2.2.0 features
-    alerts: List[PriceAlert] = field(default_factory=list)
+    alerts: list[PriceAlert] = field(default_factory=list)
     sound_mode: str = "system"  # "off", "system", "chime"
 
 
@@ -148,16 +158,16 @@ class SettingsManager:
     # Current application configuration version
     CURRENT_VERSION = ConfigVersion.V2_2_0
 
-    def __init__(self, config_dir: Optional[Path] = None):
+    def __init__(self, config_dir: Path | None = None):
         if config_dir is None:
             # Default to user's config directory
-            if os.name == 'nt':  # Windows
-                config_dir = Path(os.environ.get('APPDATA', '')) / 'crypto-monitor'
+            if os.name == "nt":  # Windows
+                config_dir = Path(os.environ.get("APPDATA", "")) / "crypto-monitor"
             else:  # Linux/Mac
-                config_dir = Path.home() / '.config' / 'crypto-monitor'
+                config_dir = Path.home() / ".config" / "crypto-monitor"
 
         self.config_dir = config_dir
-        self.config_file = config_dir / 'settings.json'
+        self.config_file = config_dir / "settings.json"
         self.settings = AppSettings()
 
         # Ensure config directory exists
@@ -189,43 +199,64 @@ class SettingsManager:
 
         if self.config_file.exists():
             try:
-                with open(self.config_file, 'r', encoding='utf-8') as f:
+                with open(self.config_file, encoding="utf-8") as f:
                     data = json.load(f)
 
                 # Parse proxy config
-                proxy_data = data.pop('proxy', {})
+                proxy_data = data.pop("proxy", {})
                 if not isinstance(proxy_data, dict):
                     proxy_data = {}
                 proxy_config = ProxyConfig(**proxy_data)
 
                 # Parse compact mode config (V2.0.0+)
-                compact_mode_data = data.pop('compact_mode', {})
+                compact_mode_data = data.pop("compact_mode", {})
                 if not isinstance(compact_mode_data, dict):
                     compact_mode_data = {}
                 compact_mode_config = CompactModeConfig(**compact_mode_data)
 
                 # Parse websocket config (V2.1.0+)
-                websocket_data = data.pop('websocket', {})
+                websocket_data = data.pop("websocket", {})
                 if not isinstance(websocket_data, dict):
                     websocket_data = {}
                 websocket_config = WebSocketConfig(**websocket_data)
 
                 # Parse alerts config (V2.2.0+)
-                alerts_data = data.pop('alerts', [])
+                alerts_data = data.pop("alerts", [])
                 if not isinstance(alerts_data, list):
                     alerts_data = []
                 alerts_list = [PriceAlert.from_dict(a) for a in alerts_data if isinstance(a, dict)]
 
                 # Only keep recognized fields in data
                 recognized_fields = {
-                    'version', 'data_source', 'theme_mode', 'color_schema', 'dynamic_background', 'kline_period', 
-                    'chart_cache_ttl', 'hover_enabled', 'hover_show_stats', 'hover_show_chart',
-                    'opacity', 'crypto_pairs', 'display_limit', 'minimalist_view',
-                    'auto_scroll', 'scroll_interval',
-                    'window_x', 'window_y', 'always_on_top', 'language', 'price_change_basis',
-                    'auto_scroll', 'scroll_interval',
-                    'window_x', 'window_y', 'always_on_top', 'language', 'price_change_basis',
-                    'sound_mode'
+                    "version",
+                    "data_source",
+                    "theme_mode",
+                    "color_schema",
+                    "dynamic_background",
+                    "kline_period",
+                    "chart_cache_ttl",
+                    "hover_enabled",
+                    "hover_show_stats",
+                    "hover_show_chart",
+                    "opacity",
+                    "crypto_pairs",
+                    "display_limit",
+                    "minimalist_view",
+                    "auto_scroll",
+                    "scroll_interval",
+                    "window_x",
+                    "window_y",
+                    "always_on_top",
+                    "language",
+                    "price_change_basis",
+                    "auto_scroll",
+                    "scroll_interval",
+                    "window_x",
+                    "window_y",
+                    "always_on_top",
+                    "language",
+                    "price_change_basis",
+                    "sound_mode",
                 }
                 filtered_data = {k: v for k, v in data.items() if k in recognized_fields}
 
@@ -235,7 +266,7 @@ class SettingsManager:
                     compact_mode=compact_mode_config,
                     websocket=websocket_config,
                     alerts=alerts_list,
-                    **filtered_data
+                    **filtered_data,
                 )
             except (json.JSONDecodeError, TypeError, KeyError) as e:
                 logger.error(f"Error loading settings: {e}")
@@ -251,7 +282,7 @@ class SettingsManager:
         """Save settings to file."""
         data = asdict(self.settings)
 
-        with open(self.config_file, 'w', encoding='utf-8') as f:
+        with open(self.config_file, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
 
     def update_proxy(self, proxy: ProxyConfig) -> None:
@@ -313,7 +344,9 @@ class SettingsManager:
         self.settings.kline_period = period
         self.save()
 
-    def update_hover_settings(self, enabled: bool = None, show_stats: bool = None, show_chart: bool = None) -> None:
+    def update_hover_settings(
+        self, enabled: bool = None, show_stats: bool = None, show_chart: bool = None
+    ) -> None:
         """Update hover card settings."""
         if enabled is not None:
             self.settings.hover_enabled = enabled
@@ -380,11 +413,11 @@ class SettingsManager:
                 return True
         return False
 
-    def get_alerts_for_pair(self, pair: str) -> List[PriceAlert]:
+    def get_alerts_for_pair(self, pair: str) -> list[PriceAlert]:
         """Get all alerts for a specific trading pair."""
         return [a for a in self.settings.alerts if a.pair == pair]
 
-    def get_enabled_alerts(self) -> List[PriceAlert]:
+    def get_enabled_alerts(self) -> list[PriceAlert]:
         """Get all enabled alerts."""
         return [a for a in self.settings.alerts if a.enabled]
 
@@ -393,13 +426,13 @@ class SettingsManager:
         proxy_url = self.settings.proxy.get_proxy_url()
 
         if proxy_url:
-            os.environ['HTTP_PROXY'] = proxy_url
-            os.environ['HTTPS_PROXY'] = proxy_url
-            os.environ['http_proxy'] = proxy_url
-            os.environ['https_proxy'] = proxy_url
+            os.environ["HTTP_PROXY"] = proxy_url
+            os.environ["HTTPS_PROXY"] = proxy_url
+            os.environ["http_proxy"] = proxy_url
+            os.environ["https_proxy"] = proxy_url
         else:
             # Clear proxy environment variables
-            for key in ['HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy']:
+            for key in ["HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"]:
                 os.environ.pop(key, None)
 
     def force_migration(self) -> bool:
@@ -431,29 +464,29 @@ class SettingsManager:
         """
         if self.config_file.exists():
             try:
-                with open(self.config_file, 'r', encoding='utf-8') as f:
+                with open(self.config_file, encoding="utf-8") as f:
                     data = json.load(f)
-                    return data.get('version', '1.0.0')
+                    return data.get("version", "1.0.0")
             except:
                 pass
 
         return self.settings.version
 
-    def get_backup_list(self) -> List[Path]:
+    def get_backup_list(self) -> list[Path]:
         """
         Get list of configuration backups.
 
         Returns:
             List of backup file paths (newest first)
         """
-        backup_dir = self.config_dir / 'backups'
+        backup_dir = self.config_dir / "backups"
         if not backup_dir.exists():
             return []
 
         backups = sorted(
-            backup_dir.glob('settings_*.json'),
+            backup_dir.glob("settings_*.json"),
             key=lambda p: p.stat().st_mtime,
-            reverse=True
+            reverse=True,
         )
         return backups
 
@@ -467,55 +500,76 @@ class SettingsManager:
     def export_to_file(self, filepath: str) -> None:
         """Export settings to a specific file."""
         data = asdict(self.settings)
-        with open(filepath, 'w', encoding='utf-8') as f:
+        with open(filepath, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
 
     def import_from_file(self, filepath: str) -> None:
         """Import settings from a specific file."""
-        with open(filepath, 'r', encoding='utf-8') as f:
+        with open(filepath, encoding="utf-8") as f:
             data = json.load(f)
 
         # Basic validation by trying to load it like normal settings logic
         # For simplicity, we can temporarily save it to the main config file location and reload,
         # or parse it manually. Let's reuse the parsing logic in load() by updating self.settings using this data.
-        
+
         # We can simulate loading by mocking the file read, but here we'll just replicate the parsing logic
         # or slightly refactor. For safety and consistency with existing validation/parsing:
-        
+
         # Parse proxy config
-        proxy_data = data.pop('proxy', {})
+        proxy_data = data.pop("proxy", {})
         if not isinstance(proxy_data, dict):
             proxy_data = {}
         proxy_config = ProxyConfig(**proxy_data)
 
         # Parse compact mode config
-        compact_mode_data = data.pop('compact_mode', {})
+        compact_mode_data = data.pop("compact_mode", {})
         if not isinstance(compact_mode_data, dict):
             compact_mode_data = {}
         compact_mode_config = CompactModeConfig(**compact_mode_data)
 
         # Parse websocket config
-        websocket_data = data.pop('websocket', {})
+        websocket_data = data.pop("websocket", {})
         if not isinstance(websocket_data, dict):
             websocket_data = {}
         websocket_config = WebSocketConfig(**websocket_data)
 
         # Parse alerts config
-        alerts_data = data.pop('alerts', [])
+        alerts_data = data.pop("alerts", [])
         if not isinstance(alerts_data, list):
             alerts_data = []
         alerts_list = [PriceAlert.from_dict(a) for a in alerts_data if isinstance(a, dict)]
 
         # Only keep recognized fields
         recognized_fields = {
-            'version', 'data_source', 'theme_mode', 'color_schema', 'dynamic_background',
-            'kline_period', 'chart_cache_ttl', 'hover_enabled', 'hover_show_stats', 'hover_show_chart',
-            'opacity', 'crypto_pairs', 'display_limit', 'minimalist_view',
-            'auto_scroll', 'scroll_interval',
-            'window_x', 'window_y', 'always_on_top', 'language', 'price_change_basis',
-            'auto_scroll', 'scroll_interval',
-            'window_x', 'window_y', 'always_on_top', 'language', 'price_change_basis',
-            'sound_mode'
+            "version",
+            "data_source",
+            "theme_mode",
+            "color_schema",
+            "dynamic_background",
+            "kline_period",
+            "chart_cache_ttl",
+            "hover_enabled",
+            "hover_show_stats",
+            "hover_show_chart",
+            "opacity",
+            "crypto_pairs",
+            "display_limit",
+            "minimalist_view",
+            "auto_scroll",
+            "scroll_interval",
+            "window_x",
+            "window_y",
+            "always_on_top",
+            "language",
+            "price_change_basis",
+            "auto_scroll",
+            "scroll_interval",
+            "window_x",
+            "window_y",
+            "always_on_top",
+            "language",
+            "price_change_basis",
+            "sound_mode",
         }
         filtered_data = {k: v for k, v in data.items() if k in recognized_fields}
 
@@ -525,20 +579,20 @@ class SettingsManager:
             compact_mode=compact_mode_config,
             websocket=websocket_config,
             alerts=alerts_list,
-            **filtered_data
+            **filtered_data,
         )
 
         # Upon successful parse, update current settings and save
         self.settings = new_settings
         self.save()
-        
+
         # Apply immediate effects if needed (like load_language)
         load_language(self.settings.language)
         self._apply_proxy_env()
 
 
 # Global settings instance
-_settings_manager: Optional[SettingsManager] = None
+_settings_manager: SettingsManager | None = None
 
 
 def get_settings_manager() -> SettingsManager:

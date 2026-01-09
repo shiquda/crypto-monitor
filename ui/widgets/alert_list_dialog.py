@@ -2,30 +2,38 @@
 Dialog for managing alerts for a specific trading pair.
 """
 
-from typing import List, Optional
-from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
-    QScrollArea, QFrame, QDialog
-)
 from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtWidgets import (
+    QDialog,
+    QHBoxLayout,
+    QLabel,
+    QScrollArea,
+    QVBoxLayout,
+    QWidget,
+)
 from qfluentwidgets import (
-    Dialog, PrimaryPushButton, PushButton, 
-    StrongBodyLabel, BodyLabel, SwitchButton,
-    FluentIcon, ToolButton, CardWidget
+    BodyLabel,
+    CardWidget,
+    FluentIcon,
+    PrimaryPushButton,
+    StrongBodyLabel,
+    SwitchButton,
+    ToolButton,
 )
 
 from config.settings import PriceAlert, get_settings_manager
 from core.alert_manager import get_alert_manager
-from ui.widgets.alert_dialog import AlertDialog
 from core.i18n import _
+from ui.widgets.alert_dialog import AlertDialog
+
 
 class AlertItem(CardWidget):
     """Widget representing a single alert in the list."""
-    
+
     # Define Signals
-    deleted = pyqtSignal(str)   # alert_id
-    edited = pyqtSignal(object) # PriceAlert object
-    toggled = pyqtSignal(str, bool) # alert_id, enabled status
+    deleted = pyqtSignal(str)  # alert_id
+    edited = pyqtSignal(object)  # PriceAlert object
+    toggled = pyqtSignal(str, bool)  # alert_id, enabled status
 
     def __init__(self, alert: PriceAlert, parent=None):
         super().__init__(parent)
@@ -47,7 +55,7 @@ class AlertItem(CardWidget):
         # Info text
         info_layout = QVBoxLayout()
         info_layout.setSpacing(4)
-        
+
         # Main text (Target)
         if self.alert.alert_type == "price_multiple":
             target_text = f"{_('Step')}: ${self.alert.target_price:,.0f}"
@@ -55,27 +63,27 @@ class AlertItem(CardWidget):
             target_text = f"{_('Step')}: {self.alert.target_price:.2f}%"
         else:
             target_text = f"{_('Target')}: ${self.alert.target_price:,.2f}"
-            
+
         target_label = StrongBodyLabel(target_text)
         info_layout.addWidget(target_label)
-        
+
         # Sub text (Type description)
         desc_text = self._get_desc_for_type(self.alert.alert_type)
         if self.alert.repeat_mode == "repeat":
             desc_text += f" • {_('Repeat')} ({self.alert.cooldown_seconds}s)"
         else:
             desc_text += f" • {_('Once')}"
-            
+
         desc_label = BodyLabel(desc_text)
         theme_mode = get_settings_manager().settings.theme_mode
         desc_color = "#CCCCCC" if theme_mode == "dark" else "#666666"
         desc_label.setStyleSheet(f"color: {desc_color}; font-size: 12px;")
         info_layout.addWidget(desc_label)
-        
+
         layout.addLayout(info_layout, 1)
 
         # Controls
-        
+
         # Edit button
         self.edit_btn = ToolButton(FluentIcon.EDIT)
         self.edit_btn.setToolTip(_("Edit Alert"))
@@ -134,18 +142,18 @@ class AlertListDialog(QDialog):
         self.pair = pair
         self._settings_manager = get_settings_manager()
         self._alert_manager = get_alert_manager()
-        
+
         # Setup window properties
         self.setFixedSize(600, 600)
-        
+
         # Frameless window with styling
         flags = Qt.WindowType.FramelessWindowHint | Qt.WindowType.Dialog
         if parent and (parent.windowFlags() & Qt.WindowType.WindowStaysOnTopHint):
             flags |= Qt.WindowType.WindowStaysOnTopHint
         self.setWindowFlags(flags)
-        
+
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-        
+
         self._drag_pos = None
 
         self._setup_ui()
@@ -157,17 +165,17 @@ class AlertListDialog(QDialog):
         # Main layout
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        
+
         # Window frame (for background and border)
         self.window_frame = QWidget()
         self.window_frame.setObjectName("windowFrame")
-        
+
         # Theme handling
         theme_mode = self._settings_manager.settings.theme_mode
         bg_color = "#202020" if theme_mode == "dark" else "#F9F9F9"
         text_color = "white" if theme_mode == "dark" else "black"
         border_color = "#333333" if theme_mode == "dark" else "#E0E0E0"
-        
+
         self.window_frame.setStyleSheet(f"""
             #windowFrame {{
                 background-color: {bg_color};
@@ -175,50 +183,51 @@ class AlertListDialog(QDialog):
                 border-radius: 8px;
             }}
         """)
-        
+
         layout.addWidget(self.window_frame)
-        
+
         # Content layout inside frame
         frame_layout = QVBoxLayout(self.window_frame)
         frame_layout.setContentsMargins(24, 24, 24, 24)
         frame_layout.setSpacing(20)
-        
+
         # Title bar
         title_layout = QHBoxLayout()
-        
+
         # Title
         from qfluentwidgets import TitleLabel, TransparentToolButton
+
         title_label = TitleLabel(f"{_('Alerts for')} {self.pair}")
         title_label.setStyleSheet(f"color: {text_color};")
         title_layout.addWidget(title_label)
-        
+
         title_layout.addStretch()
-        
+
         # Add Alert Button
         self.add_btn = PrimaryPushButton(FluentIcon.ADD, _("Add Alert"))
         self.add_btn.clicked.connect(self._on_add_clicked)
         title_layout.addWidget(self.add_btn)
-        
+
         # Close Button
         self.close_btn = TransparentToolButton(FluentIcon.CLOSE)
         self.close_btn.setFixedSize(32, 32)
         self.close_btn.clicked.connect(self.accept)
         title_layout.addWidget(self.close_btn)
-        
+
         frame_layout.addLayout(title_layout)
-        
+
         # Scroll area for alerts
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
         self.scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
-        
+
         self.container = QWidget()
         self.container.setStyleSheet(".QWidget { background: transparent; }")
         self.list_layout = QVBoxLayout(self.container)
         self.list_layout.setSpacing(8)
         self.list_layout.setContentsMargins(0, 0, 0, 0)
         self.list_layout.addStretch()
-        
+
         self.scroll.setWidget(self.container)
         frame_layout.addWidget(self.scroll)
 
@@ -229,18 +238,19 @@ class AlertListDialog(QDialog):
             item = self.list_layout.takeAt(0)
             if item.widget():
                 item.widget().setParent(None)
-                
+
         alerts = self._settings_manager.get_alerts_for_pair(self.pair)
-        
+
         if not alerts:
             from qfluentwidgets import BodyLabel
+
             empty_label = BodyLabel(_("No alerts set for this pair."))
             empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            
+
             theme_mode = self._settings_manager.settings.theme_mode
             empty_color = "#AAAAAA" if theme_mode == "dark" else "#999999"
             empty_label.setStyleSheet(f"color: {empty_color}; margin-top: 20px;")
-            
+
             self.list_layout.insertWidget(0, empty_label)
         else:
             for alert in alerts:
@@ -254,9 +264,7 @@ class AlertListDialog(QDialog):
         """Handle add alert click."""
         current_price = self._alert_manager.get_current_price(self.pair)
         new_alert = AlertDialog.create_alert(
-            parent=self, 
-            pair=self.pair,
-            current_price=current_price
+            parent=self, pair=self.pair, current_price=current_price
         )
         if new_alert:
             self._settings_manager.add_alert(new_alert)
@@ -272,9 +280,7 @@ class AlertListDialog(QDialog):
         """Handle edit alert."""
         current_price = self._alert_manager.get_current_price(self.pair)
         updated_alert = AlertDialog.edit_alert(
-            alert=alert,
-            parent=self,
-            current_price=current_price
+            alert=alert, parent=self, current_price=current_price
         )
         if updated_alert:
             self._settings_manager.update_alert(updated_alert)

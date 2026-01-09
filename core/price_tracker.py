@@ -4,13 +4,14 @@ Ported from the original Vue.js implementation.
 """
 
 from dataclasses import dataclass
-from typing import Dict, Optional
+
 from PyQt6.QtGui import QColor
 
 
 @dataclass
 class PriceState:
     """State for a single crypto pair."""
+
     current_price: float = 0.0
     average_price: float = 0.0
     trend: str = ""  # "↑", "↓", ""
@@ -35,7 +36,7 @@ class PriceTracker:
     PERIOD = 60
 
     def __init__(self):
-        self._states: Dict[str, PriceState] = {}
+        self._states: dict[str, PriceState] = {}
 
     def update_price(self, pair: str, data: dict) -> PriceState:
         """
@@ -50,7 +51,7 @@ class PriceTracker:
         """
         price_str = data.get("price", "0")
         percentage_str = data.get("percentage", "0.00%")
-        
+
         try:
             current_price = float(price_str)
         except ValueError:
@@ -59,8 +60,7 @@ class PriceTracker:
         # Get or create state
         if pair not in self._states:
             self._states[pair] = PriceState(
-                current_price=current_price,
-                average_price=current_price
+                current_price=current_price, average_price=current_price
             )
 
         state = self._states[pair]
@@ -81,36 +81,37 @@ class PriceTracker:
         try:
             high = float(state.high_24h)
             low = float(state.low_24h)
-            pct_val = float(percentage_str.strip('%').replace('+', '')) / 100.0
-            
+            pct_val = float(percentage_str.strip("%").replace("+", "")) / 100.0
+
             if current_price > 0:
                 open_price = current_price / (1 + pct_val)
                 if open_price > 0:
                     amplitude = (high - low) / open_price * 100
                     state.amplitude_24h = f"{amplitude:.2f}%"
                 else:
-                     state.amplitude_24h = "0.00%"
+                    state.amplitude_24h = "0.00%"
             else:
                 state.amplitude_24h = "0.00%"
         except (ValueError, ZeroDivisionError):
-             state.amplitude_24h = "0.00%"
+            state.amplitude_24h = "0.00%"
 
         # Calculate color based on intraday percentage (as requested by user)
         # Check settings for color schema
         from config.settings import get_settings_manager
+
         settings = get_settings_manager().settings
         is_standard = settings.color_schema == "standard"
-        
+
         green = "#4CAF50"
         red = "#F44336"
-        white = "#FFFFFF" # or adapt to theme, but PriceTracker is theme-agnostic usually, returning hex.
-        # Ideally white should be theme dependent but here we return a fixed color. 
+        white = "#FFFFFF"  # or adapt to theme, but PriceTracker is theme-agnostic usually, returning hex.
+        # Ideally white should be theme dependent but here we return a fixed color.
         # The card handles text color default based on theme if trend is flat.
-        
-        if percentage_str.startswith('+'):
+
+        if percentage_str.startswith("+"):
             state.color = green if is_standard else red
             state.trend = "↑"
-        elif percentage_str.startswith('-'):
+        elif percentage_str.startswith("-"):
             state.color = red if is_standard else green
             state.trend = "↓"
         else:
@@ -157,7 +158,7 @@ class PriceTracker:
 
         return f"hsl({hue}, 100%, {lightness}%)"
 
-    def get_state(self, pair: str) -> Optional[PriceState]:
+    def get_state(self, pair: str) -> PriceState | None:
         """Get current state for a pair."""
         return self._states.get(pair)
 
@@ -186,14 +187,14 @@ def hsl_to_qcolor(hsl_string: str) -> QColor:
         if hsl_string.startswith("hsl(") and hsl_string.endswith(")"):
             values = hsl_string[4:-1].split(",")
             h = int(values[0].strip())
-            s = int(values[1].strip().rstrip('%'))
-            l = int(values[2].strip().rstrip('%'))
+            s = int(values[1].strip().rstrip("%"))
+            l = int(values[2].strip().rstrip("%"))
 
             # QColor.fromHsl expects h (0-359), s (0-255), l (0-255)
             color = QColor.fromHsl(
                 h,
                 int(s * 2.55),  # Convert 0-100 to 0-255
-                int(l * 2.55)
+                int(l * 2.55),
             )
             return color
     except (ValueError, IndexError):
@@ -212,9 +213,9 @@ def percentage_color(percentage_str: str) -> QColor:
     Returns:
         QColor - green for positive, red for negative
     """
-    if percentage_str.startswith('+'):
+    if percentage_str.startswith("+"):
         return QColor(0x99, 0xFF, 0x99)  # Light green
-    elif percentage_str.startswith('-'):
+    elif percentage_str.startswith("-"):
         return QColor(0xFF, 0x99, 0x99)  # Light red
     else:
         return QColor(0xFF, 0xFF, 0xFF)  # White

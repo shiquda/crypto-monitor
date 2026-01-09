@@ -1,11 +1,11 @@
 import logging
-from typing import Optional
+
 from PyQt6.QtCore import QObject, pyqtSignal
 
-from core.exchange_factory import ExchangeFactory
-from core.price_tracker import PriceTracker, PriceState
-from core.alert_manager import get_alert_manager
 from config.settings import get_settings_manager
+from core.alert_manager import get_alert_manager
+from core.exchange_factory import ExchangeFactory
+from core.price_tracker import PriceState, PriceTracker
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +21,7 @@ class MarketDataController(QObject):
     connection_state_changed = pyqtSignal(str, str, int)  # state, message, retry_count
     data_source_changed = pyqtSignal()
 
-    def __init__(self, parent: Optional[QObject] = None):
+    def __init__(self, parent: QObject | None = None):
         super().__init__(parent)
         self._settings_manager = get_settings_manager()
         self._price_tracker = PriceTracker()
@@ -57,7 +57,9 @@ class MarketDataController(QObject):
             try:
                 self._exchange_client.ticker_updated.disconnect(self._on_ticker_update)
                 self._exchange_client.connection_status.disconnect(self.connection_status_changed)
-                self._exchange_client.connection_state_changed.disconnect(self.connection_state_changed)
+                self._exchange_client.connection_state_changed.disconnect(
+                    self.connection_state_changed
+                )
             except (TypeError, RuntimeError):
                 pass
 
@@ -100,7 +102,7 @@ class MarketDataController(QObject):
         if self._exchange_client:
             self._exchange_client.reconnect()
 
-    def get_price_state(self, pair: str) -> Optional[PriceState]:
+    def get_price_state(self, pair: str) -> PriceState | None:
         """Get current price state for a pair."""
         return self._price_tracker.get_state(pair)
 

@@ -3,18 +3,24 @@ Alert setting card for the settings window.
 Uses QFluentWidgets components for a modern Fluent Design interface.
 """
 
-from typing import Optional, List
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout
 from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget
 from qfluentwidgets import (
-    ExpandGroupSettingCard, FluentIcon, PrimaryPushButton,
-    PushButton, BodyLabel, ToolButton, SwitchButton, ComboBox
+    BodyLabel,
+    ComboBox,
+    ExpandGroupSettingCard,
+    FluentIcon,
+    PrimaryPushButton,
+    PushButton,
+    SwitchButton,
+    ToolButton,
 )
 from qfluentwidgets import ListWidget as FluentListWidget
 
 from config.settings import PriceAlert, get_settings_manager
-from .alert_dialog import AlertDialog
 from core.i18n import _
+
+from .alert_dialog import AlertDialog
 
 
 class AlertListItem(QWidget):
@@ -23,7 +29,7 @@ class AlertListItem(QWidget):
     delete_clicked = pyqtSignal(str)  # Emits alert ID
     toggle_clicked = pyqtSignal(str)  # Emits alert ID
 
-    def __init__(self, alert: PriceAlert, parent: Optional[QWidget] = None):
+    def __init__(self, alert: PriceAlert, parent: QWidget | None = None):
         super().__init__(parent)
         self.alert = alert
         self._setup_ui()
@@ -49,20 +55,26 @@ class AlertListItem(QWidget):
         # Pair and type
         type_text = self._get_type_text()
         title = BodyLabel(f"{self.alert.pair}")
-        
+
         # Theme-aware title color
         from config.settings import get_settings_manager
+
         theme_mode = get_settings_manager().settings.theme_mode
         title_color = "#FFFFFF" if theme_mode == "dark" else "#333333"
         title.setStyleSheet(f"font-weight: bold; font-size: 13px; color: {title_color};")
         info_layout.addWidget(title)
 
         # Details
-        mode_text = _("Once") if self.alert.repeat_mode == "once" else f"{_('Repeat')} ({self.alert.cooldown_seconds}s)"
+        mode_text = (
+            _("Once")
+            if self.alert.repeat_mode == "once"
+            else f"{_('Repeat')} ({self.alert.cooldown_seconds}s)"
+        )
         details = BodyLabel(f"{type_text} ${self.alert.target_price:,.2f} | {mode_text}")
-        
+
         # Theme-aware color for details - use darker color for better visibility in light mode
         from config.settings import get_settings_manager
+
         theme_mode = get_settings_manager().settings.theme_mode
         details_color = "#AAAAAA" if theme_mode == "dark" else "#555555"
         details.setStyleSheet(f"font-size: 11px; color: {details_color};")
@@ -95,12 +107,12 @@ class AlertSettingCard(ExpandGroupSettingCard):
 
     alerts_changed = pyqtSignal()  # Emitted when alerts list changes
 
-    def __init__(self, parent: Optional[QWidget] = None):
+    def __init__(self, parent: QWidget | None = None):
         super().__init__(
             FluentIcon.RINGER,
             _("Price Alerts"),
             _("Manage price alerts for trading pairs"),
-            parent
+            parent,
         )
         self._settings_manager = get_settings_manager()
         self._alert_widgets: dict = {}  # alert_id -> AlertListItem
@@ -127,12 +139,12 @@ class AlertSettingCard(ExpandGroupSettingCard):
         sound_container = QWidget()
         sound_layout = QHBoxLayout(sound_container)
         sound_layout.setContentsMargins(0, 0, 0, 0)
-        
+
         self.sound_label = BodyLabel(_("Alert Sound"))
         self.sound_combo = ComboBox()
         self.sound_combo.addItems([_("Off"), _("System Sound"), _("Chime")])
         self.sound_combo.setMinimumWidth(150)
-        
+
         # Set initial index based on settings
         mode = self._settings_manager.settings.sound_mode
         if mode == "system":
@@ -141,13 +153,13 @@ class AlertSettingCard(ExpandGroupSettingCard):
             self.sound_combo.setCurrentIndex(2)
         else:
             self.sound_combo.setCurrentIndex(0)
-            
+
         self.sound_combo.currentTextChanged.connect(self._on_sound_mode_changed)
-        
+
         sound_layout.addWidget(self.sound_label)
         sound_layout.addStretch(1)
         sound_layout.addWidget(self.sound_combo)
-        
+
         layout.addWidget(sound_container)
 
         # Button bar
@@ -208,7 +220,7 @@ class AlertSettingCard(ExpandGroupSettingCard):
         """Add a new alert."""
         alert = AlertDialog.create_alert(
             parent=self.window(),
-            available_pairs=self._settings_manager.settings.crypto_pairs
+            available_pairs=self._settings_manager.settings.crypto_pairs,
         )
 
         if alert:
@@ -275,6 +287,7 @@ class AlertSettingCard(ExpandGroupSettingCard):
     def _on_test_notification(self):
         """Send a test notification."""
         from core.notifier import get_notification_service
+
         get_notification_service().send_test_notification()
 
     def refresh(self):
