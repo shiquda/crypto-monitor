@@ -11,11 +11,13 @@ A modern, elegant, and cross-platform cryptocurrency price monitor built with Py
   <img src="./imgs/crypto-monitor.png" alt="Crypto Monitor" width="150">
 </p>
 
+> **Note**: This application has only been tested on **Windows**. MacOS and Linux compatibility hasn't been verified yet. We welcome your feedback and testing on these platforms!
+
 ## Features
 
 - **Fluent Design UI**: A beautiful, modern interface with Acrylic effects, supporting both Light and Dark themes.
 - **Real-time Monitoring**: Live price updates from OKX/Binance via WebSocket connection.
-- **Advanced Alert System**: Powerful price alert features with native system notifications, including:
+- **Advanced Alert System**: Powerful price alert features with native system notifications and optional sounds, including:
     - **Price Thresholds**: Alerts when price goes above, below, or touches a target.
     - **Step Alerts**: Trigger alerts at regular price intervals (e.g., every $1,000) or percentage changes (e.g., every 5% daily change).
 - **Mini Chart**: Quick-view chart for monitoring price changes at a glance.
