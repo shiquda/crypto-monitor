@@ -352,7 +352,9 @@ class MainWindow(QMainWindow):
             self._settings_window.display_changed.connect(self._on_display_changed)
             self._settings_window.auto_scroll_changed.connect(self._on_auto_scroll_changed)
             self._settings_window.display_limit_changed.connect(self._on_display_limit_changed)
+            self._settings_window.display_limit_changed.connect(self._on_display_limit_changed)
             self._settings_window.minimalist_view_changed.connect(self._on_minimalist_view_changed)
+            self._settings_window.price_change_basis_changed.connect(self._on_data_source_changed)
             
             self._settings_window.show()
         else:

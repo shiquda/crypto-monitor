@@ -127,6 +127,7 @@ class AppSettings:
     window_y: int = 100
     always_on_top: bool = False
     language: str = "auto"  # "auto", "en_US", "zh_CN", etc.
+    price_change_basis: str = "24h_rolling"  # "24h_rolling" or "utc_0"
 
     # V2.0.0 features
     compact_mode: CompactModeConfig = field(default_factory=CompactModeConfig)
@@ -218,7 +219,7 @@ class SettingsManager:
                     'chart_cache_ttl', 'hover_enabled', 'hover_show_stats', 'hover_show_chart',
                     'opacity', 'crypto_pairs', 'display_limit', 'minimalist_view',
                     'auto_scroll', 'scroll_interval',
-                    'window_x', 'window_y', 'always_on_top', 'language'
+                    'window_x', 'window_y', 'always_on_top', 'language', 'price_change_basis'
                 }
                 filtered_data = {k: v for k, v in data.items() if k in recognized_fields}
 
@@ -332,6 +333,11 @@ class SettingsManager:
     def update_data_source(self, source: str) -> None:
         """Update data source setting."""
         self.settings.data_source = source
+        self.save()
+
+    def update_price_change_basis(self, basis: str) -> None:
+        """Update price change basis setting."""
+        self.settings.price_change_basis = basis
         self.save()
 
     # Alert management methods
@@ -490,7 +496,7 @@ class SettingsManager:
             'kline_period', 'chart_cache_ttl', 'hover_enabled', 'hover_show_stats', 'hover_show_chart',
             'opacity', 'crypto_pairs', 'display_limit', 'minimalist_view',
             'auto_scroll', 'scroll_interval',
-            'window_x', 'window_y', 'always_on_top', 'language'
+            'window_x', 'window_y', 'always_on_top', 'language', 'price_change_basis'
         }
         filtered_data = {k: v for k, v in data.items() if k in recognized_fields}
 

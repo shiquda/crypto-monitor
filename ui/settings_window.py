@@ -35,7 +35,9 @@ class SettingsWindow(QMainWindow):
     auto_scroll_changed = pyqtSignal(bool, int)
     display_limit_changed = pyqtSignal(int)
     data_source_changed = pyqtSignal()
+    data_source_changed = pyqtSignal()
     minimalist_view_changed = pyqtSignal()
+    price_change_basis_changed = pyqtSignal()
 
     def __init__(self, settings_manager: SettingsManager, parent: Optional[QWidget] = None):
         super().__init__(parent)
@@ -210,6 +212,7 @@ class SettingsWindow(QMainWindow):
             s.hover_enabled, s.hover_show_stats, s.hover_show_chart,
             s.kline_period, s.chart_cache_ttl
         )
+        self.appearance_page.display_card.set_price_change_basis(s.price_change_basis)
 
         # Proxy Page
         self.proxy_page.set_data_source(s.data_source)
@@ -239,6 +242,7 @@ class SettingsWindow(QMainWindow):
         new_limit = self.appearance_page.display_card.get_display_limit()
         new_mini_view = self.appearance_page.display_card.get_minimalist_view()
         new_auto_scroll, new_scroll_int = self.appearance_page.display_card.get_auto_scroll()
+        new_basis = self.appearance_page.display_card.get_price_change_basis()
         hover_vals = self.appearance_page.hover_card.get_values()
         
         # --- Network ---
@@ -256,6 +260,7 @@ class SettingsWindow(QMainWindow):
         limit_changed = s.display_limit != new_limit
         mini_view_changed = s.minimalist_view != new_mini_view
         auto_scroll_changed = (s.auto_scroll != new_auto_scroll) or (s.scroll_interval != new_scroll_int)
+        basis_changed = s.price_change_basis != new_basis
         
         # Updates
         self._settings_manager.update_theme(new_theme)
@@ -265,6 +270,7 @@ class SettingsWindow(QMainWindow):
         self._settings_manager.update_display_limit(new_limit)
         self._settings_manager.update_minimalist_view(new_mini_view)
         self._settings_manager.update_auto_scroll(new_auto_scroll, new_scroll_int)
+        self._settings_manager.update_price_change_basis(new_basis)
         
         self._settings_manager.update_hover_settings(
             hover_vals['enabled'], hover_vals['show_stats'], hover_vals['show_chart']
@@ -311,6 +317,7 @@ class SettingsWindow(QMainWindow):
         if dynamic_bg_changed: QTimer.singleShot(100, lambda: self.display_changed.emit())
         if mini_view_changed: QTimer.singleShot(100, lambda: self.minimalist_view_changed.emit())
         if auto_scroll_changed: QTimer.singleShot(100, lambda: self.auto_scroll_changed.emit(new_auto_scroll, new_scroll_int))
+        if basis_changed: QTimer.singleShot(100, lambda: self.price_change_basis_changed.emit())
         if limit_changed: self.display_limit_changed.emit(new_limit)
 
     def _reset_settings(self):

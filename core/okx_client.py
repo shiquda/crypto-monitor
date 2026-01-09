@@ -171,10 +171,22 @@ class OkxWebSocketWorker(BaseWebSocketWorker):
 
                 # Calculate percentage
                 try:
+                    from config.settings import get_settings_manager
+                    settings = get_settings_manager().settings
+                    basis = settings.price_change_basis
+
                     last = float(last_price)
-                    sod = float(sod_utc0)
-                    if sod > 0:
-                        pct = (last - sod) / sod * 100
+                    
+                    if basis == "utc_0":
+                        open_price = float(sod_utc0)
+                    else:
+                        # For 24h rolling, we need open24h.
+                        # open24h is explicitly available in OKX ticker channel as 'open24h'
+                        open_price_str = ticker.get('open24h', '0')
+                        open_price = float(open_price_str)
+
+                    if open_price > 0:
+                        pct = (last - open_price) / open_price * 100
                         percentage = f"+{pct:.2f}%" if pct >= 0 else f"{pct:.2f}%"
                     else:
                         percentage = "0.00%"

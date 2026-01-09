@@ -423,7 +423,9 @@ class DisplaySettingCard(ExpandGroupSettingCard):
     period_changed = pyqtSignal(str)        # Emitted when kline period changes
     display_limit_changed = pyqtSignal(int) # Emitted when display limit changes
     auto_scroll_changed = pyqtSignal(bool, int) # Emitted when auto scroll settings change
+    auto_scroll_changed = pyqtSignal(bool, int) # Emitted when auto scroll settings change
     minimalist_view_changed = pyqtSignal(bool) # Emitted when minimalist view mode changes
+    price_change_basis_changed = pyqtSignal(str) # Emitted when price change basis changes
 
     def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(
@@ -458,7 +460,26 @@ class DisplaySettingCard(ExpandGroupSettingCard):
         schema_layout.addStretch(1)
         schema_layout.addWidget(self.schema_combo)
         
+        schema_layout.addWidget(self.schema_combo)
+        
         layout.addWidget(schema_container)
+
+        # Price Change Basis
+        basis_container = QWidget()
+        basis_layout = QHBoxLayout(basis_container)
+        basis_layout.setContentsMargins(0, 0, 0, 0)
+
+        self.basis_label = BodyLabel(_("Price Change Basis"))
+        self.basis_combo = ComboBox()
+        # Index 0: 24h Rolling, Index 1: UTC-0
+        self.basis_combo.addItems([_("24h Rolling"), _("UTC-0 (Daily)")])
+        self.basis_combo.currentTextChanged.connect(self._on_basis_changed)
+
+        basis_layout.addWidget(self.basis_label)
+        basis_layout.addStretch(1)
+        basis_layout.addWidget(self.basis_combo)
+
+        layout.addWidget(basis_container)
         
         # Dynamic Background
         bg_container = QWidget()
@@ -597,6 +618,22 @@ class DisplaySettingCard(ExpandGroupSettingCard):
     def get_color_schema(self) -> str:
         """Get current color schema."""
         return "standard" if self.schema_combo.currentIndex() == 0 else "reverse"
+
+    def _on_basis_changed(self, text: str):
+        """Handle basis change."""
+        basis = "24h_rolling" if self.basis_combo.currentIndex() == 0 else "utc_0"
+        self.price_change_basis_changed.emit(basis)
+
+    def set_price_change_basis(self, basis: str):
+        """Set price change basis."""
+        if basis == "24h_rolling":
+            self.basis_combo.setCurrentIndex(0)
+        else:
+            self.basis_combo.setCurrentIndex(1)
+
+    def get_price_change_basis(self) -> str:
+        """Get current price change basis."""
+        return "24h_rolling" if self.basis_combo.currentIndex() == 0 else "utc_0"
 
     def set_dynamic_background(self, enabled: bool):
         """Set dynamic background state."""

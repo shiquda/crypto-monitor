@@ -92,18 +92,31 @@ class BinanceWebSocketWorker(BaseWebSocketWorker):
         
         # Subscribe to new
         if new_pairs:
-            streams = [f"{p.replace('-', '').lower()}@ticker" for p in new_pairs]
-            if streams:
-                subscribe_msg = {
-                    "method": "SUBSCRIBE",
-                    "params": streams,
-                    "id": int(time.time() * 1000) # Unique ID
-                }
-                await self._ws.send_json(subscribe_msg)
+                settings = get_settings_manager().settings
+                basis = settings.price_change_basis
+                
+                if basis == "utc_0":
+                    streams = [f"{p.replace('-', '').lower()}@kline_1d" for p in new_pairs]
+                else:
+                    streams = [f"{p.replace('-', '').lower()}@ticker" for p in new_pairs]
+
+                if streams:
+                    subscribe_msg = {
+                        "method": "SUBSCRIBE",
+                        "params": streams,
+                        "id": int(time.time() * 1000) # Unique ID
+                    }
+                    await self._ws.send_json(subscribe_msg)
                 
         # Unsubscribe from removed
         if removed_pairs:
-            streams = [f"{p.replace('-', '').lower()}@ticker" for p in removed_pairs]
+            # Unsubscribe blindly from both possible stream types to be safe
+            streams_ticker = [f"{p.replace('-', '').lower()}@ticker" for p in removed_pairs]
+            streams_kline = [f"{p.replace('-', '').lower()}@kline_1d" for p in removed_pairs]
+            
+            # Combine unsub requests
+            streams = streams_ticker + streams_kline
+            
             if streams:
                 unsubscribe_msg = {
                     "method": "UNSUBSCRIBE",
@@ -123,12 +136,48 @@ class BinanceWebSocketWorker(BaseWebSocketWorker):
             self._last_message_time = time.time()
             data = json.loads(message)
             
-            # Handle Ticker Event
+            # Handle Ticker Event (24h Rolling)
             if data.get('e') == '24hrTicker':
                 symbol = data.get('s', '').lower()
                 price_str = data.get('c', '0')
                 percent_val = data.get('P', '0')
+                high_24h = data.get('h', '0')
+                low_24h = data.get('l', '0')
+                quote_volume = data.get('q', '0')
+                self._process_ticker_data(symbol, price_str, percent_val, high_24h, low_24h, quote_volume)
+            
+            # Handle Kline Event (UTC-0)
+            elif data.get('e') == 'kline':
+                k = data.get('k', {})
+                symbol = data.get('s', '').lower()
+                price_str = k.get('c', '0') # Close price
                 
+                # Calculate change % for UTC-0 (Close vs Open)
+                open_price_str = k.get('o', '0')
+                try:
+                    close_float = float(price_str)
+                    open_float = float(open_price_str)
+                    if open_float > 0:
+                        pct = (close_float - open_float) / open_float * 100
+                    else:
+                        pct = 0.0
+                except:
+                    pct = 0.0
+                
+                percent_val = str(pct)
+                high_24h = k.get('h', '0')
+                low_24h = k.get('l', '0')
+                quote_volume = k.get('q', '0')
+                
+                self._process_ticker_data(symbol, price_str, percent_val, high_24h, low_24h, quote_volume)
+
+            self._update_stats()
+            
+        except Exception as e:
+            self._last_error = f"Message error: {e}"
+
+    def _process_ticker_data(self, symbol, price_str, percent_val, high_24h, low_24h, quote_volume):
+        try: 
                 # Format price based on precision
                 if symbol in self._precision_map:
                     precision = self._precision_map[symbol]
@@ -149,10 +198,6 @@ class BinanceWebSocketWorker(BaseWebSocketWorker):
                     except:
                         formatted_pct = "0.00%"
                     
-                    high_24h = data.get('h', '0')
-                    low_24h = data.get('l', '0')
-                    quote_volume = data.get('q', '0')
-                    
                     ticker_data = {
                         "price": price,
                         "percentage": formatted_pct,
@@ -162,11 +207,8 @@ class BinanceWebSocketWorker(BaseWebSocketWorker):
                     }
 
                     self.ticker_updated.emit(original_pair, ticker_data)
-            
-            self._update_stats()
-            
         except Exception as e:
-            self._last_error = f"Message error: {e}"
+            logger.error(f"Error processing ticker data: {e}")
 
     def stop(self):
         """Stop connection and tasks."""
