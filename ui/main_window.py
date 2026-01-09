@@ -271,7 +271,7 @@ class MainWindow(QMainWindow):
                 self.toolbar.raise_()
                 self.pagination.raise_()
 
-            logger.info(f"Setting window state: Collapsed={collapsed}, Limit={limit}, TotalH={target_h}")
+            logger.debug(f"Setting window state: Collapsed={collapsed}, Limit={limit}, TotalH={target_h}")
             
             # Atomic update of geometry
             if self.height() != int(target_h) or self.y() != int(new_y):

@@ -5,13 +5,19 @@ Uses desktop-notifier for cross-platform system notifications.
 
 import asyncio
 import webbrowser
+# Keeping imports clean
 import threading
+import sys
+import os
 from typing import Optional
-from PyQt6.QtCore import QObject, pyqtSignal, QThread
+from PyQt6.QtCore import QObject, pyqtSignal, QThread, QUrl
+from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
 from core.i18n import _
+from core.utils import suppress_output
+from config.settings import get_settings_manager
 
 try:
-    from desktop_notifier import DesktopNotifier, Urgency, DEFAULT_SOUND
+    from desktop_notifier import DesktopNotifier, Urgency, DEFAULT_SOUND, Sound
     NOTIFIER_AVAILABLE = True
 except ImportError:
     NOTIFIER_AVAILABLE = False
@@ -80,6 +86,11 @@ class NotificationService(QObject):
         if NOTIFIER_AVAILABLE:
             self._worker = AsyncLoopThread(self)
             self._worker.start()
+            
+        # Initialize media player for custom sounds
+        self._player = QMediaPlayer()
+        self._audio_output = QAudioOutput()
+        self._player.setAudioOutput(self._audio_output)
 
     def _get_okx_url(self, pair: str) -> str:
         """Get OKX trading page URL for a pair."""
@@ -103,6 +114,20 @@ class NotificationService(QObject):
             except Exception as e:
                 print(f"Failed to initialize DesktopNotifier: {e}")
 
+    def _play_sound(self, sound_path: str):
+        """Play a custom sound using Qt Multimedia."""
+        try:
+            if os.path.exists(sound_path):
+                # Suppress FFmpeg/backend logs
+                with suppress_output():
+                    self._player.setSource(QUrl.fromLocalFile(sound_path))
+                    self._audio_output.setVolume(1.0)
+                    self._player.play()
+            else:
+                print(f"Sound file not found: {sound_path}")
+        except Exception as e:
+            print(f"Error playing sound: {e}")
+
     async def _send_notification_task(
         self,
         title: str,
@@ -120,12 +145,32 @@ class NotificationService(QObject):
         try:
             await self._ensure_notifier()
             if self._notifier:
+                settings = get_settings_manager().settings
+                sound_file = None
+                
+                if settings.sound_mode == "system":
+                    sound_file = DEFAULT_SOUND
+                elif settings.sound_mode == "chime":
+                    # Resolve path for chime sound
+                    if getattr(sys, 'frozen', False):
+                        # Running in PyInstaller bundle
+                        base_path = sys._MEIPASS
+                    else:
+                        # Running in dev mode
+                        base_path = os.getcwd()
+                    
+                    chime_path = os.path.join(base_path, 'assets', 'sounds', 'chime-alert.mp3')
+                    # Play sound directly using Qt
+                    self._play_sound(chime_path)
+                    # Don't use system notification sound
+                    sound_file = None
+
                 await self._notifier.send(
                     title=title,
                     message=message,
                     urgency=urgency,
                     on_clicked=lambda: self._open_url(pair),
-                    sound=DEFAULT_SOUND,
+                    sound=sound_file,
                 )
         except Exception as e:
             print(f"Failed to send notification: {e}")

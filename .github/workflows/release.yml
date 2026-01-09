@@ -73,14 +73,14 @@ jobs:
         run: |
           rm -rf build dist
           assetName="${{ matrix.artifact_name_prefix }}-${{ env.VERSION }}${{ matrix.asset_suffix }}"
-          uv run pyinstaller --onefile --windowed --name="$assetName" --add-data="assets/icons:assets/icons" --add-data="i18n:i18n" main.py
+          uv run pyinstaller --onefile --windowed --name="$assetName" --add-data="assets/icons:assets/icons" --add-data="assets/sounds:assets/sounds" --add-data="i18n:i18n" main.py
 
       - name: Build on macOS
         if: matrix.os == 'macos-latest'
         run: |
           rm -rf build dist
           assetName="${{ matrix.artifact_name_prefix }}-${{ env.VERSION }}${{ matrix.asset_suffix }}"
-          uv run pyinstaller --onefile --windowed --name="$assetName" --add-data="assets/icons:assets/icons" --add-data="i18n:i18n" main.py
+          uv run pyinstaller --onefile --windowed --name="$assetName" --add-data="assets/icons:assets/icons" --add-data="assets/sounds:assets/sounds" --add-data="i18n:i18n" main.py
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4

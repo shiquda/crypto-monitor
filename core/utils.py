@@ -3,6 +3,31 @@ Utility functions for Crypto Monitor.
 """
 
 from typing import Union, Optional
+import os
+from contextlib import contextmanager
+
+@contextmanager
+def suppress_output():
+    """Context manager to suppress stdout and stderr."""
+    try:
+        # Open a pair of null files
+        null_fds = [os.open(os.devnull, os.O_RDWR) for x in range(2)]
+        # Save the actual stdout (1) and stderr (2) file descriptors.
+        save_fds = [os.dup(1), os.dup(2)]
+        
+        # Assign the null pointers to stdout and stderr.
+        os.dup2(null_fds[0], 1)
+        os.dup2(null_fds[1], 2)
+        
+        yield
+    finally:
+        # Re-assign the real stdout/stderr back to (1) and (2)
+        os.dup2(save_fds[0], 1)
+        os.dup2(save_fds[1], 2)
+        
+        # Close the null files
+        for fd in null_fds + save_fds:
+            os.close(fd)
 
 def format_price(price: Union[float, str], precision: Optional[int] = None) -> str:
     """

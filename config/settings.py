@@ -137,6 +137,9 @@ class AppSettings:
 
     # V2.2.0 features
     alerts: List[PriceAlert] = field(default_factory=list)
+    # V2.2.0 features
+    alerts: List[PriceAlert] = field(default_factory=list)
+    sound_mode: str = "system"  # "off", "system", "chime"
 
 
 class SettingsManager:
@@ -219,7 +222,10 @@ class SettingsManager:
                     'chart_cache_ttl', 'hover_enabled', 'hover_show_stats', 'hover_show_chart',
                     'opacity', 'crypto_pairs', 'display_limit', 'minimalist_view',
                     'auto_scroll', 'scroll_interval',
-                    'window_x', 'window_y', 'always_on_top', 'language', 'price_change_basis'
+                    'window_x', 'window_y', 'always_on_top', 'language', 'price_change_basis',
+                    'auto_scroll', 'scroll_interval',
+                    'window_x', 'window_y', 'always_on_top', 'language', 'price_change_basis',
+                    'sound_mode'
                 }
                 filtered_data = {k: v for k, v in data.items() if k in recognized_fields}
 
@@ -253,6 +259,16 @@ class SettingsManager:
         self.settings.proxy = proxy
         self.save()
         self._apply_proxy_env()
+
+    def update_opacity(self, opacity: int) -> None:
+        """Update background opacity setting."""
+        self.settings.opacity = opacity
+        self.save()
+
+    def update_sound_mode(self, mode: str) -> None:
+        """Update sound mode setting."""
+        self.settings.sound_mode = mode
+        self.save()
 
     def update_pairs(self, pairs: list) -> None:
         """Update crypto pairs list."""
@@ -496,7 +512,10 @@ class SettingsManager:
             'kline_period', 'chart_cache_ttl', 'hover_enabled', 'hover_show_stats', 'hover_show_chart',
             'opacity', 'crypto_pairs', 'display_limit', 'minimalist_view',
             'auto_scroll', 'scroll_interval',
-            'window_x', 'window_y', 'always_on_top', 'language', 'price_change_basis'
+            'window_x', 'window_y', 'always_on_top', 'language', 'price_change_basis',
+            'auto_scroll', 'scroll_interval',
+            'window_x', 'window_y', 'always_on_top', 'language', 'price_change_basis',
+            'sound_mode'
         }
         filtered_data = {k: v for k, v in data.items() if k in recognized_fields}
 

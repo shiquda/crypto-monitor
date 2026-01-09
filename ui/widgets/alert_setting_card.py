@@ -8,7 +8,7 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout
 from PyQt6.QtCore import pyqtSignal
 from qfluentwidgets import (
     ExpandGroupSettingCard, FluentIcon, PrimaryPushButton,
-    PushButton, BodyLabel, ToolButton, SwitchButton
+    PushButton, BodyLabel, ToolButton, SwitchButton, ComboBox
 )
 from qfluentwidgets import ListWidget as FluentListWidget
 
@@ -123,6 +123,33 @@ class AlertSettingCard(ExpandGroupSettingCard):
         self.alerts_list.setMaximumHeight(350)
         layout.addWidget(self.alerts_list)
 
+        # Sound settings
+        sound_container = QWidget()
+        sound_layout = QHBoxLayout(sound_container)
+        sound_layout.setContentsMargins(0, 0, 0, 0)
+        
+        self.sound_label = BodyLabel(_("Alert Sound"))
+        self.sound_combo = ComboBox()
+        self.sound_combo.addItems([_("Off"), _("System Sound"), _("Chime")])
+        self.sound_combo.setMinimumWidth(150)
+        
+        # Set initial index based on settings
+        mode = self._settings_manager.settings.sound_mode
+        if mode == "system":
+            self.sound_combo.setCurrentIndex(1)
+        elif mode == "chime":
+            self.sound_combo.setCurrentIndex(2)
+        else:
+            self.sound_combo.setCurrentIndex(0)
+            
+        self.sound_combo.currentTextChanged.connect(self._on_sound_mode_changed)
+        
+        sound_layout.addWidget(self.sound_label)
+        sound_layout.addStretch(1)
+        sound_layout.addWidget(self.sound_combo)
+        
+        layout.addWidget(sound_container)
+
         # Button bar
         btn_layout = QHBoxLayout()
         btn_layout.setSpacing(10)
@@ -211,6 +238,16 @@ class AlertSettingCard(ExpandGroupSettingCard):
                 self._settings_manager.update_alert(alert)
                 self.alerts_changed.emit()
                 break
+
+    def _on_sound_mode_changed(self, text: str):
+        """Handle sound mode change."""
+        if text == _("System Sound"):
+            mode = "system"
+        elif text == _("Chime"):
+            mode = "chime"
+        else:
+            mode = "off"
+        self._settings_manager.update_sound_mode(mode)
 
     def _clear_all_alerts(self):
         """Clear all alerts."""
