@@ -486,7 +486,10 @@ class SettingsManager:
 
         # Only keep recognized fields
         recognized_fields = {
-            'version', 'theme_mode', 'color_schema', 'dynamic_background', 'opacity', 'crypto_pairs',
+            'version', 'data_source', 'theme_mode', 'color_schema', 'dynamic_background',
+            'kline_period', 'chart_cache_ttl', 'hover_enabled', 'hover_show_stats', 'hover_show_chart',
+            'opacity', 'crypto_pairs', 'display_limit', 'minimalist_view',
+            'auto_scroll', 'scroll_interval',
             'window_x', 'window_y', 'always_on_top', 'language'
         }
         filtered_data = {k: v for k, v in data.items() if k in recognized_fields}

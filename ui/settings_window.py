@@ -285,8 +285,20 @@ class SettingsWindow(QMainWindow):
         
         # Feedback and Signals
         if theme_changed or lang_changed:
-            InfoBar.success(_("Settings Saved"), _("Please restart the application for changes to take effect"), 
-                            parent=self, duration=4000)
+            bar = InfoBar.success(
+                title=_("Settings Saved"),
+                content=_("Please restart the application for changes to take effect"),
+                orient=Qt.Orientation.Horizontal,
+                isClosable=True,
+                position=InfoBarPosition.TOP,
+                duration=5000,
+                parent=self
+            )
+            restart_btn = PushButton(_("Restart Now"))
+            restart_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            restart_btn.clicked.connect(self._restart_app)
+            bar.addWidget(restart_btn)
+            bar.show()
         else:
             InfoBar.success(_("Settings Saved"), _("Your settings have been saved successfully"), 
                             parent=self, duration=2000)
@@ -313,7 +325,7 @@ class SettingsWindow(QMainWindow):
         from PyQt6.QtWidgets import QFileDialog
         from datetime import datetime
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filepath, _ = QFileDialog.getSaveFileName(
+        filepath, _filter = QFileDialog.getSaveFileName(
             self, _("Export Configuration"), f"crypto-monitor_config_{timestamp}.json", "JSON Files (*.json)"
         )
         if filepath:
@@ -324,22 +336,33 @@ class SettingsWindow(QMainWindow):
                 InfoBar.error(_("Error"), f"{_('Failed to export configuration')}: {e}", parent=self)
 
     def _import_settings(self):
-        from PyQt6.QtWidgets import QFileDialog, QMessageBox
-        filepath, _ = QFileDialog.getOpenFileName(self, _("Import Configuration"), "", "JSON Files (*.json)")
+        from PyQt6.QtWidgets import QFileDialog, QMessageBox, QApplication
+        from PyQt6.QtCore import QProcess
+        import sys
+
+        filepath, _filter = QFileDialog.getOpenFileName(self, _("Import Configuration"), "", "JSON Files (*.json)")
         if filepath:
             if QMessageBox.question(self, _("Confirm Import"), 
                                   _("Importing configuration will overwrite your current settings. This requires a restart. Continue?"),
                                   QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No) == QMessageBox.StandardButton.Yes:
                 try:
                     self._settings_manager.import_from_file(filepath)
-                    self._load_settings()
-                    QMessageBox.information(self, _("Success"), _("Configuration imported successfully. The application needs to restart."))
-                    # Emit all signals
-                    self.proxy_changed.emit()
-                    self.pairs_changed.emit()
-                    self.theme_changed.emit(self._settings_manager.settings.theme_mode)
+                    QMessageBox.information(self, _("Success"), _("Configuration imported successfully. The application will now restart."))
+                    
+                    # Restart application
+                    QApplication.quit()
+                    QProcess.startDetached(sys.executable, sys.argv)
                 except Exception as e:
                     InfoBar.error(_("Error"), f"{_('Failed to import configuration')}: {e}", parent=self)
+
+    def _restart_app(self):
+        """Restart the application."""
+        from PyQt6.QtWidgets import QApplication
+        from PyQt6.QtCore import QProcess
+        import sys
+        
+        QApplication.quit()
+        QProcess.startDetached(sys.executable, sys.argv)
 
 # Inline NavItem for self-containment if not extracting
 class NavItem(QWidget):
