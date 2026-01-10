@@ -40,6 +40,7 @@ class BaseWebSocketWorker(QThread):
     connection_status = pyqtSignal(bool, str)  # connected, message
     connection_state_changed = pyqtSignal(str, str, int)  # state, message, retry_count
     stats_updated = pyqtSignal(dict)  # connection statistics
+    klines_ready = pyqtSignal(str, list)
 
     def __init__(self, pairs: list[str], parent: QObject | None = None):
         super().__init__(parent)
@@ -199,6 +200,20 @@ class BaseWebSocketWorker(QThread):
         Must be implemented by subclasses.
         """
         pass
+
+    async def fetch_klines_async(self, pair: str, interval: str, limit: int):
+        """
+        Fetch klines asynchronously.
+        Base implementation does nothing. Subclasses should override.
+        """
+        pass
+
+    def request_klines(self, pair: str, interval: str, limit: int):
+        """Schedule an async kline fetch task in the event loop."""
+        if self._loop and self._loop.is_running():
+            asyncio.run_coroutine_threadsafe(
+                self.fetch_klines_async(pair, interval, limit), self._loop
+            )
 
     def stop(self):
         """Stop the WebSocket connection."""

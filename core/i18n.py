@@ -31,7 +31,7 @@ class Translations:
 
     def __new__(cls):
         if cls._instance is None:
-            cls._instance = super(Translations, cls).__new__(cls)
+            cls._instance = super().__new__(cls)
         return cls._instance
 
     def detect_system_language(self) -> str:
@@ -93,7 +93,7 @@ class Translations:
                     try:
                         with open(fallback_path, encoding="utf-8") as f:
                             self._translations = json.load(f)
-                    except:
+                    except Exception:
                         pass
 
     def get(self, key: str) -> str:

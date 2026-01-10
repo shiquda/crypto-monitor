@@ -5,15 +5,14 @@ import time
 from typing import Any
 
 import aiohttp
-from PyQt6.QtCore import QObject, QThread
+from PyQt6.QtCore import QObject
 
 from config.settings import get_settings_manager
 from core.base_client import BaseExchangeClient
 from core.models import TickerData
+from core.utils.network import get_aiohttp_proxy_url, get_proxy_config
 from core.websocket_worker import BaseWebSocketWorker
-
-# Module-level list to keep dying workers alive until they finish
-_dying_workers: list[QThread] = []
+from core.worker_controller import WorkerController
 
 logger = logging.getLogger(__name__)
 
@@ -44,12 +43,7 @@ class BinanceWebSocketWorker(BaseWebSocketWorker):
         if self._session:
             await self._session.close()
 
-        # trust_env=True enables automatic proxy detection from environment variables
-        # Also explicitly check app settings for proxy
-        settings = get_settings_manager().settings
-        proxy_url = None
-        if settings.proxy.enabled and settings.proxy.type == "http":
-            proxy_url = settings.proxy.get_proxy_url()
+        proxy_url = get_aiohttp_proxy_url()
 
         self._session = aiohttp.ClientSession(trust_env=True)
         self._ws = await self._session.ws_connect(self.WS_URL, proxy=proxy_url)
@@ -60,6 +54,40 @@ class BinanceWebSocketWorker(BaseWebSocketWorker):
 
         # Subscribe
         await self._update_subscriptions()
+
+    async def fetch_klines_async(self, pair: str, interval: str, limit: int):
+        symbol = pair.replace("-", "").upper()
+        url = "https://api.binance.com/api/v3/klines"
+        params = {"symbol": symbol, "interval": interval, "limit": limit}
+
+        try:
+            proxy_url = get_aiohttp_proxy_url()
+
+            if self._session and not self._session.closed:
+                async with self._session.get(url, params=params, proxy=proxy_url) as response:
+                    data = await response.json()
+            else:
+                async with aiohttp.ClientSession(trust_env=True) as session:
+                    async with session.get(url, params=params, proxy=proxy_url) as response:
+                        data = await response.json()
+
+            klines = []
+            for item in data:
+                klines.append(
+                    {
+                        "timestamp": item[0],
+                        "open": float(item[1]),
+                        "high": float(item[2]),
+                        "low": float(item[3]),
+                        "close": float(item[4]),
+                        "volume": float(item[5]),
+                    }
+                )
+
+            self.klines_ready.emit(pair, klines)
+
+        except Exception as e:
+            logger.error(f"Failed to fetch klines async for {pair}: {e}")
 
     async def _read_loop(self):
         """Read loop to handle incoming messages."""
@@ -323,24 +351,7 @@ class BinanceClient(BaseExchangeClient):
         threading.Thread(target=fetch, daemon=True).start()
 
     def _detach_and_stop_worker(self, worker: "BinanceWebSocketWorker"):
-        if not worker:
-            return
-        worker.setParent(None)
-        if worker.isRunning():
-            _dying_workers.append(worker)
-
-            def cleanup():
-                if worker in _dying_workers:
-                    try:
-                        _dying_workers.remove(worker)
-                    except ValueError:
-                        pass
-                worker.deleteLater()
-
-            worker.finished.connect(cleanup)
-            worker.stop()
-        else:
-            worker.deleteLater()
+        WorkerController.get_instance().stop_worker(worker)
 
     def subscribe(self, pairs: list[str]):
         """Subscribe to ticker updates for given pairs with incremental update."""
@@ -371,6 +382,9 @@ class BinanceClient(BaseExchangeClient):
         self._worker.connection_status.connect(self.connection_status)
         self._worker.connection_state_changed.connect(self.connection_state_changed)
         self._worker.stats_updated.connect(self.stats_updated)
+        self._worker.klines_ready.connect(self.klines_ready)
+
+        WorkerController.get_instance().register_worker(self._worker)
         self._worker.start()
 
     def stop(self):
@@ -397,6 +411,12 @@ class BinanceClient(BaseExchangeClient):
                 "worker_running": self._worker.isRunning(),
             }
 
+    def request_klines(self, pair: str, interval: str, limit: int = 24):
+        if self._worker is not None and self._worker.isRunning():
+            self._worker.request_klines(pair, interval, limit)
+        else:
+            super().request_klines(pair, interval, limit)
+
     def fetch_klines(self, pair: str, interval: str, limit: int = 24) -> list[dict]:
         import requests
 
@@ -406,22 +426,7 @@ class BinanceClient(BaseExchangeClient):
         params = {"symbol": symbol, "interval": interval, "limit": limit}
 
         try:
-            from config.settings import get_settings_manager
-
-            settings = get_settings_manager().settings
-            proxies = {}
-            if settings.proxy.enabled:
-                if settings.proxy.type.lower() == "http":
-                    proxy_url = f"http://{settings.proxy.host}:{settings.proxy.port}"
-                    if settings.proxy.username:
-                        proxy_url = f"http://{settings.proxy.username}:{settings.proxy.password}@{settings.proxy.host}:{settings.proxy.port}"
-                    proxies = {"http": proxy_url, "https": proxy_url}
-                else:
-                    proxy_url = f"socks5://{settings.proxy.host}:{settings.proxy.port}"
-                    if settings.proxy.username:
-                        proxy_url = f"socks5://{settings.proxy.username}:{settings.proxy.password}@{settings.proxy.host}:{settings.proxy.port}"
-                    proxies = {"http": proxy_url, "https": proxy_url}
-
+            proxies = get_proxy_config()
             response = requests.get(url, params=params, proxies=proxies, timeout=5)
             response.raise_for_status()
             data = response.json()

@@ -8,13 +8,11 @@ import sys
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QApplication
 
-# Initialize logging as early as possible
+from config.settings import get_settings_manager
 from core.logger import setup_logging
+from ui.main_window import MainWindow
 
 setup_logging()
-
-from config.settings import get_settings_manager
-from ui.main_window import MainWindow
 
 
 def main():

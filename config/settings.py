@@ -467,7 +467,7 @@ class SettingsManager:
                 with open(self.config_file, encoding="utf-8") as f:
                     data = json.load(f)
                     return data.get("version", "1.0.0")
-            except:
+            except Exception:
                 pass
 
         return self.settings.version
@@ -510,9 +510,9 @@ class SettingsManager:
 
         # Basic validation by trying to load it like normal settings logic
         # For simplicity, we can temporarily save it to the main config file location and reload,
-        # or parse it manually. Let's reuse the parsing logic in load() by updating self.settings using this data.
+        # or parse it manually. Let's reuse the parsing logic in load() by updating self.settings using this data. # noqa: E501
 
-        # We can simulate loading by mocking the file read, but here we'll just replicate the parsing logic
+        # We can simulate loading by mocking the file read, but here we'll just replicate the parsing logic # noqa: E501
         # or slightly refactor. For safety and consistency with existing validation/parsing:
 
         # Parse proxy config

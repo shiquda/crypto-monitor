@@ -10,6 +10,7 @@ import logging
 import time
 from typing import Any
 
+import aiohttp
 from PyQt6.QtCore import QObject, pyqtSignal
 
 try:
@@ -19,10 +20,9 @@ except ImportError:
 
 from core.base_client import BaseExchangeClient
 from core.models import TickerData
+from core.utils.network import get_aiohttp_proxy_url, get_proxy_config
 from core.websocket_worker import BaseWebSocketWorker
-
-# Module-level list to keep dying workers alive until they finish
-_dying_workers = []
+from core.worker_controller import WorkerController
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +41,45 @@ class OkxWebSocketWorker(BaseWebSocketWorker):
         super().__init__(pairs, parent)
         self._ws_client: WsPublicAsync | None = None
         self._heartbeat_interval = 30  # seconds
+
+    async def fetch_klines_async(self, pair: str, interval: str, limit: int):
+        okx_interval = interval
+        if interval.lower() == "1h":
+            okx_interval = "1H"
+        elif interval.lower() == "4h":
+            okx_interval = "4H"
+        elif interval.lower() == "1d":
+            okx_interval = "1D"
+
+        url = "https://www.okx.com/api/v5/market/candles"
+        params = {"instId": pair, "bar": okx_interval, "limit": limit}
+
+        try:
+            proxy_url = get_aiohttp_proxy_url()
+
+            async with aiohttp.ClientSession(trust_env=True) as session:
+                async with session.get(url, params=params, proxy=proxy_url) as response:
+                    data = await response.json()
+
+            klines = []
+            if data.get("code") == "0":
+                raw_data = data.get("data", [])
+                for item in reversed(raw_data):
+                    klines.append(
+                        {
+                            "timestamp": int(item[0]),
+                            "open": float(item[1]),
+                            "high": float(item[2]),
+                            "low": float(item[3]),
+                            "close": float(item[4]),
+                            "volume": float(item[5]),
+                        }
+                    )
+
+            self.klines_ready.emit(pair, klines)
+
+        except Exception as e:
+            logger.error(f"Failed to fetch klines async for {pair}: {e}")
 
     async def _connect_and_subscribe(self):
         """Connect to OKX WebSocket and subscribe to ticker channels."""
@@ -237,32 +276,7 @@ class OkxClientManager(BaseExchangeClient):
         self._pairs: list[str] = []
 
     def _detach_and_stop_worker(self, worker: OkxWebSocketWorker):
-        """
-        Safely detach and stop a worker thread.
-        Orphans the worker so it isn't destroyed if the parent client is deleted.
-        """
-        if not worker:
-            return
-
-        # CRITICAL: Remove parent before moving to module-level list
-        worker.setParent(None)
-
-        # Keep worker alive in module-level list until it finishes
-        if worker.isRunning():
-            _dying_workers.append(worker)
-
-            def cleanup():
-                if worker in _dying_workers:
-                    try:
-                        _dying_workers.remove(worker)
-                    except ValueError:
-                        pass
-                worker.deleteLater()
-
-            worker.finished.connect(cleanup)
-            worker.stop()
-        else:
-            worker.deleteLater()
+        WorkerController.get_instance().stop_worker(worker)
 
     def subscribe(self, pairs: list[str]):
         """
@@ -305,8 +319,9 @@ class OkxClientManager(BaseExchangeClient):
         self._worker.connection_status.connect(self.connection_status)
         self._worker.connection_state_changed.connect(self.connection_state_changed)
         self._worker.stats_updated.connect(self.stats_updated)
+        self._worker.klines_ready.connect(self.klines_ready)
 
-        # Start the worker
+        WorkerController.get_instance().register_worker(self._worker)
         self._worker.start()
 
     def add_pair(self, pair: str):
@@ -365,6 +380,12 @@ class OkxClientManager(BaseExchangeClient):
             }
         return None
 
+    def request_klines(self, pair: str, interval: str, limit: int = 24):
+        if self._worker is not None and self._worker.isRunning():
+            self._worker.request_klines(pair, interval, limit)
+        else:
+            super().request_klines(pair, interval, limit)
+
     def fetch_klines(self, pair: str, interval: str, limit: int = 24) -> list[dict]:
         """
         Fetch klines from OKX.
@@ -384,24 +405,7 @@ class OkxClientManager(BaseExchangeClient):
         params = {"instId": pair, "bar": okx_interval, "limit": limit}
 
         try:
-            # Construct proxies dict if needed.
-            from config.settings import get_settings_manager
-
-            settings = get_settings_manager().settings
-            proxies = {}
-            if settings.proxy.enabled:
-                if settings.proxy.type.lower() == "http":
-                    proxy_url = f"http://{settings.proxy.host}:{settings.proxy.port}"
-                    if settings.proxy.username:
-                        proxy_url = f"http://{settings.proxy.username}:{settings.proxy.password}@{settings.proxy.host}:{settings.proxy.port}"
-                    proxies = {"http": proxy_url, "https": proxy_url}
-                else:
-                    # SOCKS5
-                    proxy_url = f"socks5://{settings.proxy.host}:{settings.proxy.port}"
-                    if settings.proxy.username:
-                        proxy_url = f"socks5://{settings.proxy.username}:{settings.proxy.password}@{settings.proxy.host}:{settings.proxy.port}"
-                    proxies = {"http": proxy_url, "https": proxy_url}
-
+            proxies = get_proxy_config()
             response = requests.get(url, params=params, proxies=proxies, timeout=5)
             response.raise_for_status()
             data = response.json()

@@ -26,6 +26,7 @@ fluent = [
 dev-dependencies = [
     "pre-commit>=4.5.1",
     "pyinstaller>=6.0.0",
+    "pytest>=9.0.2",
     "ruff>=0.14.11",
 ]
 

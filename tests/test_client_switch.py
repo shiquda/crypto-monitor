@@ -8,7 +8,7 @@ from core.exchange_factory import ExchangeFactory
 
 
 def test_switching_stress():
-    app = QApplication(sys.argv)
+    _ = QApplication(sys.argv)
     settings_manager = get_settings_manager()
 
     print("Starting stress test for client switching WITH ALERTS...")
@@ -38,14 +38,24 @@ def test_switching_stress():
 
         # Connect to alert manager (simulating MainWindow logic)
         # We need a slot to receive the signal
-        def on_ticker(pair, price, pct):
-            alert_manager.check_alerts(pair, price, pct)
+        def on_ticker(pair, ticker_data):
+            alert_manager.check_alerts(pair, ticker_data.price, ticker_data.percentage)
 
         client.ticker_updated.connect(on_ticker)
 
         # Simulate incoming data to trigger alert checks
         # Price > 10000 to trigger the alert we added
-        client.ticker_updated.emit("BTC-USDT", "50000.00", "+1.0%")
+        from core.models import TickerData
+
+        dummy_data = TickerData(
+            pair="BTC-USDT",
+            price="50000.00",
+            percentage="+1.0%",
+            high_24h="0",
+            low_24h="0",
+            quote_volume_24h="0",
+        )
+        client.ticker_updated.emit("BTC-USDT", dummy_data)
 
         # Give it a tiny bit of time to start threads and process alerts
         time.sleep(0.5)
@@ -70,7 +80,9 @@ def test_switching_stress():
 
     # Allow some time for dying workers to finish
     print("Waiting for dying workers to finish...")
-    time.sleep(5)
+    from core.worker_controller import WorkerController
+
+    WorkerController.get_instance().cleanup_all()
     print("Done.")
 
 

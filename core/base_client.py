@@ -17,7 +17,8 @@ class BaseExchangeClient(QObject):
     connection_status = pyqtSignal(bool, str)  # connected, message
     connection_state_changed = pyqtSignal(str, str, int)  # state, message, retry_count
     stats_updated = pyqtSignal(dict)  # connection statistics
-    stopped = pyqtSignal()  # Emitted when client is fully stopped and safe to delete
+    klines_ready = pyqtSignal(str, list)
+    stopped = pyqtSignal()
 
     def __init__(self, parent: QObject | None = None):
         super().__init__(parent)
@@ -45,11 +46,24 @@ class BaseExchangeClient(QObject):
     @abstractmethod
     def fetch_klines(self, pair: str, interval: str, limit: int) -> list[dict]:
         """
-        Fetch historical kline/candlestick data.
+        Fetch historical kline/candlestick data (Synchronous/Blocking).
         Returns a list of dicts with at least:
         timestamp (ms), open, high, low, close, volume
         """
         pass
+
+    def request_klines(self, pair: str, interval: str, limit: int = 24):
+        """
+        Request kline data asynchronously.
+        Should emit klines_ready signal when data is available.
+        """
+        import threading
+
+        def _fetch():
+            data = self.fetch_klines(pair, interval, limit)
+            self.klines_ready.emit(pair, data)
+
+        threading.Thread(target=_fetch, daemon=True).start()
 
     @property
     @abstractmethod
