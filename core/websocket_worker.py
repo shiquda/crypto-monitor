@@ -11,6 +11,7 @@ from enum import Enum
 
 from PyQt6.QtCore import QObject, QThread, pyqtSignal
 
+from core.models import TickerData
 from core.reconnect_strategy import ReconnectStrategy
 
 logger = logging.getLogger(__name__)
@@ -34,7 +35,7 @@ class BaseWebSocketWorker(QThread):
     """
 
     # Signals
-    ticker_updated = pyqtSignal(str, dict)  # pair, data_dict
+    ticker_updated = pyqtSignal(str, TickerData)  # pair, TickerData object
     connection_error = pyqtSignal(str, str)  # pair, error_message
     connection_status = pyqtSignal(bool, str)  # connected, message
     connection_state_changed = pyqtSignal(str, str, int)  # state, message, retry_count
@@ -87,7 +88,8 @@ class BaseWebSocketWorker(QThread):
     def run(self):
         """Run the WebSocket client in asyncio event loop with auto-reconnect."""
         logger.info(
-            f"[{self.__class__.__name__}] Starting run loop (Thread: {int(QThread.currentThreadId())})"
+            f"[{self.__class__.__name__}] Starting run loop "
+            f"(Thread: {int(QThread.currentThreadId())})"
         )
         self._running = True
         self._loop = asyncio.new_event_loop()

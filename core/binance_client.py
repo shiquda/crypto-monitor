@@ -9,6 +9,7 @@ from PyQt6.QtCore import QObject, QThread
 
 from config.settings import get_settings_manager
 from core.base_client import BaseExchangeClient
+from core.models import TickerData
 from core.websocket_worker import BaseWebSocketWorker
 
 # Module-level list to keep dying workers alive until they finish
@@ -126,7 +127,7 @@ class BinanceWebSocketWorker(BaseWebSocketWorker):
                 }
                 try:
                     await self._ws.send_json(unsubscribe_msg)
-                except:
+                except Exception:
                     pass
 
         self._subscribed_pairs = current_pairs
@@ -164,7 +165,7 @@ class BinanceWebSocketWorker(BaseWebSocketWorker):
                         pct = (close_float - open_float) / open_float * 100
                     else:
                         pct = 0.0
-                except:
+                except Exception:
                     pct = 0.0
 
                 percent_val = str(pct)
@@ -189,7 +190,7 @@ class BinanceWebSocketWorker(BaseWebSocketWorker):
                 try:
                     price_float = float(price_str)
                     price = f"{price_float:.{precision}f}"
-                except:
+                except Exception:
                     price = price_str
             else:
                 from core.utils import format_price
@@ -201,18 +202,19 @@ class BinanceWebSocketWorker(BaseWebSocketWorker):
                 try:
                     pct = float(percent_val)
                     formatted_pct = f"+{pct:.2f}%" if pct >= 0 else f"{pct:.2f}%"
-                except:
+                except Exception:
                     formatted_pct = "0.00%"
 
-                ticker_data = {
-                    "price": price,
-                    "percentage": formatted_pct,
-                    "high_24h": high_24h,
-                    "low_24h": low_24h,
-                    "quote_volume_24h": quote_volume,
-                }
+                ticker_obj = TickerData(
+                    pair=original_pair,
+                    price=price,
+                    percentage=formatted_pct,
+                    high_24h=high_24h,
+                    low_24h=low_24h,
+                    quote_volume_24h=quote_volume,
+                )
 
-                self.ticker_updated.emit(original_pair, ticker_data)
+                self.ticker_updated.emit(original_pair, ticker_obj)
         except Exception as e:
             logger.error(f"Error processing ticker data: {e}")
 
@@ -301,7 +303,7 @@ class BinanceClient(BaseExchangeClient):
 
                             if invalid_pairs:
                                 logger.warning(
-                                    f"⚠️  [Binance Warning] Invalid pairs: {', '.join(invalid_pairs)}"
+                                    f"⚠️ [Binance Warning] Invalid: {', '.join(invalid_pairs)}"
                                 )
 
                         if self._worker:

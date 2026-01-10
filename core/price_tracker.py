@@ -7,6 +7,8 @@ from dataclasses import dataclass
 
 from PyQt6.QtGui import QColor
 
+from core.models import TickerData
+
 
 @dataclass
 class PriceState:
@@ -38,19 +40,19 @@ class PriceTracker:
     def __init__(self):
         self._states: dict[str, PriceState] = {}
 
-    def update_price(self, pair: str, data: dict) -> PriceState:
+    def update_price(self, pair: str, data: TickerData) -> PriceState:
         """
         Update price for a pair and calculate new state.
 
         Args:
             pair: Trading pair (e.g., "BTC-USDT")
-            data: Dictionary containing price, percentage, etc.
+            data: TickerData object containing price, percentage, etc.
 
         Returns:
             Updated PriceState
         """
-        price_str = data.get("price", "0")
-        percentage_str = data.get("percentage", "0.00%")
+        price_str = data.price
+        percentage_str = data.percentage
 
         try:
             current_price = float(price_str)
@@ -72,9 +74,9 @@ class PriceTracker:
 
         state.current_price = current_price
         state.percentage = percentage_str
-        state.high_24h = data.get("high_24h", "0")
-        state.low_24h = data.get("low_24h", "0")
-        state.quote_volume_24h = data.get("quote_volume_24h", "0")
+        state.high_24h = data.high_24h
+        state.low_24h = data.low_24h
+        state.quote_volume_24h = data.quote_volume_24h
 
         # Calculate Amplitude: (High - Low) / Open
         # Open = Current / (1 + Percentage)
@@ -104,7 +106,7 @@ class PriceTracker:
 
         green = "#4CAF50"
         red = "#F44336"
-        white = "#FFFFFF"  # or adapt to theme, but PriceTracker is theme-agnostic usually, returning hex.
+        white = "#FFFFFF"  # Theme-agnostic hex
         # Ideally white should be theme dependent but here we return a fixed color.
         # The card handles text color default based on theme if trend is flat.
 
@@ -188,13 +190,13 @@ def hsl_to_qcolor(hsl_string: str) -> QColor:
             values = hsl_string[4:-1].split(",")
             h = int(values[0].strip())
             s = int(values[1].strip().rstrip("%"))
-            l = int(values[2].strip().rstrip("%"))
+            l_val = int(values[2].strip().rstrip("%"))
 
             # QColor.fromHsl expects h (0-359), s (0-255), l (0-255)
             color = QColor.fromHsl(
                 h,
                 int(s * 2.55),  # Convert 0-100 to 0-255
-                int(l * 2.55),
+                int(l_val * 2.55),
             )
             return color
     except (ValueError, IndexError):

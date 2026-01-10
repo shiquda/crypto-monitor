@@ -4,6 +4,7 @@ Uses python-okx library with PyQt signal integration.
 Enhanced with automatic reconnection and incremental subscription.
 """
 
+import asyncio
 import json
 import logging
 import time
@@ -16,22 +17,14 @@ try:
 except ImportError:
     WsPublicAsync = None
 
+from core.base_client import BaseExchangeClient
+from core.models import TickerData
+from core.websocket_worker import BaseWebSocketWorker
+
 # Module-level list to keep dying workers alive until they finish
 _dying_workers = []
 
 logger = logging.getLogger(__name__)
-
-from core.base_client import BaseExchangeClient
-from core.websocket_worker import BaseWebSocketWorker
-
-
-class TickerData:
-    """Ticker data container."""
-
-    def __init__(self, pair: str, price: str, percentage: str):
-        self.pair = pair
-        self.price = price
-        self.percentage = percentage
 
 
 class OkxWebSocketWorker(BaseWebSocketWorker):
@@ -76,15 +69,6 @@ class OkxWebSocketWorker(BaseWebSocketWorker):
 
         if WsPublicAsync is None:
             # Simple websocket implementation
-            if new_pairs or not self._subscribed_pairs:
-                subscribe_msg = {
-                    "op": "subscribe",
-                    "args": [{"channel": "tickers", "instId": pair} for pair in current_pairs],
-                }
-                if self._ws_client:  # Should be valid in simple mode too? distinct var?
-                    # In simple mode we don't have self._ws_client as WsPublicAsync
-                    # logic in _simple_websocket_subscribe handles subscription sending.
-                    pass
             return
 
         # Subscribe to new pairs
@@ -97,7 +81,7 @@ class OkxWebSocketWorker(BaseWebSocketWorker):
             args = [{"channel": "tickers", "instId": pair} for pair in removed_pairs]
             try:
                 await self._ws_client.unsubscribe(args)
-            except:
+            except Exception:
                 # If unsubscribe fails, just ignore - will be cleaned up on reconnect
                 pass
 
@@ -114,8 +98,8 @@ class OkxWebSocketWorker(BaseWebSocketWorker):
                 self.connection_status.emit(True, "Connected to OKX")
 
                 # We need to expose ws for update_subscriptions?
-                # The original simplified implementation didn't support incremental updates fully inside simple mode gracefully
-                # or it re-sent list.
+                # The original simplified implementation didn't support incremental updates
+                # fully inside simple mode gracefully or it re-sent list.
                 # Original logic:
                 # subscribe_msg = ...
                 # await ws.send(...)
@@ -201,16 +185,17 @@ class OkxWebSocketWorker(BaseWebSocketWorker):
                 low_24h = ticker.get("low24h", "0")
                 quote_volume = ticker.get("volCcy24h", "0")
 
-                ticker_data = {
-                    "price": last_price,
-                    "percentage": percentage,
-                    "high_24h": high_24h,
-                    "low_24h": low_24h,
-                    "quote_volume_24h": quote_volume,
-                }
+                ticker_obj = TickerData(
+                    pair=pair,
+                    price=last_price,
+                    percentage=percentage,
+                    high_24h=high_24h,
+                    low_24h=low_24h,
+                    quote_volume_24h=quote_volume,
+                )
 
                 # Emit signal (thread-safe)
-                self.ticker_updated.emit(pair, ticker_data)
+                self.ticker_updated.emit(pair, ticker_obj)
 
         except json.JSONDecodeError:
             pass
@@ -241,7 +226,7 @@ class OkxClientManager(BaseExchangeClient):
     - Detailed connection statistics
     """
 
-    ticker_updated = pyqtSignal(str, dict)  # pair, data_dict
+    ticker_updated = pyqtSignal(str, TickerData)  # pair, TickerData object
     connection_status = pyqtSignal(bool, str)  # connected, message
     connection_state_changed = pyqtSignal(str, str, int)  # state, message, retry_count
     stats_updated = pyqtSignal(dict)  # connection statistics

@@ -137,5 +137,9 @@ dmypy.json
 .DS_Store
 Thumbs.db
 
+# OpenCode & Agents
+.opencode/
+AGENTS.md
+
 CLAUDE.md
 TODO.md

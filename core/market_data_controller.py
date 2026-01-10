@@ -5,6 +5,7 @@ from PyQt6.QtCore import QObject, pyqtSignal
 from config.settings import get_settings_manager
 from core.alert_manager import get_alert_manager
 from core.exchange_factory import ExchangeFactory
+from core.models import TickerData
 from core.price_tracker import PriceState, PriceTracker
 
 logger = logging.getLogger(__name__)
@@ -78,7 +79,7 @@ class MarketDataController(QObject):
         if self._exchange_client and pairs:
             self._exchange_client.subscribe(pairs)
 
-    def _on_ticker_update(self, pair: str, data: dict):
+    def _on_ticker_update(self, pair: str, data: TickerData):
         """Handle ticker update from exchange."""
         # Update price tracker
         state = self._price_tracker.update_price(pair, data)
