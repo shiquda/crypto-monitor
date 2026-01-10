@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.0] - 2026-01-11
+
+### Added
+- **Feature**: Implemented **Unified Exchange Client** with **DEX support** (Raydium via Jupiter API).
+- **Feature**: Added **Infrastructure Optimization** with `WorkerController` for safer thread management.
+- **Feature**: Added **Active Heartbeats** (Ping/Pong) to WebSocket connections for improved resilience.
+- **Feature**: Added **Unit Tests** for AlertManager, Models, and SettingsManager.
+- **I18n**: Synced and updated translations across all supported languages.
+
+### Changed
+- **Architecture**: Refactored architecture to decouple UI from data modeling.
+- **Network**: Optimized connection resilience and zombie connection detection.
+
+### Fixed
+- **Installer**: Resolved notification alert failures by adding missing dependencies to the spec file.
+- **Installer**: Improved logging initialization and error tracebacks in `notifier.py`.
+
 ## [0.3.3] - 2026-01-09
 
 ### Added
