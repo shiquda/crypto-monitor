@@ -55,6 +55,7 @@ class BaseWebSocketWorker(QThread):
         self._total_reconnect_count = 0
         self._last_error = ""
         self._connection_timeout = 60  # seconds
+        self._ping_interval = 20  # seconds
         self._main_task = None
 
     def _update_connection_state(self, state: ConnectionState, message: str = ""):
@@ -148,14 +149,23 @@ class BaseWebSocketWorker(QThread):
                 self._update_stats()
 
                 # Keep connection alive with periodic checks
+                last_ping_time = time.time()
+
                 while self._running:
                     await asyncio.sleep(1)
 
-                    # Check if we need to update subscriptions (incremental changes)
-                    if set(self.pairs) != self._subscribed_pairs:
+                    # 1. Update subscriptions (Thread-safe copy)
+                    # Create a copy to avoid modification during iteration
+                    current_pairs = list(self.pairs)
+                    if set(current_pairs) != self._subscribed_pairs:
                         await self._update_subscriptions()
 
-                    # Check heartbeat - if no message received for too long, reconnect
+                    # 2. Send active ping
+                    if time.time() - last_ping_time > self._ping_interval:
+                        await self._send_ping()
+                        last_ping_time = time.time()
+
+                    # 3. Check heartbeat (Zombie detection)
                     if self._last_message_time > 0:
                         time_since_last = time.time() - self._last_message_time
                         if time_since_last > self._connection_timeout:
@@ -184,6 +194,13 @@ class BaseWebSocketWorker(QThread):
                         ConnectionState.FAILED, f"Max retries exceeded: {e}"
                     )
                     raise
+
+    async def _send_ping(self):
+        """
+        Send a ping message to keep the connection alive.
+        Subclasses can override this to implement protocol-specific pings.
+        """
+        pass
 
     @abstractmethod
     async def _connect_and_subscribe(self):

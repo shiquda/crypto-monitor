@@ -41,6 +41,24 @@ class OkxWebSocketWorker(BaseWebSocketWorker):
         super().__init__(pairs, parent)
         self._ws_client: WsPublicAsync | None = None
         self._heartbeat_interval = 30  # seconds
+        self._simple_ws = None  # Reference for simple mode websocket
+
+    async def _send_ping(self):
+        """Send ping to OKX."""
+        try:
+            # 1. Simple Mode
+            if self._simple_ws and not self._simple_ws.closed:
+                # OKX expects literal "ping" string
+                await self._simple_ws.send("ping")
+                return
+
+            # 2. SDK Mode (WsPublicAsync)
+            # The SDK wrapper handles its own connection maintenance.
+            # We cannot easily inject raw messages into the SDK's managed socket.
+            pass
+
+        except Exception as e:
+            logger.debug(f"Failed to send ping: {e}")
 
     async def fetch_klines_async(self, pair: str, interval: str, limit: int):
         okx_interval = interval
@@ -134,6 +152,7 @@ class OkxWebSocketWorker(BaseWebSocketWorker):
 
         try:
             async with websockets.connect(self.WS_PUBLIC_URL) as ws:
+                self._simple_ws = ws
                 self.connection_status.emit(True, "Connected to OKX")
 
                 # We need to expose ws for update_subscriptions?
@@ -165,9 +184,10 @@ class OkxWebSocketWorker(BaseWebSocketWorker):
                     except websockets.exceptions.ConnectionClosed:
                         self.connection_status.emit(False, "Connection closed")
                         break
-
         except Exception as e:
             self.connection_status.emit(False, f"WebSocket error: {e}")
+        finally:
+            self._simple_ws = None
 
     def _handle_message(self, message):
         """Handle incoming WebSocket message."""
@@ -187,6 +207,10 @@ class OkxWebSocketWorker(BaseWebSocketWorker):
 
             # Skip non-data messages (like subscription confirmations)
             if "data" not in data:
+                # Check for pong
+                if isinstance(data, str) and "pong" in data:
+                    # Already updated _last_message_time at start of method
+                    return
                 return
 
             for ticker in data.get("data", []):

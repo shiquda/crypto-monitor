@@ -33,6 +33,15 @@ class BinanceWebSocketWorker(BaseWebSocketWorker):
         self._ws: aiohttp.ClientWebSocketResponse | None = None
         self._read_task: asyncio.Task | None = None
 
+    async def _send_ping(self):
+        """Send ping to Binance."""
+        if self._ws and not self._ws.closed:
+            try:
+                # Send a standard WebSocket ping frame
+                await self._ws.ping()
+            except Exception as e:
+                logger.debug(f"Binance ping failed: {e}")
+
     def set_precisions(self, precision_map: dict[str, int]):
         """Update precision map."""
         self._precision_map = precision_map
@@ -94,9 +103,13 @@ class BinanceWebSocketWorker(BaseWebSocketWorker):
         try:
             while self._running and self._ws and not self._ws.closed:
                 try:
+                    # aiohttp handles standard PING frames automatically (autoping=True).
                     msg = await self._ws.receive(timeout=1.0)
                     if msg.type == aiohttp.WSMsgType.TEXT:
                         self._handle_message(msg.data)
+                    elif msg.type == aiohttp.WSMsgType.PONG:
+                        # Update heartbeat time when we receive a PONG from our manual ping
+                        self._last_message_time = time.time()
                     elif msg.type == aiohttp.WSMsgType.CLOSED:
                         break
                     elif msg.type == aiohttp.WSMsgType.ERROR:
