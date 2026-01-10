@@ -70,10 +70,23 @@ class AlertDialog(Dialog):
         pair_label = BodyLabel(_("Trading Pair:"))
         pair_label.setFixedWidth(100)
         self.pair_combo = ComboBox()
-        self.pair_combo.addItems(self._available_pairs)
-        if self._pair and self._pair in self._available_pairs:
-            self.pair_combo.setCurrentText(self._pair)
+
+        from core.utils import get_display_name
+
+        for pair in self._available_pairs:
+            display = get_display_name(pair)
+            self.pair_combo.addItem(display, userData=pair)
+
+        if self._pair:
+            idx = self.pair_combo.findData(self._pair)
+            if idx >= 0:
+                self.pair_combo.setCurrentIndex(idx)
+            else:
+                self.pair_combo.addItem(get_display_name(self._pair), userData=self._pair)
+                self.pair_combo.setCurrentIndex(self.pair_combo.count() - 1)
+
         pair_layout.addWidget(pair_label)
+
         pair_layout.addWidget(self.pair_combo, 1)
         content_layout.addLayout(pair_layout)
 
@@ -278,7 +291,7 @@ class AlertDialog(Dialog):
             if self._edit_alert:
                 self._alert = PriceAlert(
                     id=self._edit_alert.id,
-                    pair=self.pair_combo.currentText(),
+                    pair=self.pair_combo.currentData(),
                     alert_type=alert_type,
                     target_price=price,
                     repeat_mode=repeat_mode,
@@ -289,7 +302,7 @@ class AlertDialog(Dialog):
                 )
             else:
                 self._alert = PriceAlert(
-                    pair=self.pair_combo.currentText(),
+                    pair=self.pair_combo.currentData(),
                     alert_type=alert_type,
                     target_price=price,
                     repeat_mode=repeat_mode,

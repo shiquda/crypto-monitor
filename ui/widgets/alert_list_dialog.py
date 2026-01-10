@@ -197,7 +197,9 @@ class AlertListDialog(QDialog):
         # Title
         from qfluentwidgets import TitleLabel, TransparentToolButton
 
-        title_label = TitleLabel(f"{_('Alerts for')} {self.pair}")
+        from core.utils import get_display_name
+
+        title_label = TitleLabel(f"{_('Alerts for')} {get_display_name(self.pair)}")
         title_label.setStyleSheet(f"color: {text_color};")
         title_layout.addWidget(title_label)
 

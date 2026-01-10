@@ -59,4 +59,15 @@ def setup_logging(log_dir: Path | None = None, log_level: int = logging.INFO) ->
     root_logger.addHandler(file_handler)
     root_logger.addHandler(console_handler)
 
+    noisy_loggers = [
+        "websockets.client",
+        "okx.websocket.WsPublicAsync",
+        "okx",
+        "urllib3",
+        "asyncio",
+        "requests",
+    ]
+    for logger_name in noisy_loggers:
+        logging.getLogger(logger_name).setLevel(logging.INFO)
+
     logging.info(f"Logging initialized. Log file: {log_file}")

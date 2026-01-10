@@ -3,8 +3,8 @@ Custom setting cards for the settings window.
 Uses QFluentWidgets components for a modern Fluent Design interface.
 """
 
-from PyQt6.QtCore import pyqtSignal
-from PyQt6.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget
+from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtWidgets import QHBoxLayout, QListWidgetItem, QVBoxLayout, QWidget
 from qfluentwidgets import (
     BodyLabel,
     ComboBox,
@@ -230,11 +230,16 @@ class PairsSettingCard(ExpandGroupSettingCard):
     def _add_pair(self):
         """Add a new crypto pair."""
         from config.settings import get_settings_manager
+        from core.utils import get_display_name
 
         data_source = get_settings_manager().settings.data_source
         pair = AddPairDialog.get_new_pair(data_source, self.window())
         if pair:
-            self.pairs_list.addItem(pair)
+            display = get_display_name(pair)
+            item = QListWidgetItem(display)
+            item.setToolTip(pair)
+            item.setData(Qt.ItemDataRole.UserRole, pair)
+            self.pairs_list.addItem(item)
             self.pairs_changed.emit()
 
     def _remove_pair(self):
@@ -266,14 +271,22 @@ class PairsSettingCard(ExpandGroupSettingCard):
         """Get all crypto pairs."""
         pairs = []
         for i in range(self.pairs_list.count()):
-            pairs.append(self.pairs_list.item(i).text())
+            item = self.pairs_list.item(i)
+            data = item.data(Qt.ItemDataRole.UserRole)
+            pairs.append(data if data else item.text())
         return pairs
 
     def set_pairs(self, pairs: list[str]):
         """Set crypto pairs."""
+        from core.utils import get_display_name
+
         self.pairs_list.clear()
         for pair in pairs:
-            self.pairs_list.addItem(pair)
+            display = get_display_name(pair)
+            item = QListWidgetItem(display)
+            item.setToolTip(pair)
+            item.setData(Qt.ItemDataRole.UserRole, pair)
+            self.pairs_list.addItem(item)
 
 
 class ThemeSettingCard(ExpandGroupSettingCard):
@@ -514,7 +527,8 @@ class DisplaySettingCard(ExpandGroupSettingCard):
 
         self.bg_label = BodyLabel(_("Dynamic Background"))
         self.bg_desc = CaptionLabel(_("Background opacity varies with price change magnitude"))
-        # Set description text color using theme aware colors if possible, typically CaptionLabel is implicitly styled or we leave it default
+        # Set description text color using theme aware colors if possible.
+        # Typically CaptionLabel is implicitly styled or we leave it default.
         # But to be safe lets leave it default, it should be lighter than BodyLabel
 
         label_layout.addWidget(self.bg_label)

@@ -91,9 +91,9 @@ class MarketDataController(QObject):
         self.ticker_updated.emit(pair, state)
 
     def set_data_source(self):
-        """Handle data source change."""
         logger.info("Data source changed, switching client...")
         self._alert_manager.reset()
+        self._price_tracker.clear_all()
         self._init_client()
         self.reload_pairs()
         self.data_source_changed.emit()

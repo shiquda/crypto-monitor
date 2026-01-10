@@ -1,27 +1,28 @@
-"""
-Dialog for adding a new crypto pair using Fluent Design with search autocomplete.
-"""
-
+import json
+import logging
 import re
 
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import Qt, QTimer, QUrl
+from PyQt6.QtNetwork import QNetworkAccessManager, QNetworkProxy, QNetworkReply, QNetworkRequest
 from PyQt6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QListWidget,
     QListWidgetItem,
+    QStackedWidget,
     QVBoxLayout,
     QWidget,
 )
-from qfluentwidgets import Dialog, ProgressRing, SearchLineEdit, isDarkTheme
+from qfluentwidgets import Dialog, ProgressRing, SearchLineEdit, SegmentedWidget, isDarkTheme
 
+from config.settings import get_settings_manager
 from core.i18n import _
 from core.symbol_search import SymbolInfo, get_symbol_search_service
 
+logger = logging.getLogger(__name__)
+
 
 class AddPairDialog(Dialog):
-    """Fluent Design dialog for adding a new cryptocurrency trading pair with search."""
-
     def __init__(self, data_source: str = "OKX", parent: QWidget | None = None):
         super().__init__(title=_("Add Trading Pair"), content="", parent=parent)
         self._pair: str | None = None
@@ -30,14 +31,15 @@ class AddPairDialog(Dialog):
         self._search_timer = QTimer()
         self._search_timer.setSingleShot(True)
         self._search_timer.timeout.connect(self._do_search)
-        self._updating_from_selection = False  # Flag to prevent search loop
+        self._updating_from_selection = False
 
-        self._setup_content()
+        self._dex_manager = QNetworkAccessManager(self)
+        self._dex_manager.finished.connect(self._on_dex_response)
 
-        # Set dialog size - taller to accommodate results list
-        self.setFixedSize(450, 400)
+        self._configure_proxy()
 
-        # Make sure it's a top-level window
+        self.setFixedSize(500, 600)
+
         flags = (
             Qt.WindowType.Dialog
             | Qt.WindowType.WindowTitleHint
@@ -47,28 +49,82 @@ class AddPairDialog(Dialog):
             flags |= Qt.WindowType.WindowStaysOnTopHint
         self.setWindowFlags(flags)
 
-        self._drag_pos = None
+        self._setup_ui()
 
-        # Connect to search service signals
         self._search_service.symbols_loaded.connect(self._on_symbols_loaded)
         self._search_service.loading_started.connect(self._on_loading_started)
         self._search_service.loading_error.connect(self._on_loading_error)
 
-        # Start loading symbols
         self._search_service.load_symbols(self._data_source)
 
-    def _setup_content(self):
-        """Setup dialog content with search input and results list."""
-        content_layout = QVBoxLayout()
-        content_layout.setSpacing(12)
-        content_layout.setContentsMargins(0, 0, 0, 0)
+    def _configure_proxy(self):
+        settings = get_settings_manager().settings
+        if settings.proxy.enabled:
+            logger.info(
+                f"Configuring proxy for DexSearch: {settings.proxy.host}:{settings.proxy.port}"
+            )
+            proxy = QNetworkProxy()
+            if settings.proxy.type.lower() == "http":
+                proxy.setType(QNetworkProxy.ProxyType.HttpProxy)
+            else:
+                proxy.setType(QNetworkProxy.ProxyType.Socks5Proxy)
 
-        # Label
+            proxy.setHostName(settings.proxy.host)
+            proxy.setPort(settings.proxy.port)
+
+            if settings.proxy.username:
+                proxy.setUser(settings.proxy.username)
+            if settings.proxy.password:
+                proxy.setPassword(settings.proxy.password)
+
+            self._dex_manager.setProxy(proxy)
+        else:
+            self._dex_manager.setProxy(QNetworkProxy(QNetworkProxy.ProxyType.NoProxy))
+
+    def _setup_ui(self):
+        main_layout = QVBoxLayout()
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(12)
+
+        self.segment = SegmentedWidget()
+        self.segment.addItem("cex", _("Exchange (CEX)"))
+        self.segment.addItem("dex", _("On-Chain (DEX)"))
+        self.segment.setCurrentItem("cex")
+        self.segment.currentItemChanged.connect(self._on_tab_changed)
+        main_layout.addWidget(self.segment)
+
+        self.stack = QStackedWidget()
+        main_layout.addWidget(self.stack)
+
+        self.cex_widget = QWidget()
+        self._setup_cex_tab(self.cex_widget)
+        self.stack.addWidget(self.cex_widget)
+
+        self.dex_widget = QWidget()
+        self._setup_dex_tab(self.dex_widget)
+        self.stack.addWidget(self.dex_widget)
+
+        self.textLayout.addLayout(main_layout)
+
+        self.yesButton.setText(_("Add"))
+        self.yesButton.setEnabled(False)
+        self.cancelButton.setText(_("Cancel"))
+        self.yesButton.clicked.connect(self._on_confirm)
+
+    def _on_tab_changed(self, key: str):
+        self.stack.setCurrentIndex(0 if key == "cex" else 1)
+        self.yesButton.setEnabled(False)
+        self._pair = None
+
+    def _setup_cex_tab(self, parent_widget):
+        layout = QVBoxLayout(parent_widget)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(12)
+
         label = QLabel(_("Search trading pairs:"))
         label.setStyleSheet("font-size: 14px;")
-        content_layout.addWidget(label)
+        layout.addWidget(label)
 
-        # Search input with loading indicator
         search_row = QHBoxLayout()
         search_row.setSpacing(8)
 
@@ -79,59 +135,79 @@ class AddPairDialog(Dialog):
         self.search_input.returnPressed.connect(self._on_return_pressed)
         search_row.addWidget(self.search_input)
 
-        # Loading spinner
         self.loading_spinner = ProgressRing()
         self.loading_spinner.setFixedSize(24, 24)
         self.loading_spinner.setVisible(False)
         search_row.addWidget(self.loading_spinner)
 
-        content_layout.addLayout(search_row)
+        layout.addLayout(search_row)
 
-        # Results list
         self.results_list = QListWidget()
         self.results_list.setFixedHeight(200)
         self.results_list.itemClicked.connect(self._on_item_clicked)
         self.results_list.itemDoubleClicked.connect(self._on_item_double_clicked)
-        self._style_results_list()
-        content_layout.addWidget(self.results_list)
+        self._style_list_widget(self.results_list)
+        layout.addWidget(self.results_list)
 
-        # Status label (for messages like "Loading..." or "No results")
         self.status_label = QLabel()
         self.status_label.setStyleSheet("color: #888; font-size: 12px;")
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        content_layout.addWidget(self.status_label)
+        layout.addWidget(self.status_label)
 
-        # Error/info label
         self.error_label = QLabel()
         self.error_label.setStyleSheet("color: #D13438; font-size: 12px;")
         self.error_label.setVisible(False)
-        content_layout.addWidget(self.error_label)
+        layout.addWidget(self.error_label)
 
-        # Add stretch to push buttons down
-        content_layout.addStretch()
+        layout.addStretch()
 
-        # Add the content layout to the dialog's text layout
-        self.textLayout.addLayout(content_layout)
+    def _setup_dex_tab(self, parent_widget):
+        layout = QVBoxLayout(parent_widget)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(12)
 
-        # Customize the built-in buttons
-        self.yesButton.setText(_("Add"))
-        self.yesButton.setEnabled(False)
-        self.cancelButton.setText(_("Cancel"))
+        label = QLabel(_("Enter Token Address:"))
+        label.setStyleSheet("font-size: 14px;")
+        layout.addWidget(label)
 
-        # Connect the built-in yes button
-        self.yesButton.clicked.connect(self._on_confirm)
+        input_row = QHBoxLayout()
+        self.dex_input = SearchLineEdit()
+        self.dex_input.setPlaceholderText(_("e.g. 0x... or Sol address"))
+        self.dex_input.setFixedHeight(36)
+        self.dex_input.returnPressed.connect(self._do_dex_search)
+        self.dex_input.searchButton.clicked.connect(self._do_dex_search)
+        input_row.addWidget(self.dex_input)
 
-    def _style_results_list(self):
-        """Apply styles to the results list."""
+        self.dex_spinner = ProgressRing()
+        self.dex_spinner.setFixedSize(24, 24)
+        self.dex_spinner.setVisible(False)
+        input_row.addWidget(self.dex_spinner)
+
+        layout.addLayout(input_row)
+
+        self.dex_results = QListWidget()
+        self.dex_results.setFixedHeight(200)
+        self.dex_results.itemClicked.connect(self._on_dex_item_clicked)
+        self.dex_results.itemDoubleClicked.connect(self._on_item_double_clicked)
+        self._style_list_widget(self.dex_results)
+        layout.addWidget(self.dex_results)
+
+        self.dex_status = QLabel(_("Paste token address to search"))
+        self.dex_status.setStyleSheet("color: #888; font-size: 12px;")
+        self.dex_status.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.dex_status)
+
+        layout.addStretch()
+
+    def _style_list_widget(self, widget: QListWidget):
         is_dark = isDarkTheme()
-
         bg_color = "#2d2d2d" if is_dark else "#ffffff"
         text_color = "#ffffff" if is_dark else "#1a1a1a"
         hover_bg = "#3d3d3d" if is_dark else "#f0f0f0"
         selected_bg = "#0078d4" if is_dark else "#0078d4"
         border_color = "#404040" if is_dark else "#e0e0e0"
 
-        self.results_list.setStyleSheet(f"""
+        widget.setStyleSheet(f"""
             QListWidget {{
                 background-color: {bg_color};
                 border: 1px solid {border_color};
@@ -155,53 +231,38 @@ class AddPairDialog(Dialog):
         """)
 
     def _on_loading_started(self):
-        """Handle loading started."""
         self.loading_spinner.setVisible(True)
         self.status_label.setText(_("Loading symbols..."))
         self.results_list.clear()
 
     def _on_symbols_loaded(self, symbols: list[SymbolInfo]):
-        """Handle symbols loaded."""
         self.loading_spinner.setVisible(False)
         self.status_label.setText(_("{count} symbols available").format(count=len(symbols)))
-        # Trigger initial search with current text
         self._do_search()
 
     def _on_loading_error(self, error: str):
-        """Handle loading error."""
         self.loading_spinner.setVisible(False)
         self.status_label.setText(_("Failed to load symbols"))
         self.error_label.setText(error)
         self.error_label.setVisible(True)
 
     def _on_search_text_changed(self, text: str):
-        """Handle search text change with debounce."""
-        # Skip if this change was triggered programmatically (from selection)
         if self._updating_from_selection:
             return
-
-        # Clear current selection
         self._pair = None
         self.yesButton.setEnabled(False)
         self.error_label.setVisible(False)
-
-        # Debounce search - wait 200ms after typing stops
         self._search_timer.stop()
         self._search_timer.start(200)
 
     def _do_search(self):
-        """Perform the actual search."""
         query = self.search_input.text().strip()
-
-        # Search for matching symbols
         results = self._search_service.search(query, limit=50)
-
         self.results_list.clear()
 
         if not results:
             if query:
                 self.status_label.setText(_("No matching pairs found"))
-                # Allow manual input if format is valid
                 if self._is_valid_format(query):
                     self._pair = query.upper()
                     self.yesButton.setEnabled(True)
@@ -212,7 +273,6 @@ class AddPairDialog(Dialog):
                 self.status_label.setText(_("Enter a symbol to search"))
             return
 
-        # Populate results
         for symbol_info in results:
             item = QListWidgetItem(symbol_info.symbol)
             item.setData(Qt.ItemDataRole.UserRole, symbol_info)
@@ -220,80 +280,154 @@ class AddPairDialog(Dialog):
 
         self.status_label.setText(_("Found {count} matches").format(count=len(results)))
 
+    def _do_dex_search(self):
+        addr = self.dex_input.text().strip()
+        if not addr:
+            return
+
+        logger.info(f"Starting DEX search for address: {addr}")
+        self.dex_spinner.setVisible(True)
+        self.dex_results.clear()
+        self.dex_status.setText(_("Searching chain..."))
+
+        url = f"https://api.dexscreener.com/latest/dex/tokens/{addr}"
+        logger.info(f"Requesting URL: {url}")
+        req = QNetworkRequest(QUrl(url))
+        req.setHeader(QNetworkRequest.KnownHeaders.UserAgentHeader, "Mozilla/5.0")
+        self._dex_manager.get(req)
+
+    def _on_dex_response(self, reply: QNetworkReply):
+        self.dex_spinner.setVisible(False)
+
+        err = reply.error()
+        if err != QNetworkReply.NetworkError.NoError:
+            error_str = reply.errorString()
+            logger.error(f"DEX Search Network Error: {err} - {error_str}")
+            self.dex_status.setText(f"Network Error: {error_str}")
+            reply.deleteLater()
+            return
+
+        try:
+            raw_data = bytes(reply.readAll())
+
+            data = json.loads(raw_data)
+            pairs = data.get("pairs", [])
+
+            if not pairs:
+                logger.info("No pairs found in response")
+                self.dex_status.setText(_("No pairs found for this token"))
+                return
+
+            seen_chains = set()
+            display_items = []
+
+            pairs.sort(key=lambda x: float(x.get("liquidity", {}).get("usd", 0) or 0), reverse=True)
+
+            for p in pairs:
+                chain = p.get("chainId")
+                base = p.get("baseToken", {}).get("symbol")
+                quote = p.get("quoteToken", {}).get("symbol")
+                addr = p.get("baseToken", {}).get("address")
+
+                key = f"{chain}:{base}"
+                if key in seen_chains:
+                    continue
+                seen_chains.add(key)
+
+                display = f"{base}/{quote} ({chain})"
+                item_id = f"chain:{chain}:{addr}:{base}"
+
+                display_items.append((display, item_id))
+
+            for display, pid in display_items:
+                item = QListWidgetItem(display)
+                item.setData(Qt.ItemDataRole.UserRole, pid)
+                self.dex_results.addItem(item)
+
+            count = len(display_items)
+            logger.info(f"Found {count} pairs")
+            self.dex_status.setText(_("Found {count} pairs").format(count=count))
+
+        except Exception as e:
+            logger.error(f"Error parsing DEX response: {e}", exc_info=True)
+            self.dex_status.setText(f"Error: {str(e)}")
+
+        reply.deleteLater()
+
     def _is_valid_format(self, text: str) -> bool:
-        """Check if text is a valid trading pair format."""
         text = text.strip().upper()
-        # Pattern: SYMBOL-SYMBOL (e.g., BTC-USDT)
         pattern = r"^[A-Z0-9]+-[A-Z0-9]+$"
         return bool(re.match(pattern, text))
 
     def _on_item_clicked(self, item: QListWidgetItem):
-        """Handle item click - select the pair."""
         symbol_info: SymbolInfo = item.data(Qt.ItemDataRole.UserRole)
         if symbol_info:
             self._pair = symbol_info.symbol
-            # Block signals to prevent triggering a new search
             self._updating_from_selection = True
             self.search_input.setText(symbol_info.symbol)
             self._updating_from_selection = False
             self.yesButton.setEnabled(True)
             self.error_label.setVisible(False)
 
+    def _on_dex_item_clicked(self, item: QListWidgetItem):
+        pair_id = item.data(Qt.ItemDataRole.UserRole)
+        if pair_id:
+            self._pair = pair_id
+            self.yesButton.setEnabled(True)
+
     def _on_item_double_clicked(self, item: QListWidgetItem):
-        """Handle item double-click - select and confirm."""
-        self._on_item_clicked(item)
+        if self.segment.currentItem() == "cex":
+            self._on_item_clicked(item)
+        else:
+            self._on_dex_item_clicked(item)
         self._on_confirm()
 
     def _on_return_pressed(self):
-        """Handle Enter key press."""
-        # If there's a selected item in the list, use it
+        if self.segment.currentItem() == "dex":
+            self._do_dex_search()
+            return
+
         selected_items = self.results_list.selectedItems()
         if selected_items:
             self._on_item_clicked(selected_items[0])
             self._on_confirm()
             return
 
-        # If there's exactly one result, use it
         if self.results_list.count() == 1:
             item = self.results_list.item(0)
             self._on_item_clicked(item)
             self._on_confirm()
             return
 
-        # Otherwise, check if current text is a valid manual entry
         text = self.search_input.text().strip().upper()
         if self._is_valid_format(text):
             self._pair = text
             self._on_confirm()
 
     def _on_confirm(self):
-        """Handle confirm button click."""
         if self._pair:
             self.accept()
 
     def get_pair(self) -> str | None:
-        """Get the entered pair, or None if cancelled."""
         return self._pair
 
     def keyPressEvent(self, event):
-        """Handle keyboard navigation."""
         key = event.key()
+        active_list = self.results_list if self.segment.currentItem() == "cex" else self.dex_results
 
         if key == Qt.Key.Key_Down:
-            # Move selection down in results list
-            current = self.results_list.currentRow()
-            if current < self.results_list.count() - 1:
-                self.results_list.setCurrentRow(current + 1)
-            elif current == -1 and self.results_list.count() > 0:
-                self.results_list.setCurrentRow(0)
+            current = active_list.currentRow()
+            if current < active_list.count() - 1:
+                active_list.setCurrentRow(current + 1)
+            elif current == -1 and active_list.count() > 0:
+                active_list.setCurrentRow(0)
             event.accept()
             return
 
         elif key == Qt.Key.Key_Up:
-            # Move selection up in results list
-            current = self.results_list.currentRow()
+            current = active_list.currentRow()
             if current > 0:
-                self.results_list.setCurrentRow(current - 1)
+                active_list.setCurrentRow(current - 1)
             event.accept()
             return
 
@@ -301,16 +435,6 @@ class AddPairDialog(Dialog):
 
     @staticmethod
     def get_new_pair(data_source: str = "OKX", parent: QWidget | None = None) -> str | None:
-        """
-        Static method to show dialog and get a new pair.
-
-        Args:
-            data_source: Current data source ("OKX" or "Binance")
-            parent: Parent widget
-
-        Returns:
-            The entered pair string, or None if cancelled.
-        """
         dialog = AddPairDialog(data_source, parent)
         if dialog.exec():
             return dialog.get_pair()

@@ -308,7 +308,9 @@ class SettingsManager:
 
     def add_pair(self, pair: str) -> bool:
         """Add a new crypto pair. Returns True if added."""
-        pair = pair.upper()
+        if not pair.lower().startswith("chain:"):
+            pair = pair.upper()
+
         if pair not in self.settings.crypto_pairs:
             self.settings.crypto_pairs.append(pair)
             self.save()
@@ -317,7 +319,10 @@ class SettingsManager:
 
     def remove_pair(self, pair: str) -> bool:
         """Remove a crypto pair. Returns True if removed."""
-        pair = pair.upper()
+        # Handle case sensitivity for chain pairs
+        if not pair.lower().startswith("chain:"):
+            pair = pair.upper()
+
         if pair in self.settings.crypto_pairs:
             self.settings.crypto_pairs.remove(pair)
             self.save()

@@ -3,6 +3,8 @@ Crypto Monitor - PyQt6 Desktop Application
 Main entry point.
 """
 
+import logging
+import os
 import sys
 
 from PyQt6.QtCore import Qt
@@ -12,7 +14,10 @@ from config.settings import get_settings_manager
 from core.logger import setup_logging
 from ui.main_window import MainWindow
 
-setup_logging()
+log_level_env = os.environ.get("LOG_LEVEL", "INFO").upper()
+log_level = getattr(logging, log_level_env, logging.INFO)
+
+setup_logging(log_level=log_level)
 
 
 def main():

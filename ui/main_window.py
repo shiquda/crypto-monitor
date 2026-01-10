@@ -266,6 +266,15 @@ class MainWindow(QMainWindow):
             self._load_pairs()
 
     def _open_pair_in_browser(self, pair: str):
+        if pair.lower().startswith("chain:"):
+            parts = pair.split(":")
+            if len(parts) >= 3:
+                network = parts[1]
+                address = parts[2]
+                url = f"https://dexscreener.com/{network}/{address}"
+                webbrowser.open(url)
+            return
+
         source = self._settings_manager.settings.data_source
         lang = self._settings_manager.settings.language
         if source.lower() == "binance":

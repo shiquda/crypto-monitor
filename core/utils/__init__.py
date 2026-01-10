@@ -10,22 +10,17 @@ from contextlib import contextmanager
 def suppress_output():
     """Context manager to suppress stdout and stderr."""
     try:
-        # Open a pair of null files
         null_fds = [os.open(os.devnull, os.O_RDWR) for x in range(2)]
-        # Save the actual stdout (1) and stderr (2) file descriptors.
         save_fds = [os.dup(1), os.dup(2)]
 
-        # Assign the null pointers to stdout and stderr.
         os.dup2(null_fds[0], 1)
         os.dup2(null_fds[1], 2)
 
         yield
     finally:
-        # Re-assign the real stdout/stderr back to (1) and (2)
         os.dup2(save_fds[0], 1)
         os.dup2(save_fds[1], 2)
 
-        # Close the null files
         for fd in null_fds + save_fds:
             os.close(fd)
 
@@ -43,18 +38,15 @@ def format_price(price: float | str, precision: int | None = None) -> str:
     """
     try:
         if isinstance(price, str):
-            # Clean up string first
             price = float(price.replace(",", ""))
 
         val = float(price)
     except (ValueError, TypeError):
         return "0.00"
 
-    # If explicit precision is provided, use it
     if precision is not None and precision >= 0:
         return f"{val:.{precision}f}"
 
-    # Smart precision based on magnitude
     if val == 0:
         return "0.00"
 
@@ -72,3 +64,47 @@ def format_price(price: float | str, precision: int | None = None) -> str:
         return f"{val:.2f}"
     else:
         return f"{val:.2f}"
+
+
+def get_display_name(pair: str, display_name: str | None = None, short: bool = False) -> str:
+    """
+    Get a user-friendly display name for a trading pair.
+
+    Format rules:
+    - CEX:
+        - short=True: "BTC"
+        - short=False: "BTC-USDT"
+    - DEX:
+        - short=True: "Symbol" (e.g. "V2EX")
+        - short=False: "Symbol (Network)" (e.g. "V2EX (Solana)")
+
+    Args:
+        pair: The raw pair string (e.g., "BTC-USDT" or "chain:solana:...")
+        display_name: Optional explicit display name from TickerData (usually Symbol).
+        short: Whether to return the shortest possible name.
+
+    Returns:
+        Formatted display name.
+    """
+    if pair.lower().startswith("chain:"):
+        parts = pair.split(":")
+        network = parts[1].title() if len(parts) >= 2 else "Unknown"
+
+        symbol = None
+        if display_name:
+            symbol = display_name
+        elif len(parts) >= 4 and parts[3]:
+            symbol = parts[3]
+
+        if symbol:
+            return symbol if short else f"{symbol} ({network})"
+        elif len(parts) >= 3:
+            addr = parts[2]
+            snippet = f"{addr[:4]}...{addr[-4:]}"
+            return snippet if short else f"{snippet} ({network})"
+        return "Unknown"
+
+    if "-" in pair:
+        return pair.split("-")[0] if short else pair
+
+    return pair
