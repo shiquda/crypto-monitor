@@ -166,14 +166,15 @@ class AddPairDialog(Dialog):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(12)
 
-        label = QLabel(_("Enter Token Address:"))
+        label = QLabel(_("Search by Name or Address:"))
         label.setStyleSheet("font-size: 14px;")
         layout.addWidget(label)
 
         input_row = QHBoxLayout()
         self.dex_input = SearchLineEdit()
-        self.dex_input.setPlaceholderText(_("e.g. 0x... or Sol address"))
+        self.dex_input.setPlaceholderText(_("Enter token name (e.g., PEPE) or address"))
         self.dex_input.setFixedHeight(36)
+        self.dex_input.textChanged.connect(self._on_dex_text_changed)
         self.dex_input.returnPressed.connect(self._do_dex_search)
         self.dex_input.searchButton.clicked.connect(self._do_dex_search)
         input_row.addWidget(self.dex_input)
@@ -192,7 +193,7 @@ class AddPairDialog(Dialog):
         self._style_list_widget(self.dex_results)
         layout.addWidget(self.dex_results)
 
-        self.dex_status = QLabel(_("Paste token address to search"))
+        self.dex_status = QLabel(_("Enter token name or paste address to search"))
         self.dex_status.setStyleSheet("color: #888; font-size: 12px;")
         self.dex_status.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.dex_status)
@@ -280,18 +281,42 @@ class AddPairDialog(Dialog):
 
         self.status_label.setText(_("Found {count} matches").format(count=len(results)))
 
+    def _on_dex_text_changed(self, text: str):
+        """Handle DEX input text changes for auto-search"""
+        self._pair = None
+        self.yesButton.setEnabled(False)
+
+    def _is_contract_address(self, text: str) -> bool:
+        """Check if the input looks like a contract address"""
+        text = text.strip()
+        # Ethereum-like address (0x...)
+        if text.startswith("0x") and len(text) == 42:
+            return True
+        # Solana address (base58, typically 32-44 chars)
+        if len(text) >= 32 and not text.startswith("0x"):
+            return True
+        return False
+
     def _do_dex_search(self):
-        addr = self.dex_input.text().strip()
-        if not addr:
+        query = self.dex_input.text().strip()
+        if not query:
             return
 
-        logger.debug(f"Starting DEX search for address: {addr}")
+        logger.debug(f"Starting DEX search for: {query}")
         self.dex_spinner.setVisible(True)
         self.dex_results.clear()
-        self.dex_status.setText(_("Searching chain..."))
+        self.dex_status.setText(_("Searching..."))
 
-        url = f"https://api.dexscreener.com/latest/dex/tokens/{addr}"
-        logger.debug(f"Requesting URL: {url}")
+        # Determine if it's an address or name search
+        if self._is_contract_address(query):
+            # Address search - use /tokens endpoint
+            url = f"https://api.dexscreener.com/latest/dex/tokens/{query}"
+            logger.debug(f"Address search: {url}")
+        else:
+            # Name search - use /search endpoint
+            url = f"https://api.dexscreener.com/latest/dex/search?q={query}"
+            logger.debug(f"Name search: {url}")
+
         req = QNetworkRequest(QUrl(url))
         req.setHeader(QNetworkRequest.KnownHeaders.UserAgentHeader, "Mozilla/5.0")
         self._dex_manager.get(req)
@@ -309,35 +334,56 @@ class AddPairDialog(Dialog):
 
         try:
             raw_data = bytes(reply.readAll())
-
             data = json.loads(raw_data)
+
+            # Handle both /tokens and /search API responses
             pairs = data.get("pairs", [])
 
             if not pairs:
                 logger.debug("No pairs found in response")
-                self.dex_status.setText(_("No pairs found for this token"))
+                self.dex_status.setText(
+                    _("No tokens found matching '{query}'").format(
+                        query=self.dex_input.text().strip()
+                    )
+                )
                 return
 
-            seen_chains = set()
+            seen_keys = set()
             display_items = []
 
+            # Sort by liquidity (highest first)
             pairs.sort(key=lambda x: float(x.get("liquidity", {}).get("usd", 0) or 0), reverse=True)
 
             for p in pairs:
                 chain = p.get("chainId")
                 base = p.get("baseToken", {}).get("symbol")
+                base_name = p.get("baseToken", {}).get("name", "")
                 quote = p.get("quoteToken", {}).get("symbol")
                 addr = p.get("baseToken", {}).get("address")
+                liquidity = float(p.get("liquidity", {}).get("usd", 0) or 0)
 
-                key = f"{chain}:{base}"
-                if key in seen_chains:
+                # Create unique key to avoid duplicates
+                key = f"{chain}:{base}:{addr}"
+                if key in seen_keys:
                     continue
-                seen_chains.add(key)
+                seen_keys.add(key)
 
-                display = f"{base}/{quote} ({chain})"
+                # Format display string with name, chain, and liquidity
+                if liquidity >= 1000000:
+                    liq_str = f"${liquidity / 1000000:.1f}M"
+                elif liquidity >= 1000:
+                    liq_str = f"${liquidity / 1000:.1f}K"
+                else:
+                    liq_str = f"${liquidity:.0f}"
+
+                display = f"{base}/{quote} - {base_name} ({chain}) [{liq_str}]"
                 item_id = f"chain:{chain}:{addr}:{base}"
 
                 display_items.append((display, item_id))
+
+                # Limit to 30 results to avoid overwhelming the UI
+                if len(display_items) >= 30:
+                    break
 
             for display, pid in display_items:
                 item = QListWidgetItem(display)
