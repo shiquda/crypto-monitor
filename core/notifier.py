@@ -62,7 +62,7 @@ class AsyncLoopThread(QThread):
                     self.loop.run_until_complete(asyncio.gather(*tasks, return_exceptions=True))
                 self.loop.close()
             except Exception as e:
-                print(f"Error closing loop: {e}")
+                logger.error(f"Error closing loop: {e}")
 
     def get_loop(self):
         """Get the running loop, waiting if necessary."""
@@ -130,9 +130,9 @@ class NotificationService(QObject):
                     self._audio_output.setVolume(1.0)
                     self._player.play()
             else:
-                print(f"Sound file not found: {sound_path}")
+                logger.warning(f"Sound file not found: {sound_path}")
         except Exception as e:
-            print(f"Error playing sound: {e}")
+            logger.error(f"Error playing sound: {e}")
 
     async def _send_notification_task(
         self, title: str, message: str, pair: str, urgency: "Urgency" = None
@@ -200,7 +200,9 @@ class NotificationService(QObject):
             previous_pct: The previous percentage (for percentage step alerts)
         """
         if not NOTIFIER_AVAILABLE or not self._worker:
-            print(f"[Alert] {pair}: {alert_type} at {current_price} (target: {target_price})")
+            logger.warning(
+                f"[Alert Fallback] {pair}: {alert_type} at {current_price} (target: {target_price})"
+            )
             return
 
         from core.utils import format_price
@@ -214,13 +216,22 @@ class NotificationService(QObject):
 
         if alert_type == "price_above":
             title = f"{symbol} 📈 {_('Crossed Above Target')}"
-            message = f"{_('Price rose above')} ${format_price(target_price)}\n{_('Current:')} {current_display}"
+            message = (
+                f"{_('Price rose above')} ${format_price(target_price)}\n"
+                f"{_('Current:')} {current_display}"
+            )
         elif alert_type == "price_below":
             title = f"{symbol} 📉 {_('Crossed Below Target')}"
-            message = f"{_('Price fell below')} ${format_price(target_price)}\n{_('Current:')} {current_display}"
+            message = (
+                f"{_('Price fell below')} ${format_price(target_price)}\n"
+                f"{_('Current:')} {current_display}"
+            )
         elif alert_type == "price_touch":
             title = f"{symbol} 🎯 {_('Price Touched Target')}"
-            message = f"{_('Price reached')} ${format_price(target_price)}\n{_('Current:')} {current_display}"
+            message = (
+                f"{_('Price reached')} ${format_price(target_price)}\n"
+                f"{_('Current:')} {current_display}"
+            )
         elif alert_type == "price_multiple":
             # Calculate the crossed price step using previous_price
             # When price crosses a step boundary, we want to show the boundary that was crossed
@@ -319,8 +330,11 @@ class NotificationService(QObject):
             except RuntimeError as e:
                 logger.error(f"Failed to schedule test notification: {e}")
         else:
+            is_running = loop.is_running() if loop else False
+            is_closed = loop.is_closed() if loop else True
             logger.error(
-                f"Cannot send test notification: Loop state invalid (running={loop.is_running() if loop else False}, closed={loop.is_closed() if loop else True})"
+                f"Cannot send test notification: Loop state invalid "
+                f"(running={is_running}, closed={is_closed})"
             )
 
     @property

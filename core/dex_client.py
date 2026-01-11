@@ -248,7 +248,7 @@ class DexScreenerClient(BaseExchangeClient):
             resp = self._session.get(url, headers=headers, timeout=10)
 
             if resp.status_code != 200:
-                logger.error(f"Polling failed with status code: {resp.status_code}")
+                logger.warning(f"Polling failed with status code: {resp.status_code}")
                 self.connection_status.emit(False, f"HTTP Error: {resp.status_code}")
                 return
 

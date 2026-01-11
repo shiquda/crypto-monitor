@@ -60,7 +60,7 @@ class AddPairDialog(Dialog):
     def _configure_proxy(self):
         settings = get_settings_manager().settings
         if settings.proxy.enabled:
-            logger.info(
+            logger.debug(
                 f"Configuring proxy for DexSearch: {settings.proxy.host}:{settings.proxy.port}"
             )
             proxy = QNetworkProxy()
@@ -285,13 +285,13 @@ class AddPairDialog(Dialog):
         if not addr:
             return
 
-        logger.info(f"Starting DEX search for address: {addr}")
+        logger.debug(f"Starting DEX search for address: {addr}")
         self.dex_spinner.setVisible(True)
         self.dex_results.clear()
         self.dex_status.setText(_("Searching chain..."))
 
         url = f"https://api.dexscreener.com/latest/dex/tokens/{addr}"
-        logger.info(f"Requesting URL: {url}")
+        logger.debug(f"Requesting URL: {url}")
         req = QNetworkRequest(QUrl(url))
         req.setHeader(QNetworkRequest.KnownHeaders.UserAgentHeader, "Mozilla/5.0")
         self._dex_manager.get(req)
@@ -314,7 +314,7 @@ class AddPairDialog(Dialog):
             pairs = data.get("pairs", [])
 
             if not pairs:
-                logger.info("No pairs found in response")
+                logger.debug("No pairs found in response")
                 self.dex_status.setText(_("No pairs found for this token"))
                 return
 
@@ -345,7 +345,7 @@ class AddPairDialog(Dialog):
                 self.dex_results.addItem(item)
 
             count = len(display_items)
-            logger.info(f"Found {count} pairs")
+            logger.debug(f"Found {count} pairs")
             self.dex_status.setText(_("Found {count} pairs").format(count=count))
 
         except Exception as e:
