@@ -28,18 +28,14 @@ class CryptoCard(CardWidget):
     view_alerts_requested = pyqtSignal(str)
     browser_opened_requested = pyqtSignal(str)
 
-    ICON_URL_TEMPLATE = (
-        "https://cdn.jsdelivr.net/gh/vadimmalykhin/binance-icons/crypto/{symbol}.svg"
-    )
-
     def __init__(self, pair: str, parent: QWidget | None = None):
         super().__init__(parent)
         self.pair = pair
         self._edit_mode = False
-        self._icon_retry_count = 0
-        self._max_retries = 3
         self._current_percentage = "0.00%"
         self._loaded_icon_url = None
+        self._icon_source_index = 0
+        self._icon_sources_to_try = []
 
         self._hover_data = {"high": "0", "low": "0", "quote_volume": "0"}
 
@@ -232,11 +228,32 @@ class CryptoCard(CardWidget):
             if self._load_from_cache():
                 return
 
-        url = url_override
-        if not url:
-            symbol = self.pair.split("-")[0].lower()
-            url = self.ICON_URL_TEMPLATE.format(symbol=symbol)
+        if url_override:
+            self._icon_sources_to_try = [(url_override, "custom", "unknown")]
+            self._icon_source_index = 0
+        elif not self._icon_sources_to_try:
+            from core.icon_sources import IconSourceManager
 
+            symbol = self.pair.split("-")[0]
+            sources_with_params = IconSourceManager.get_sources_for_symbol(symbol)
+
+            self._icon_sources_to_try = [
+                (
+                    IconSourceManager.build_icon_url(source, params),
+                    source.name,
+                    source.format,
+                )
+                for source, params in sources_with_params
+            ]
+            self._icon_source_index = 0
+
+        if self._icon_source_index >= len(self._icon_sources_to_try):
+            self.icon_widget.hide()
+            self.image_label.hide()
+            logger.warning(f"All icon sources exhausted for {self.pair}")
+            return
+
+        url, source_name, expected_format = self._icon_sources_to_try[self._icon_source_index]
         self._loaded_icon_url = url
 
         self._network_manager = QNetworkAccessManager(self)
@@ -264,7 +281,7 @@ class CryptoCard(CardWidget):
         request = QNetworkRequest(QUrl(url))
         request.setHeader(QNetworkRequest.KnownHeaders.UserAgentHeader, "Mozilla/5.0")
         self._network_manager.get(request)
-        logger.debug(f"Fetching icon for {self.pair}: {url}")
+        logger.debug(f"Fetching icon for {self.pair} from {source_name}: {url}")
 
     def _on_icon_loaded(self, reply: QNetworkReply):
         if reply.error() == QNetworkReply.NetworkError.NoError:
@@ -285,7 +302,13 @@ class CryptoCard(CardWidget):
                                 f.write(data_bytes)
                         except Exception:
                             pass
-                        self._icon_retry_count = 0
+                        self._save_successful_source()
+                        logger.info(
+                            f"Icon loaded successfully for {self.pair} "
+                            f"from {self._icon_sources_to_try[self._icon_source_index][1]}"
+                        )
+                    else:
+                        self._try_next_icon_source()
                 else:
                     from PyQt6.QtGui import QPixmap
 
@@ -305,24 +328,49 @@ class CryptoCard(CardWidget):
                                 f.write(data_bytes)
                         except Exception:
                             pass
-                        self._icon_retry_count = 0
+                        self._save_successful_source()
+                        logger.info(
+                            f"Icon loaded successfully for {self.pair} "
+                            f"from {self._icon_sources_to_try[self._icon_source_index][1]}"
+                        )
                     else:
                         logger.warning(
                             f"Failed to load pixmap from data for {self.pair} ({len(data)} bytes)"
                         )
+                        self._try_next_icon_source()
             else:
-                self.icon_widget.hide()
-                self.image_label.hide()
                 logger.warning(f"Empty icon data received for {self.pair}")
+                self._try_next_icon_source()
         else:
             logger.warning(f"Icon download failed for {self.pair}: {reply.errorString()}")
-            if self._icon_retry_count < self._max_retries:
-                self._icon_retry_count += 1
-                QTimer.singleShot(2000, lambda: self._load_icon(self._loaded_icon_url))
-            else:
-                self.icon_widget.hide()
-                self.image_label.hide()
+            self._try_next_icon_source()
         reply.deleteLater()
+
+    def _try_next_icon_source(self):
+        self._icon_source_index += 1
+        if self._icon_source_index < len(self._icon_sources_to_try):
+            QTimer.singleShot(100, self._load_icon)
+        else:
+            self.icon_widget.hide()
+            self.image_label.hide()
+            logger.warning(f"All icon sources failed for {self.pair}")
+
+    def _save_successful_source(self):
+        if not self._icon_sources_to_try or self._icon_source_index >= len(
+            self._icon_sources_to_try
+        ):
+            return
+
+        from config.settings import get_settings_manager
+
+        settings_manager = get_settings_manager()
+        source_name = self._icon_sources_to_try[self._icon_source_index][1]
+
+        if not hasattr(settings_manager, "_successful_icon_sources"):
+            settings_manager._successful_icon_sources = {}
+
+        symbol = self.pair.split("-")[0].lower()
+        settings_manager._successful_icon_sources[symbol] = source_name
 
     @property
     def _color_up(self):
