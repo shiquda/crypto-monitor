@@ -151,8 +151,8 @@ class DexScreenerClient(BaseExchangeClient):
     def is_connected(self) -> bool:
         return self._is_connected
 
-    def _get_utc0_open_price(self, token_addr: str, pair_data: dict) -> float | None:
-        """Get today's UTC+0 open price for a token via GeckoTerminal daily OHLCV."""
+    def _get_daily_ohlcv(self, token_addr: str, pair_data: dict) -> dict | None:
+        """Get today's daily OHLCV data for a token via GeckoTerminal."""
         now = time.time()
         today_utc0 = (
             datetime.now(timezone.utc)
@@ -168,7 +168,7 @@ class DexScreenerClient(BaseExchangeClient):
                 .timestamp()
             )
             if cache_date == today_utc0 and (now - cached["timestamp"]) < UTC0_CACHE_EXPIRY_SECONDS:
-                return cached["open"]
+                return cached
 
         try:
             chain_id = pair_data.get("chainId", "")
@@ -201,19 +201,21 @@ class DexScreenerClient(BaseExchangeClient):
             if not ohlcv_list:
                 return None
 
-            latest_candle = ohlcv_list[0]
-            open_price = float(latest_candle[1])
-
-            self._utc0_open_cache[token_addr] = {
-                "open": open_price,
+            candle = ohlcv_list[0]
+            ohlcv_data = {
+                "open": float(candle[1]),
+                "high": float(candle[2]),
+                "low": float(candle[3]),
+                "close": float(candle[4]),
                 "timestamp": now,
                 "pool": pool_address,
             }
 
-            return open_price
+            self._utc0_open_cache[token_addr] = ohlcv_data
+            return ohlcv_data
 
         except Exception as e:
-            logger.debug(f"Failed to fetch UTC+0 open price for {token_addr}: {e}")
+            logger.debug(f"Failed to fetch daily OHLCV for {token_addr}: {e}")
             return None
 
     def _poll_data(self):
@@ -288,15 +290,29 @@ class DexScreenerClient(BaseExchangeClient):
 
                     price_str = str(pair_data.get("priceUsd", "0"))
 
-                    if basis == "utc_0":
-                        open_price = self._get_utc0_open_price(addr, pair_data)
-                        if open_price and open_price > 0:
-                            try:
-                                current_price = float(price_str)
-                                pct = (current_price - open_price) / open_price * 100
-                                change = f"+{pct:.2f}%" if pct >= 0 else f"{pct:.2f}%"
-                            except (ValueError, ZeroDivisionError):
-                                change = "+0.00%"
+                    ohlcv = self._get_daily_ohlcv(addr, pair_data)
+
+                    high_24h = "0"
+                    low_24h = "0"
+
+                    if ohlcv:
+                        high_24h = str(ohlcv.get("high", 0))
+                        low_24h = str(ohlcv.get("low", 0))
+
+                        if basis == "utc_0":
+                            open_price = ohlcv.get("open", 0)
+                            if open_price and open_price > 0:
+                                try:
+                                    current_price = float(price_str)
+                                    pct = (current_price - open_price) / open_price * 100
+                                    change = f"+{pct:.2f}%" if pct >= 0 else f"{pct:.2f}%"
+                                except (ValueError, ZeroDivisionError):
+                                    change = "+0.00%"
+                            else:
+                                h24_change = pair_data.get("priceChange", {}).get("h24", 0)
+                                change = f"{h24_change}%"
+                                if not change.startswith("-"):
+                                    change = f"+{change}"
                         else:
                             h24_change = pair_data.get("priceChange", {}).get("h24", 0)
                             change = f"{h24_change}%"
@@ -312,6 +328,8 @@ class DexScreenerClient(BaseExchangeClient):
                         pair=original_id,
                         price=price_str,
                         percentage=change,
+                        high_24h=high_24h,
+                        low_24h=low_24h,
                         quote_volume_24h=str(pair_data.get("volume", {}).get("h24", 0)),
                         icon_url=pair_data.get("info", {}).get("imageUrl", ""),
                         display_name=pair_data.get("baseToken", {}).get("symbol", ""),
