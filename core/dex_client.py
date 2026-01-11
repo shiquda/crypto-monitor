@@ -1,4 +1,6 @@
 import logging
+import time
+from datetime import datetime, timezone
 
 import requests
 from PyQt6.QtCore import QTimer
@@ -8,6 +10,9 @@ from core.base_client import BaseExchangeClient
 from core.models import TickerData
 
 logger = logging.getLogger(__name__)
+
+# Cache expiry time for UTC+0 open prices (5 minutes)
+UTC0_CACHE_EXPIRY_SECONDS = 300
 
 
 class DexScreenerClient(BaseExchangeClient):
@@ -20,6 +25,10 @@ class DexScreenerClient(BaseExchangeClient):
         self._session = requests.Session()
         self._configure_proxy()
         self._is_connected = False
+        # Cache: {token_addr: {"open": float, "timestamp": float, "pool": str}}
+        self._utc0_open_cache: dict[str, dict] = {}
+        # Cache for pool addresses: {token_addr: {"pool": str, "network": str}}
+        self._pool_cache: dict[str, dict] = {}
 
     def _configure_proxy(self):
         settings = get_settings_manager().settings
@@ -142,6 +151,71 @@ class DexScreenerClient(BaseExchangeClient):
     def is_connected(self) -> bool:
         return self._is_connected
 
+    def _get_utc0_open_price(self, token_addr: str, pair_data: dict) -> float | None:
+        """Get today's UTC+0 open price for a token via GeckoTerminal daily OHLCV."""
+        now = time.time()
+        today_utc0 = (
+            datetime.now(timezone.utc)
+            .replace(hour=0, minute=0, second=0, microsecond=0)
+            .timestamp()
+        )
+
+        cached = self._utc0_open_cache.get(token_addr)
+        if cached:
+            cache_date = (
+                datetime.fromtimestamp(cached["timestamp"], tz=timezone.utc)
+                .replace(hour=0, minute=0, second=0, microsecond=0)
+                .timestamp()
+            )
+            if cache_date == today_utc0 and (now - cached["timestamp"]) < UTC0_CACHE_EXPIRY_SECONDS:
+                return cached["open"]
+
+        try:
+            chain_id = pair_data.get("chainId", "")
+            pool_address = pair_data.get("pairAddress", "")
+
+            if not chain_id or not pool_address:
+                return None
+
+            network_map = {
+                "ethereum": "eth",
+                "polygon": "polygon_pos",
+                "avalanche": "avax",
+            }
+            network = network_map.get(chain_id, chain_id)
+
+            headers = {"User-Agent": "Mozilla/5.0"}
+            gt_url = (
+                f"https://api.geckoterminal.com/api/v2/networks/{network}"
+                f"/pools/{pool_address}/ohlcv/day?limit=1"
+            )
+
+            resp = self._session.get(gt_url, headers=headers, timeout=5)
+            if resp.status_code != 200:
+                logger.debug(f"GeckoTerminal OHLCV request failed: {resp.status_code}")
+                return None
+
+            gt_data = resp.json()
+            ohlcv_list = gt_data.get("data", {}).get("attributes", {}).get("ohlcv_list", [])
+
+            if not ohlcv_list:
+                return None
+
+            latest_candle = ohlcv_list[0]
+            open_price = float(latest_candle[1])
+
+            self._utc0_open_cache[token_addr] = {
+                "open": open_price,
+                "timestamp": now,
+                "pool": pool_address,
+            }
+
+            return open_price
+
+        except Exception as e:
+            logger.debug(f"Failed to fetch UTC+0 open price for {token_addr}: {e}")
+            return None
+
     def _poll_data(self):
         if not self._pairs:
             logger.debug("No pairs to poll")
@@ -204,19 +278,39 @@ class DexScreenerClient(BaseExchangeClient):
                     if new_liq > curr_liq:
                         token_best_pair[token_addr] = pair_data
 
+            settings = get_settings_manager().settings
+            basis = settings.price_change_basis
+
             updated_count = 0
             for addr, pair_data in token_best_pair.items():
                 if addr in pair_map:
                     original_id = pair_map[addr]
 
-                    price = str(pair_data.get("priceUsd", "0"))
-                    change = f"{pair_data.get('priceChange', {}).get('h24', 0)}%"
-                    if not change.startswith("-"):
-                        change = f"+{change}"
+                    price_str = str(pair_data.get("priceUsd", "0"))
+
+                    if basis == "utc_0":
+                        open_price = self._get_utc0_open_price(addr, pair_data)
+                        if open_price and open_price > 0:
+                            try:
+                                current_price = float(price_str)
+                                pct = (current_price - open_price) / open_price * 100
+                                change = f"+{pct:.2f}%" if pct >= 0 else f"{pct:.2f}%"
+                            except (ValueError, ZeroDivisionError):
+                                change = "+0.00%"
+                        else:
+                            h24_change = pair_data.get("priceChange", {}).get("h24", 0)
+                            change = f"{h24_change}%"
+                            if not change.startswith("-"):
+                                change = f"+{change}"
+                    else:
+                        h24_change = pair_data.get("priceChange", {}).get("h24", 0)
+                        change = f"{h24_change}%"
+                        if not change.startswith("-"):
+                            change = f"+{change}"
 
                     ticker = TickerData(
                         pair=original_id,
-                        price=price,
+                        price=price_str,
                         percentage=change,
                         quote_volume_24h=str(pair_data.get("volume", {}).get("h24", 0)),
                         icon_url=pair_data.get("info", {}).get("imageUrl", ""),
@@ -224,7 +318,7 @@ class DexScreenerClient(BaseExchangeClient):
                         quote_token=pair_data.get("quoteToken", {}).get("symbol", ""),
                     )
 
-                    logger.debug(f"Emitting update for {original_id}: {price} ({change})")
+                    logger.debug(f"Emitting update for {original_id}: {price_str} ({change})")
                     self.ticker_updated.emit(original_id, ticker)
                     updated_count += 1
                 else:
