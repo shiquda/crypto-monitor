@@ -39,14 +39,18 @@ The main interface consists of three key areas:
 ## 2. Core Features
 
 ### Real-time Monitoring
-- **Data Sources**: Supports **Binance** and **OKX**.
-- **Add Pair**: Click the `+` icon at the top and enter a symbol like `BTC-USDT`.
+- **Data Sources**: Supports **Binance**, **OKX** centralized exchanges, and **On-Chain DEX** data (via DexScreener API).
+- **Add Pair**: Click the `+` icon at the top. In the dialog, select your data source type:
+  - **Exchange (CEX)**: Enter a pair name like `BTC-USDT` and select from the dropdown list.
+  - **On-Chain (DEX)**: Switch to the "On-Chain (DEX)" tab, paste a token contract address (EVM `0x...` or Solana address), search, and select from the results.
 
 <p align="center">
   <img src="./imgs/add-pair.png" alt="Add Pair" width="60%">
 </p>
 
-- **View Details**: 
+> **On-Chain Pairs Note**: DEX pairs fetch data via DexScreener, supporting Ethereum, Solana, BSC, Arbitrum, and other major chains. Double-clicking a DEX card opens its DexScreener page.
+
+- **View Details**:
     - **Hover**: Hover your mouse over a card to reveal **24h High/Low**, **Volume**, and a **Mini Candle Chart**.
     - **Double Click**: Opens the exchange's trading page for that pair directly in your browser.
 
@@ -109,7 +113,8 @@ Click the **Gear** icon to enter the Settings center.
 </p>
 
 ### Network & Data Source
-- **Data Source**: Defaults to OKX. If you cannot access it in your region, switch to Binance.
+- **CEX Data Source**: Defaults to OKX. If you cannot access it in your region, switch to Binance.
+- **DEX Data**: On-chain pair data is provided by the DexScreener API, with automatic polling updates (approximately every 10 seconds).
 - **Price Change Basis**:
     - **24h Rolling**: Shows change over the last 24 hours (default).
     - **UTC-0**: Shows change since 00:00 UTC (8:00 AM Beijing Time), suitable for intraday traders.
@@ -141,5 +146,8 @@ A: Currently, there is no system tray support. Minimizing the app sends it to th
 **Q: How do I completely reset the software?**  
 A: Click `Reset to Defaults` at the bottom of Settings, or manually delete the `%APPDATA%/crypto-monitor` folder.
 
+**Q: How often does on-chain DEX data update?**  
+A: DEX pairs are updated via DexScreener API polling, approximately every 10 seconds. Since this uses HTTP polling rather than WebSocket, there may be a slight delay compared to CEX data.
+
 ---
-*Last updated: 2026-01-09*
+*Last updated: 2026-01-11*
