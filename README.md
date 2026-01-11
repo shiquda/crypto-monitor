@@ -17,6 +17,7 @@ A modern, elegant, and cross-platform cryptocurrency price monitor built with Py
 
 - **Fluent Design UI**: A beautiful, modern interface with Acrylic effects, supporting both Light and Dark themes.
 - **Real-time Monitoring**: Live price updates from OKX/Binance via WebSocket connection.
+- **DEX Token Support**: Monitor on-chain tokens from decentralized exchanges across multiple chains (Solana, Ethereum, BSC, etc.) via DexScreener.
 - **Advanced Alert System**: Powerful price alert features with native system notifications and optional sounds, including:
     - **Price Thresholds**: Alerts when price goes above, below, or touches a target.
     - **Step Alerts**: Trigger alerts at regular price intervals (e.g., every $1,000) or percentage changes (e.g., every 5% daily change).
@@ -67,3 +68,5 @@ For detailed usage instructions, please refer to the User Manual:
 - Data Providers:
     - [OKX](https://www.okx.com/)
     - [Binance](https://www.binance.com/)
+    - [DexScreener](https://dexscreener.com/) - DEX token prices and metadata
+    - [GeckoTerminal](https://www.geckoterminal.com/) - On-chain OHLCV data
