@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.0] - 2026-01-12
+
+### Added
+- **Feature**: Added **DEX Token Name Search** support to easily find tokens by name or symbol.
+- **Feature**: Implemented **Multi-source Icon Fallback** (OKX -> Binance -> CoinGecko) to significantly improve icon coverage.
+- **Feature**: Added **UTC+0 Mode** support for DEX tokens price change calculation.
+
+### Changed
+- **DEX**: Enhanced mini-charts with 24h High/Low data support.
+- **Dev**: Optimized logging system (replaced print with logger) and improved documentation.
+- **Docs**: Updated DEX feature documentation and translations.
+
 ## [0.4.0] - 2026-01-11
 
 ### Added

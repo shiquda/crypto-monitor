@@ -2,7 +2,7 @@
 ; SEE THE DOCUMENTATION FOR DETAILS ON CREATING INNO SETUP SCRIPT FILES!
 
 #define MyAppName "Crypto Monitor"
-#define MyAppVersion "0.4.0"
+#define MyAppVersion "0.5.0"
 #define MyAppPublisher "shiquda"
 #define MyAppURL "https://github.com/shiquda/crypto-monitor"
 #define MyAppExeName "crypto-monitor.exe"
