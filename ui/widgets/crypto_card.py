@@ -77,7 +77,9 @@ class CryptoCard(CardWidget):
             super().enterEvent(event)
             return
 
-        self.hover_card.set_visibility(settings.hover_show_stats, settings.hover_show_chart)
+        self.hover_card.set_visibility(
+            settings.hover_show_stats, settings.hover_show_chart
+        )
         self._update_hover_card()
 
         global_pos = self.mapToGlobal(self.rect().topRight())
@@ -89,7 +91,11 @@ class CryptoCard(CardWidget):
         if screen:
             screen_geom = screen.availableGeometry()
             if x + self.hover_card.width() > screen_geom.right():
-                x = self.mapToGlobal(self.rect().topLeft()).x() - self.hover_card.width() - 5
+                x = (
+                    self.mapToGlobal(self.rect().topLeft()).x()
+                    - self.hover_card.width()
+                    - 5
+                )
 
         self.hover_card.move(x, y)
         self.hover_card.show()
@@ -155,11 +161,15 @@ class CryptoCard(CardWidget):
         symbol = get_display_name(self.pair, short=True)
 
         self.symbol_label = QLabel(symbol)
-        self.symbol_label.setStyleSheet(f"font-weight: bold; font-size: 12px; color: {text_color};")
+        self.symbol_label.setStyleSheet(
+            f"font-weight: bold; font-size: 12px; color: {text_color};"
+        )
         header_layout.addWidget(self.symbol_label)
 
         self.percentage_label = QLabel("0.00%")
-        self.percentage_label.setStyleSheet(f"font-size: 11px; color: {secondary_color};")
+        self.percentage_label.setStyleSheet(
+            f"font-size: 11px; color: {secondary_color};"
+        )
         header_layout.addWidget(self.percentage_label)
 
         header_layout.addStretch()
@@ -253,7 +263,9 @@ class CryptoCard(CardWidget):
             logger.warning(f"All icon sources exhausted for {self.pair}")
             return
 
-        url, source_name, expected_format = self._icon_sources_to_try[self._icon_source_index]
+        url, source_name, expected_format = self._icon_sources_to_try[
+            self._icon_source_index
+        ]
         self._loaded_icon_url = url
 
         self._network_manager = QNetworkAccessManager(self)
@@ -288,7 +300,10 @@ class CryptoCard(CardWidget):
             data = reply.readAll()
             if len(data) > 0:
                 data_bytes = bytes(data)
-                is_svg = b"<svg" in data_bytes[:100].lower() or b"xml" in data_bytes[:100].lower()
+                is_svg = (
+                    b"<svg" in data_bytes[:100].lower()
+                    or b"xml" in data_bytes[:100].lower()
+                )
 
                 if is_svg:
                     self.icon_widget.load(data)
@@ -342,7 +357,9 @@ class CryptoCard(CardWidget):
                 logger.warning(f"Empty icon data received for {self.pair}")
                 self._try_next_icon_source()
         else:
-            logger.warning(f"Icon download failed for {self.pair}: {reply.errorString()}")
+            logger.warning(
+                f"Icon download failed for {self.pair}: {reply.errorString()}"
+            )
             self._try_next_icon_source()
         reply.deleteLater()
 
@@ -387,9 +404,18 @@ class CryptoCard(CardWidget):
         return "#F44336" if settings.color_schema == "standard" else "#4CAF50"
 
     def update_price(self, price: str, trend: str, color: str):
-        display_text = f"{price} {trend}" if trend else price
+        if isinstance(price, str):
+            display_price = price
+        else:
+            from core.utils import format_price
+
+            display_price = format_price(price)
+
+        display_text = f"{display_price} {trend}" if trend else display_price
         self.price_label.setText(display_text)
-        self.price_label.setStyleSheet(f"font-size: 16px; font-weight: 600; color: {color};")
+        self.price_label.setStyleSheet(
+            f"font-size: 16px; font-weight: 600; color: {color};"
+        )
 
     def set_connection_state(self, state: str):
         if state == "connected":
@@ -454,13 +480,30 @@ class CryptoCard(CardWidget):
         self.percentage_label.setText(percentage)
 
         if percentage.startswith("+"):
-            self.percentage_label.setStyleSheet(f"font-size: 11px; color: {self._color_up};")
+            self.percentage_label.setStyleSheet(
+                f"font-size: 11px; color: {self._color_up};"
+            )
         elif percentage.startswith("-"):
-            self.percentage_label.setStyleSheet(f"font-size: 11px; color: {self._color_down};")
+            self.percentage_label.setStyleSheet(
+                f"font-size: 11px; color: {self._color_down};"
+            )
         else:
             neutral_color = "#333333" if self._theme_mode == "light" else "#FFFFFF"
-            self.percentage_label.setStyleSheet(f"font-size: 11px; color: {neutral_color};")
+            self.percentage_label.setStyleSheet(
+                f"font-size: 11px; color: {neutral_color};"
+            )
 
+        self.refresh_style()
+
+    def reset_data(self):
+        self._current_percentage = "0.00%"
+        self.price_label.setText(_("Loading..."))
+        self.price_label.setStyleSheet("font-size: 16px; font-weight: 600;")
+        self.percentage_label.setText("0.00%")
+        neutral_color = "#333333" if self._theme_mode == "light" else "#FFFFFF"
+        self.percentage_label.setStyleSheet(f"font-size: 11px; color: {neutral_color};")
+        self._hover_data = {"high": "0", "low": "0", "quote_volume": "0"}
+        self._chart_cache = {}
         self.refresh_style()
 
     def set_edit_mode(self, enabled: bool):
@@ -486,17 +529,23 @@ class CryptoCard(CardWidget):
         menu = RoundMenu(parent=self)
 
         add_alert_action = Action(FIF.RINGER, _("Add Alert..."), self)
-        add_alert_action.triggered.connect(lambda: self.add_alert_requested.emit(self.pair))
+        add_alert_action.triggered.connect(
+            lambda: self.add_alert_requested.emit(self.pair)
+        )
         menu.addAction(add_alert_action)
 
         view_alerts_action = Action(FIF.VIEW, _("View Alerts"), self)
-        view_alerts_action.triggered.connect(lambda: self.view_alerts_requested.emit(self.pair))
+        view_alerts_action.triggered.connect(
+            lambda: self.view_alerts_requested.emit(self.pair)
+        )
         menu.addAction(view_alerts_action)
 
         menu.addSeparator()
 
         open_browser_action = Action(FIF.GLOBE, _("Open in Browser"), self)
-        open_browser_action.triggered.connect(lambda: self.browser_opened_requested.emit(self.pair))
+        open_browser_action.triggered.connect(
+            lambda: self.browser_opened_requested.emit(self.pair)
+        )
         menu.addAction(open_browser_action)
 
         remove_action = Action(FIF.DELETE, _("Remove Pair"), self)
@@ -514,13 +563,15 @@ class CryptoCard(CardWidget):
 
         settings = get_settings_manager().settings
         current_period = settings.kline_period.upper()
+        current_source = (settings.data_source or "").upper()
         cache_ttl = settings.chart_cache_ttl
         now = time.time()
 
         if self._chart_cache:
             cached_period = self._chart_cache.get("period", "24H")
+            cached_source = self._chart_cache.get("source", "")
             if (now - self._chart_cache.get("timestamp", 0) < cache_ttl) and (
-                cached_period == current_period
+                cached_period == current_period and cached_source == current_source
             ):
                 data = self._chart_cache.get("data", [])
                 if data:
@@ -535,7 +586,7 @@ class CryptoCard(CardWidget):
         exchange = settings.data_source
 
         class WorkerSignals(QObject):
-            data_ready = pyqtSignal(list, str)
+            data_ready = pyqtSignal(list, str, str, str)
 
         class KlineRunnable(QRunnable):
             def __init__(self, exchange_name, pair):
@@ -544,13 +595,31 @@ class CryptoCard(CardWidget):
                 self.exchange_name = exchange_name
                 self.pair = pair
 
+            def _create_source_client(self):
+                source = (self.exchange_name or "").upper()
+
+                if source in {
+                    "BINANCE",
+                    "BINANCE_MARK",
+                    "GATE",
+                    "GATE_MARK",
+                    "OKX",
+                    "OKX_MARK",
+                }:
+                    from core.unified_client import UnifiedExchangeClient
+
+                    return UnifiedExchangeClient(source, None)
+
+                from core.exchange_factory import ExchangeFactory
+
+                return ExchangeFactory.create_client(None)
+
             def run(self):
                 client = None
                 try:
                     from config.settings import get_settings_manager
-                    from core.exchange_factory import ExchangeFactory
 
-                    client = ExchangeFactory.create_client(None)
+                    client = self._create_source_client()
 
                     settings = get_settings_manager().settings
                     period_setting = settings.kline_period
@@ -576,13 +645,17 @@ class CryptoCard(CardWidget):
                     klines = client.fetch_klines(self.pair, interval, limit)
 
                     if not klines:
-                        self.signals.data_ready.emit([], "No data")
+                        self.signals.data_ready.emit(
+                            [], "No data", self.exchange_name, period_setting.upper()
+                        )
                     else:
                         closes = [k["close"] for k in klines]
-                        self.signals.data_ready.emit(closes, "")
+                        self.signals.data_ready.emit(
+                            closes, "", self.exchange_name, period_setting.upper()
+                        )
 
                 except Exception as e:
-                    self.signals.data_ready.emit([], str(e))
+                    self.signals.data_ready.emit([], str(e), self.exchange_name, "")
 
                 finally:
                     if client:
@@ -598,21 +671,32 @@ class CryptoCard(CardWidget):
         runnable.signals.data_ready.connect(self._on_kline_data_ready)
         QThreadPool.globalInstance().start(runnable)
 
-    def _on_kline_data_ready(self, data: list, error: str):
+    def _on_kline_data_ready(
+        self, data: list, error: str, source: str = "", period: str = ""
+    ):
         import time
 
         from config.settings import get_settings_manager
 
-        period = get_settings_manager().settings.kline_period.upper()
+        settings = get_settings_manager().settings
+        current_period = settings.kline_period.upper()
+        current_source = (settings.data_source or "").upper()
+
+        # Ignore stale async results returned after source/period has changed.
+        if source and source.upper() != current_source:
+            return
+        if period and period.upper() != current_period:
+            return
 
         if data and not error:
             self._chart_cache = {
                 "timestamp": time.time(),
                 "data": data,
-                "period": period,
+                "period": current_period,
+                "source": current_source,
             }
             if self.hover_card.isVisible():
-                self.hover_card.update_chart(data, period)
+                self.hover_card.update_chart(data, current_period)
         else:
             if self.hover_card.isVisible():
-                self.hover_card.update_chart([], period, error)
+                self.hover_card.update_chart([], current_period, error)

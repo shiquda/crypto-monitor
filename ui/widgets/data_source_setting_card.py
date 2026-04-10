@@ -18,8 +18,12 @@ class DataSourceSettingCard(SettingCard):
         )
 
         self.combo = ComboBox(self)
-        self.combo.addItem("OKX", "OKX")
-        self.combo.addItem("Binance", "Binance")
+        self.combo.addItem(_("OKX"), userData="OKX")
+        self.combo.addItem(_("OKX_swap"), userData="OKX_MARK")
+        self.combo.addItem(_("Binance"), userData="BINANCE")
+        self.combo.addItem(_("Binance_swap"), userData="BINANCE_MARK")
+        self.combo.addItem(_("GATE"), userData="GATE")
+        self.combo.addItem(_("GATE_swap"), userData="GATE_MARK")
 
         self.hBoxLayout.addWidget(self.combo, 0, Qt.AlignmentFlag.AlignRight)
         self.hBoxLayout.addSpacing(16)
@@ -29,11 +33,7 @@ class DataSourceSettingCard(SettingCard):
 
     def _load_setting(self):
         settings = get_settings_manager().settings
-        source = settings.data_source
-        if source.upper() == "BINANCE":
-            self.combo.setCurrentIndex(1)
-        else:
-            self.combo.setCurrentIndex(0)
+        self.set_data_source(settings.data_source)
 
     def _on_changed(self, index):
         # We don't save immediately here, we let the save button in settings window handle it
@@ -41,10 +41,36 @@ class DataSourceSettingCard(SettingCard):
         pass
 
     def get_data_source(self) -> str:
-        return self.combo.currentText()  # "OKX" or "Binance"
+        value = self.combo.currentData()
+        if isinstance(value, str) and value:
+            return value.upper()
+
+        index_to_source = {
+            0: "OKX",
+            1: "OKX_MARK",
+            2: "BINANCE",
+            3: "BINANCE_MARK",
+            4: "GATE",
+            5: "GATE_MARK",
+        }
+        return index_to_source.get(self.combo.currentIndex(), "OKX")
 
     def set_data_source(self, source: str):
-        if source.upper() == "BINANCE":
-            self.combo.setCurrentIndex(1)
-        else:
-            self.combo.setCurrentIndex(0)
+        source_upper = (source or "").upper()
+        index = self.combo.findData(source_upper)
+        if index >= 0:
+            self.combo.setCurrentIndex(index)
+            return
+
+        index_map = {
+            "OKX": 0,
+            "OKX_MARK": 1,
+            "OKX_SWAP": 1,
+            "BINANCE": 2,
+            "BINANCE_MARK": 3,
+            "BINANCE_SWAP": 3,
+            "GATE": 4,
+            "GATE_MARK": 5,
+            "GATE_SWAP": 5,
+        }
+        self.combo.setCurrentIndex(index_map.get(source_upper, 0))

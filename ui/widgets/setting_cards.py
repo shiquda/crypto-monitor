@@ -447,13 +447,20 @@ class DisplaySettingCard(ExpandGroupSettingCard):
     """Expandable setting card for display options (color schema)."""
 
     color_schema_changed = pyqtSignal(str)  # Emitted when color schema changes
-    dynamic_bg_changed = pyqtSignal(bool)  # Emitted when dynamic background setting changes
+    dynamic_bg_changed = pyqtSignal(
+        bool
+    )  # Emitted when dynamic background setting changes
     period_changed = pyqtSignal(str)  # Emitted when kline period changes
     display_limit_changed = pyqtSignal(int)  # Emitted when display limit changes
-    auto_scroll_changed = pyqtSignal(bool, int)  # Emitted when auto scroll settings change
-    auto_scroll_changed = pyqtSignal(bool, int)  # Emitted when auto scroll settings change
-    minimalist_view_changed = pyqtSignal(bool)  # Emitted when minimalist view mode changes
-    price_change_basis_changed = pyqtSignal(str)  # Emitted when price change basis changes
+    auto_scroll_changed = pyqtSignal(
+        bool, int
+    )  # Emitted when auto scroll settings change
+    minimalist_view_changed = pyqtSignal(
+        bool
+    )  # Emitted when minimalist view mode changes
+    price_change_basis_changed = pyqtSignal(
+        str
+    )  # Emitted when price change basis changes
 
     def __init__(self, parent: QWidget | None = None):
         super().__init__(
@@ -502,8 +509,10 @@ class DisplaySettingCard(ExpandGroupSettingCard):
 
         self.basis_label = BodyLabel(_("Price Change Basis"))
         self.basis_combo = ComboBox()
-        # Index 0: 24h Rolling, Index 1: UTC-0
-        self.basis_combo.addItems([_("24h Rolling"), _("UTC-0 (Daily)")])
+        # Index 0: 24h Rolling, Index 1: UTC-0, Index 2: UTC+8
+        self.basis_combo.addItems(
+            [_("24h Rolling"), _("UTC-0 (Daily)"), _("UTC+8 (Daily)")]
+        )
         self.basis_combo.currentTextChanged.connect(self._on_basis_changed)
 
         basis_layout.addWidget(self.basis_label)
@@ -526,7 +535,9 @@ class DisplaySettingCard(ExpandGroupSettingCard):
         from qfluentwidgets import CaptionLabel
 
         self.bg_label = BodyLabel(_("Dynamic Background"))
-        self.bg_desc = CaptionLabel(_("Background opacity varies with price change magnitude"))
+        self.bg_desc = CaptionLabel(
+            _("Background opacity varies with price change magnitude")
+        )
         # Set description text color using theme aware colors if possible.
         # Typically CaptionLabel is implicitly styled or we leave it default.
         # But to be safe lets leave it default, it should be lighter than BodyLabel
@@ -635,7 +646,9 @@ class DisplaySettingCard(ExpandGroupSettingCard):
         self._emit_auto_scroll_changed()
 
     def _emit_auto_scroll_changed(self):
-        self.auto_scroll_changed.emit(self.scroll_switch.isChecked(), self.interval_spin.value())
+        self.auto_scroll_changed.emit(
+            self.scroll_switch.isChecked(), self.interval_spin.value()
+        )
 
     def _on_schema_changed(self, text: str):
         """Handle color schema change."""
@@ -655,19 +668,32 @@ class DisplaySettingCard(ExpandGroupSettingCard):
 
     def _on_basis_changed(self, text: str):
         """Handle basis change."""
-        basis = "24h_rolling" if self.basis_combo.currentIndex() == 0 else "utc_0"
+        index = self.basis_combo.currentIndex()
+        if index == 0:
+            basis = "24h_rolling"
+        elif index == 1:
+            basis = "utc_0"
+        else:
+            basis = "utc_8"
         self.price_change_basis_changed.emit(basis)
 
     def set_price_change_basis(self, basis: str):
         """Set price change basis."""
         if basis == "24h_rolling":
             self.basis_combo.setCurrentIndex(0)
-        else:
+        elif basis == "utc_0":
             self.basis_combo.setCurrentIndex(1)
+        else:
+            self.basis_combo.setCurrentIndex(2)
 
     def get_price_change_basis(self) -> str:
         """Get current price change basis."""
-        return "24h_rolling" if self.basis_combo.currentIndex() == 0 else "utc_0"
+        index = self.basis_combo.currentIndex()
+        if index == 0:
+            return "24h_rolling"
+        if index == 1:
+            return "utc_0"
+        return "utc_8"
 
     def set_dynamic_background(self, enabled: bool):
         """Set dynamic background state."""

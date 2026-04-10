@@ -111,8 +111,10 @@ class AppSettings:
     """Application settings."""
 
     # Current version
-    version: str = "2.3.0"  # Bump version
-    data_source: str = "OKX"  # "OKX" or "Binance"
+    version: str = "2.3.1"  # Bump version
+    data_source: str = (
+        "OKX"  # "OKX", "OKX_MARK", "Binance", "BINANCE_MARK", "GATE", or "GATE_MARK"
+    )
 
     # Basic settings
     # Basic settings
@@ -120,7 +122,9 @@ class AppSettings:
     color_schema: str = (
         "standard"  # "standard" (Green Up/Red Down) or "reverse" (Red Up/Green Down)
     )
-    dynamic_background: bool = True  # Enable dynamic background color based on price change
+    dynamic_background: bool = (
+        True  # Enable dynamic background color based on price change
+    )
     kline_period: str = "24h"  # "1h", "4h", "12h", "24h", "7d"
     chart_cache_ttl: int = 60  # Mini chart cache duration in seconds (default 1 minute)
     hover_enabled: bool = True  # Master toggle for hover card
@@ -137,7 +141,7 @@ class AppSettings:
     window_y: int = 100
     always_on_top: bool = False
     language: str = "auto"  # "auto", "en_US", "zh_CN", etc.
-    price_change_basis: str = "24h_rolling"  # "24h_rolling" or "utc_0"
+    price_change_basis: str = "24h_rolling"  # "24h_rolling", "utc_0", or "utc_8"
 
     # V2.0.0 features
     compact_mode: CompactModeConfig = field(default_factory=CompactModeConfig)
@@ -174,7 +178,9 @@ class SettingsManager:
         self.config_dir.mkdir(parents=True, exist_ok=True)
 
         # Initialize migration manager
-        self.migration_manager = MigrationManager(self.config_file, self.CURRENT_VERSION)
+        self.migration_manager = MigrationManager(
+            self.config_file, self.CURRENT_VERSION
+        )
 
     def load(self, auto_migrate: bool = True) -> AppSettings:
         """
@@ -188,7 +194,9 @@ class SettingsManager:
         """
         if auto_migrate:
             try:
-                migrated, message, backup_path = self.migration_manager.migrate_if_needed()
+                migrated, message, backup_path = (
+                    self.migration_manager.migrate_if_needed()
+                )
                 if migrated:
                     logger.info(f"✅ Configuration migrated: {message}")
                     if backup_path:
@@ -224,7 +232,9 @@ class SettingsManager:
                 alerts_data = data.pop("alerts", [])
                 if not isinstance(alerts_data, list):
                     alerts_data = []
-                alerts_list = [PriceAlert.from_dict(a) for a in alerts_data if isinstance(a, dict)]
+                alerts_list = [
+                    PriceAlert.from_dict(a) for a in alerts_data if isinstance(a, dict)
+                ]
 
                 # Only keep recognized fields in data
                 recognized_fields = {
@@ -258,7 +268,9 @@ class SettingsManager:
                     "price_change_basis",
                     "sound_mode",
                 }
-                filtered_data = {k: v for k, v in data.items() if k in recognized_fields}
+                filtered_data = {
+                    k: v for k, v in data.items() if k in recognized_fields
+                }
 
                 # Create settings with all configs
                 self.settings = AppSettings(
@@ -448,7 +460,9 @@ class SettingsManager:
             True if migration was performed, False otherwise
         """
         try:
-            migrated, message, backup_path = self.migration_manager.migrate_if_needed(force=True)
+            migrated, message, backup_path = self.migration_manager.migrate_if_needed(
+                force=True
+            )
             if migrated:
                 logger.info(f"✅ {message}")
                 if backup_path:
@@ -542,7 +556,9 @@ class SettingsManager:
         alerts_data = data.pop("alerts", [])
         if not isinstance(alerts_data, list):
             alerts_data = []
-        alerts_list = [PriceAlert.from_dict(a) for a in alerts_data if isinstance(a, dict)]
+        alerts_list = [
+            PriceAlert.from_dict(a) for a in alerts_data if isinstance(a, dict)
+        ]
 
         # Only keep recognized fields
         recognized_fields = {

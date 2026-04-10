@@ -42,6 +42,64 @@ class OkxWebSocketWorker(BaseWebSocketWorker):
         self._ws_client: WsPublicAsync | None = None
         self._heartbeat_interval = 30  # seconds
         self._simple_ws = None  # Reference for simple mode websocket
+        self._market_type = "spot"
+        self._mark_open_prices: dict[str, float] = {}
+        self._mark_high_low_cache: dict[str, tuple[str, str]] = {}
+
+    def set_market_type(self, market_type: str):
+        self._market_type = market_type
+
+    def _channel_name(self) -> str:
+        return "mark-price" if self._market_type == "mark" else "tickers"
+
+    def _candles_url(self) -> str:
+        if self._market_type == "mark":
+            return "https://www.okx.com/api/v5/market/history-mark-price-candles"
+        return "https://www.okx.com/api/v5/market/candles"
+
+    @staticmethod
+    def _get_price_change_basis() -> str:
+        try:
+            from config.settings import get_settings_manager
+
+            return get_settings_manager().settings.price_change_basis
+        except Exception:
+            return "24h_rolling"
+
+    async def _prime_mark_open_prices(self, pairs: list[str]):
+        if self._market_type != "mark" or not pairs:
+            return
+
+        proxy_url = get_aiohttp_proxy_url()
+        url = "https://www.okx.com/api/v5/market/history-mark-price-candles"
+        basis = self._get_price_change_basis()
+        bar = "1Dutc" if basis == "utc_0" else "1D"
+
+        async with aiohttp.ClientSession(trust_env=True) as session:
+            for pair in pairs:
+                try:
+                    async with session.get(
+                        url,
+                        params={"instId": pair, "bar": bar, "limit": 2},
+                        proxy=proxy_url,
+                    ) as response:
+                        data = await response.json()
+
+                    if data.get("code") != "0":
+                        continue
+
+                    raw_data = data.get("data", [])
+                    if not raw_data:
+                        continue
+
+                    latest = raw_data[0]
+                    self._mark_open_prices[pair] = float(latest[1])
+                    self._mark_high_low_cache[pair] = (
+                        str(latest[2]) if len(latest) > 2 else "0",
+                        str(latest[3]) if len(latest) > 3 else "0",
+                    )
+                except Exception as e:
+                    logger.debug(f"Failed to prime OKX mark open price for {pair}: {e}")
 
     async def _send_ping(self):
         """Send ping to OKX."""
@@ -69,7 +127,7 @@ class OkxWebSocketWorker(BaseWebSocketWorker):
         elif interval.lower() == "1d":
             okx_interval = "1D"
 
-        url = "https://www.okx.com/api/v5/market/candles"
+        url = self._candles_url()
         params = {"instId": pair, "bar": okx_interval, "limit": limit}
 
         try:
@@ -100,7 +158,7 @@ class OkxWebSocketWorker(BaseWebSocketWorker):
             logger.error(f"Failed to fetch klines async for {pair}: {e}")
 
     async def _connect_and_subscribe(self):
-        """Connect to OKX WebSocket and subscribe to ticker channels."""
+        """Connect to OKX WebSocket and subscribe to the active channel."""
         if WsPublicAsync is None:
             # Fallback: use simple websocket implementation
             await self._simple_websocket_subscribe()
@@ -110,6 +168,8 @@ class OkxWebSocketWorker(BaseWebSocketWorker):
             self._ws_client = WsPublicAsync(self.WS_PUBLIC_URL)
             await self._ws_client.start()
             self._connection_start_time = time.time()
+
+            await self._prime_mark_open_prices(self.pairs)
 
             # Subscribe to current pairs
             await self._update_subscriptions()
@@ -128,14 +188,17 @@ class OkxWebSocketWorker(BaseWebSocketWorker):
             # Simple websocket implementation
             return
 
+        channel = self._channel_name()
+
         # Subscribe to new pairs
         if new_pairs:
-            args = [{"channel": "tickers", "instId": pair} for pair in new_pairs]
+            args = [{"channel": channel, "instId": pair} for pair in new_pairs]
             await self._ws_client.subscribe(args, self._handle_message)
+            await self._prime_mark_open_prices(list(new_pairs))
 
         # Unsubscribe from removed pairs
         if removed_pairs:
-            args = [{"channel": "tickers", "instId": pair} for pair in removed_pairs]
+            args = [{"channel": channel, "instId": pair} for pair in removed_pairs]
             try:
                 await self._ws_client.unsubscribe(args)
             except Exception:
@@ -170,7 +233,10 @@ class OkxWebSocketWorker(BaseWebSocketWorker):
 
                 subscribe_msg = {
                     "op": "subscribe",
-                    "args": [{"channel": "tickers", "instId": pair} for pair in self.pairs],
+                    "args": [
+                        {"channel": self._channel_name(), "instId": pair}
+                        for pair in self.pairs
+                    ],
                 }
                 await ws.send(json.dumps(subscribe_msg))
 
@@ -215,7 +281,7 @@ class OkxWebSocketWorker(BaseWebSocketWorker):
 
             for ticker in data.get("data", []):
                 pair = ticker.get("instId", "")
-                last_price = ticker.get("last", "0")
+                last_price = ticker.get("markPx", ticker.get("last", "0"))
                 sod_utc0 = ticker.get("sodUtc0", "0")
 
                 # Calculate percentage
@@ -227,7 +293,16 @@ class OkxWebSocketWorker(BaseWebSocketWorker):
 
                     last = float(last_price)
 
-                    if basis == "utc_0":
+                    if self._market_type == "mark":
+                        open_price = self._mark_open_prices.get(pair, 0.0)
+                        if open_price <= 0:
+                            if basis == "utc_8":
+                                open_price = float(ticker.get("sodUtc8", "0") or 0)
+                            else:
+                                open_price = float(sod_utc0 or 0)
+                    elif basis == "utc_8":
+                        open_price = float(ticker.get("sodUtc8", "0") or 0)
+                    elif basis == "utc_0":
                         open_price = float(sod_utc0)
                     else:
                         # For 24h rolling, we need open24h.
@@ -243,9 +318,17 @@ class OkxWebSocketWorker(BaseWebSocketWorker):
                 except (ValueError, ZeroDivisionError):
                     percentage = "0.00%"
 
-                # Extract extended data
+                # mark-price channel may not include high/low; fallback to primed mark candle values
                 high_24h = ticker.get("high24h", "0")
                 low_24h = ticker.get("low24h", "0")
+                if self._market_type == "mark":
+                    cached_high, cached_low = self._mark_high_low_cache.get(
+                        pair, ("0", "0")
+                    )
+                    if str(high_24h) in {"", "0", "0.0"}:
+                        high_24h = cached_high
+                    if str(low_24h) in {"", "0", "0.0"}:
+                        low_24h = cached_low
                 quote_volume = ticker.get("volCcy24h", "0")
 
                 ticker_obj = TickerData(
@@ -294,10 +377,55 @@ class OkxClientManager(BaseExchangeClient):
     connection_state_changed = pyqtSignal(str, str, int)  # state, message, retry_count
     stats_updated = pyqtSignal(dict)  # connection statistics
 
-    def __init__(self, parent: QObject | None = None):
+    def __init__(self, parent: QObject | None = None, market_type: str = "spot"):
         super().__init__(parent)
         self._worker: OkxWebSocketWorker | None = None
         self._pairs: list[str] = []
+        self._market_type = market_type
+        self._pair_alias_map: dict[str, str] = {}
+
+    def _to_subscription_pair(self, pair: str) -> str:
+        pair_upper = pair.upper()
+        if self._market_type != "mark":
+            return pair_upper
+        if pair_upper.endswith("-SWAP"):
+            return pair_upper
+        if pair_upper.count("-") == 1:
+            return f"{pair_upper}-SWAP"
+        return pair_upper
+
+    def _prepare_pairs(self, pairs: list[str]) -> tuple[list[str], dict[str, str]]:
+        normalized: list[str] = []
+        alias_map: dict[str, str] = {}
+
+        for pair in pairs:
+            display_pair = pair.upper()
+            sub_pair = self._to_subscription_pair(display_pair)
+            if sub_pair not in normalized:
+                normalized.append(sub_pair)
+            alias_map[sub_pair] = display_pair
+
+        return normalized, alias_map
+
+    def _on_worker_ticker_updated(self, pair: str, ticker: TickerData):
+        display_pair = self._pair_alias_map.get(pair, pair)
+        if display_pair == pair:
+            self.ticker_updated.emit(pair, ticker)
+            return
+
+        mapped = TickerData(
+            pair=display_pair,
+            price=ticker.price,
+            percentage=ticker.percentage,
+            high_24h=ticker.high_24h,
+            low_24h=ticker.low_24h,
+            quote_volume_24h=ticker.quote_volume_24h,
+            amplitude_24h=ticker.amplitude_24h,
+            icon_url=ticker.icon_url,
+            display_name=ticker.display_name,
+            quote_token=ticker.quote_token,
+        )
+        self.ticker_updated.emit(display_pair, mapped)
 
     def _detach_and_stop_worker(self, worker: OkxWebSocketWorker):
         WorkerController.get_instance().stop_worker(worker)
@@ -309,25 +437,29 @@ class OkxClientManager(BaseExchangeClient):
         Uses incremental updates - only new/removed pairs cause subscription changes.
         Existing connections remain active.
         """
-        pairs = list(pairs)  # Make a copy
+        pairs = [p.upper() for p in pairs]
+        sub_pairs, alias_map = self._prepare_pairs(pairs)
 
         # If we have an active worker, update incrementally
         if self._worker is not None and self._worker.isRunning():
             # Just update the pairs list and signal the worker
             old_pairs = set(self._worker.pairs)
-            new_pairs = set(pairs)
+            new_pairs = set(sub_pairs)
 
             # Check if it's just a change in pairs
             if old_pairs != new_pairs:
                 # Update worker's pairs list
-                self._worker.pairs = pairs
+                self._worker.pairs = sub_pairs
                 # Worker will detect the change and update subscriptions incrementally
 
             self._pairs = pairs
+            self._pair_alias_map = alias_map
             return
 
         # No active worker - create a new one
-        self._create_worker(pairs)
+        self._pairs = pairs
+        self._pair_alias_map = alias_map
+        self._create_worker(sub_pairs)
 
     def _create_worker(self, pairs: list[str]):
         """Create a new WebSocket worker."""
@@ -335,11 +467,11 @@ class OkxClientManager(BaseExchangeClient):
         if self._worker is not None:
             self._detach_and_stop_worker(self._worker)
 
-        self._pairs = pairs
         self._worker = OkxWebSocketWorker(pairs, self)
+        self._worker.set_market_type(self._market_type)
 
         # Connect signals
-        self._worker.ticker_updated.connect(self.ticker_updated)
+        self._worker.ticker_updated.connect(self._on_worker_ticker_updated)
         self._worker.connection_status.connect(self.connection_status)
         self._worker.connection_state_changed.connect(self.connection_state_changed)
         self._worker.stats_updated.connect(self.stats_updated)
@@ -353,27 +485,31 @@ class OkxClientManager(BaseExchangeClient):
         pair = pair.upper()
         if pair not in self._pairs:
             self._pairs.append(pair)
+            sub_pairs, alias_map = self._prepare_pairs(self._pairs)
+            self._pair_alias_map = alias_map
             if self._worker is not None and self._worker.isRunning():
                 # Incremental update - no full reconnect
-                self._worker.pairs = list(self._pairs)
+                self._worker.pairs = sub_pairs
             else:
                 # No active worker, create one
-                self._create_worker(self._pairs)
+                self._create_worker(sub_pairs)
 
     def remove_pair(self, pair: str):
         """Remove a pair from subscription (incremental update)."""
         pair = pair.upper()
         if pair in self._pairs:
             self._pairs.remove(pair)
+            sub_pairs, alias_map = self._prepare_pairs(self._pairs)
+            self._pair_alias_map = alias_map
             if self._worker is not None and self._worker.isRunning():
                 # Incremental update - no full reconnect
-                self._worker.pairs = list(self._pairs)
+                self._worker.pairs = sub_pairs
                 # If no more pairs, stop the worker
                 if not self._pairs:
                     self.stop()
             else:
                 if self._pairs:
-                    self._create_worker(self._pairs)
+                    self._create_worker(sub_pairs)
                 else:
                     self.stop()
 
@@ -405,10 +541,11 @@ class OkxClientManager(BaseExchangeClient):
         return None
 
     def request_klines(self, pair: str, interval: str, limit: int = 24):
+        request_pair = self._to_subscription_pair(pair)
         if self._worker is not None and self._worker.isRunning():
-            self._worker.request_klines(pair, interval, limit)
+            self._worker.request_klines(request_pair, interval, limit)
         else:
-            super().request_klines(pair, interval, limit)
+            super().request_klines(request_pair, interval, limit)
 
     def fetch_klines(self, pair: str, interval: str, limit: int = 24) -> list[dict]:
         """
@@ -416,6 +553,8 @@ class OkxClientManager(BaseExchangeClient):
         GET /api/v5/market/candles
         """
         import requests
+
+        pair = self._to_subscription_pair(pair)
 
         okx_interval = interval
         if interval.lower() == "1h":
@@ -425,7 +564,10 @@ class OkxClientManager(BaseExchangeClient):
         elif interval.lower() == "1d":
             okx_interval = "1D"
 
-        url = "https://www.okx.com/api/v5/market/candles"
+        if self._market_type == "mark":
+            url = "https://www.okx.com/api/v5/market/history-mark-price-candles"
+        else:
+            url = "https://www.okx.com/api/v5/market/candles"
         params = {"instId": pair, "bar": okx_interval, "limit": limit}
 
         try:

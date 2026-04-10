@@ -95,12 +95,14 @@ class MainWindow(QMainWindow):
         central = QWidget()
         theme_mode = self._settings_manager.settings.theme_mode
         bg_color = "#1B2636" if theme_mode == "dark" else "#FAFAFA"
-        central.setStyleSheet(f"""
+        central.setStyleSheet(
+            f"""
             QWidget {{
                 background-color: {bg_color};
                 border-radius: 8px;
             }}
-        """)
+        """
+        )
         self.setCentralWidget(central)
 
         layout = QVBoxLayout(central)
@@ -112,9 +114,15 @@ class MainWindow(QMainWindow):
 
         self.scroll_area = QScrollArea()
         self.scroll_area.setWidgetResizable(True)
-        self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.scroll_area.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+        self.scroll_area.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+        self.scroll_area.setVerticalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+        self.scroll_area.setStyleSheet(
+            "QScrollArea { border: none; background: transparent; }"
+        )
 
         self.cards_container = QWidget()
         self.cards_layout = QVBoxLayout(self.cards_container)
@@ -139,9 +147,15 @@ class MainWindow(QMainWindow):
         self.pagination.page_changed.connect(self._on_page_changed)
 
         self._market_controller.ticker_updated.connect(self._on_ticker_update)
-        self._market_controller.connection_status_changed.connect(self._on_connection_status)
-        self._market_controller.connection_state_changed.connect(self._on_connection_state_changed)
-        self._market_controller.data_source_changed.connect(self._on_data_source_changed_complete)
+        self._market_controller.connection_status_changed.connect(
+            self._on_connection_status
+        )
+        self._market_controller.connection_state_changed.connect(
+            self._on_connection_state_changed
+        )
+        self._market_controller.data_source_changed.connect(
+            self._on_data_source_changed_complete
+        )
 
     def _load_pairs(self):
         """Load pairs from settings and subscribe."""
@@ -185,12 +199,22 @@ class MainWindow(QMainWindow):
             self._settings_window.proxy_changed.connect(self._on_proxy_changed)
             self._settings_window.pairs_changed.connect(self._on_pairs_changed)
             self._settings_window.theme_changed.connect(self._on_theme_changed)
-            self._settings_window.data_source_changed.connect(self._on_data_source_changed)
+            self._settings_window.data_source_changed.connect(
+                self._on_data_source_changed
+            )
             self._settings_window.display_changed.connect(self._on_display_changed)
-            self._settings_window.auto_scroll_changed.connect(self._on_auto_scroll_changed)
-            self._settings_window.display_limit_changed.connect(self._on_display_limit_changed)
-            self._settings_window.minimalist_view_changed.connect(self._on_minimalist_view_changed)
-            self._settings_window.price_change_basis_changed.connect(self._on_data_source_changed)
+            self._settings_window.auto_scroll_changed.connect(
+                self._on_auto_scroll_changed
+            )
+            self._settings_window.display_limit_changed.connect(
+                self._on_display_limit_changed
+            )
+            self._settings_window.minimalist_view_changed.connect(
+                self._on_minimalist_view_changed
+            )
+            self._settings_window.price_change_basis_changed.connect(
+                self._on_data_source_changed
+            )
             self._settings_window.show()
         else:
             self._settings_window.raise_()
@@ -237,10 +261,12 @@ class MainWindow(QMainWindow):
         self._pagination_manager.update_auto_scroll_settings(enabled, interval)
 
     def _on_data_source_changed(self):
+        for card in self._cards.values():
+            card.reset_data()
         self._market_controller.set_data_source()
 
     def _on_data_source_changed_complete(self):
-        pass
+        self._update_cards_display()
 
     def _toggle_edit_mode(self):
         if self._edit_mode:
@@ -265,6 +291,34 @@ class MainWindow(QMainWindow):
             self._market_controller.clear_pair_data(pair)
             self._load_pairs()
 
+    def _normalize_data_source(self, source: str) -> str:
+        raw = (source or "").strip()
+        upper = raw.upper()
+
+        canonical = {
+            "OKX": "OKX",
+            "OKX_MARK": "OKX_MARK",
+            "OKX_SWAP": "OKX_MARK",
+            "BINANCE": "BINANCE",
+            "BINANCE_MARK": "BINANCE_MARK",
+            "BINANCE_SWAP": "BINANCE_MARK",
+            "GATE": "GATE",
+            "GATE_MARK": "GATE_MARK",
+            "GATE_SWAP": "GATE_MARK",
+        }
+        if upper in canonical:
+            return canonical[upper]
+
+        # Localized/fallback display labels from i18n (or custom text in old config)
+        if "BINANCE" in upper:
+            return "BINANCE_MARK" if ("MARK" in upper or "SWAP" in upper) else "BINANCE"
+        if "GATE" in upper:
+            return "GATE_MARK" if ("MARK" in upper or "SWAP" in upper) else "GATE"
+        if "OKX" in upper:
+            return "OKX_MARK" if ("MARK" in upper or "SWAP" in upper) else "OKX"
+
+        return "OKX"
+
     def _open_pair_in_browser(self, pair: str):
         if pair.lower().startswith("chain:"):
             parts = pair.split(":")
@@ -275,16 +329,35 @@ class MainWindow(QMainWindow):
                 webbrowser.open(url)
             return
 
-        source = self._settings_manager.settings.data_source
-        lang = self._settings_manager.settings.language
-        if source.lower() == "binance":
+        source = self._normalize_data_source(
+            self._settings_manager.settings.data_source
+        )
+        source_lower = source.lower()
+
+        logger.debug(f"Opening browser for pair: {pair}, source: {source}")
+
+        if source_lower == "binance":
             formatted_pair = pair.replace("-", "_").upper()
-            locale_prefix = "zh-CN" if lang == "zh_CN" else "en"
-            url = f"https://www.binance.com/{locale_prefix}/trade/{formatted_pair}"
+            url = f"https://www.binance.com/trade/{formatted_pair}"
+        elif source_lower == "binance_mark":
+            formatted_pair = pair.replace("-", "").upper()
+            url = f"https://www.binance.com/futures/{formatted_pair}"
+        elif source_lower == "gate":
+            formatted_pair = pair.replace("-", "_").upper()
+            url = f"https://www.gate.io/trade/{formatted_pair}"
+        elif source_lower == "gate_mark":
+            formatted_pair = pair.replace("-", "_").upper()
+            # 提取出计价货币
+            quote_asset = formatted_pair.split("_")[1]
+            url = f"https://www.gate.com/futures/{quote_asset}/{formatted_pair}"
+        elif source_lower == "okx_mark":
+            formatted_pair = pair.lower()
+            if formatted_pair.endswith("-swap"):
+                formatted_pair = formatted_pair[:-5]
+            url = f"https://www.okx.com/trade-swap/{formatted_pair}-swap"
         else:
             formatted_pair = pair.lower()
-            url_prefix = "zh-hans/" if lang == "zh_CN" else ""
-            url = f"https://www.okx.com/{url_prefix}trade-spot/{formatted_pair}"
+            url = f"https://www.okx.com/trade-spot/{formatted_pair}"
         webbrowser.open(url)
 
     def _on_add_alert_requested(self, pair: str):

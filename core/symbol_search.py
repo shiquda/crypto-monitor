@@ -97,7 +97,11 @@ class SymbolSearchService(QObject):
 
     # API endpoints
     BINANCE_API = "https://api.binance.com/api/v3/exchangeInfo"
+    BINANCE_FUTURES_API = "https://fapi.binance.com/fapi/v1/exchangeInfo"
     OKX_API = "https://www.okx.com/api/v5/public/instruments"
+    OKX_SWAP_API = "https://www.okx.com/api/v5/public/instruments"
+    GATE_API = "https://api.gateio.ws/api/v4/spot/currency_pairs"
+    GATE_FUTURES_API = "https://api.gateio.ws/api/v4/futures/usdt/contracts"
 
     def __init__(self, parent: QObject | None = None):
         super().__init__(parent)
@@ -122,7 +126,7 @@ class SymbolSearchService(QObject):
         Asynchronously load symbols from the specified data source.
 
         Args:
-            source: Data source name ("Binance" or "OKX")
+            source: Data source name ("Binance", "OKX", "GATE", or mark variants)
             force_reload: If True, reload even if already loaded for this source
         """
         source = source.upper()
@@ -158,8 +162,16 @@ class SymbolSearchService(QObject):
 
             if source == "BINANCE":
                 symbols = self._fetch_binance_symbols(proxies)
+            elif source == "BINANCE_MARK":
+                symbols = self._fetch_binance_futures_symbols(proxies)
             elif source == "OKX":
                 symbols = self._fetch_okx_symbols(proxies)
+            elif source == "OKX_MARK":
+                symbols = self._fetch_okx_swap_symbols(proxies)
+            elif source == "GATE":
+                symbols = self._fetch_gate_symbols(proxies)
+            elif source == "GATE_MARK":
+                symbols = self._fetch_gate_futures_symbols(proxies)
             else:
                 raise ValueError(f"Unknown data source: {source}")
 
@@ -237,12 +249,148 @@ class SymbolSearchService(QObject):
                 # OKX uses BASE-QUOTE format already
                 symbols.append(
                     SymbolInfo(
-                        symbol=inst_id,
-                        raw_symbol=inst_id.replace("-", ""),
+                        symbol=f"{base}-{quote}",
+                        raw_symbol=inst_id,
                         base_asset=base,
                         quote_asset=quote,
                     )
                 )
+
+        return symbols
+
+    def _fetch_okx_swap_symbols(self, proxies: dict) -> list[SymbolInfo]:
+        """Fetch swap contracts from OKX API."""
+        response = requests.get(
+            self.OKX_SWAP_API, params={"instType": "SWAP"}, proxies=proxies, timeout=15
+        )
+        response.raise_for_status()
+        data = response.json()
+
+        symbols = []
+        if data.get("code") == "0":
+            for item in data.get("data", []):
+                inst_id = item.get("instId", "")
+                base = item.get("baseCcy", "")
+                quote = item.get("quoteCcy", "")
+                state = item.get("state", "")
+
+                if state != "live" or not inst_id:
+                    continue
+
+                if not base or not quote:
+                    parts = inst_id.split("-")
+                    if len(parts) < 3:
+                        continue
+                    base, quote = parts[0], parts[1]
+
+                symbols.append(
+                    SymbolInfo(
+                        symbol=f"{base}-{quote}",
+                        raw_symbol=inst_id,
+                        base_asset=base,
+                        quote_asset=quote,
+                    )
+                )
+
+        return symbols
+
+    def _fetch_binance_futures_symbols(self, proxies: dict) -> list[SymbolInfo]:
+        """Fetch perpetual futures symbols from Binance USDT-M futures API."""
+        response = requests.get(self.BINANCE_FUTURES_API, proxies=proxies, timeout=15)
+        response.raise_for_status()
+        data = response.json()
+
+        symbols = []
+        for item in data.get("symbols", []):
+            if item.get("status") != "TRADING":
+                continue
+            if item.get("contractType") != "PERPETUAL":
+                continue
+
+            raw_symbol = item.get("symbol", "")
+            base = item.get("baseAsset", "")
+            quote = item.get("quoteAsset", "")
+
+            if not raw_symbol or not base or not quote:
+                continue
+
+            symbols.append(
+                SymbolInfo(
+                    symbol=f"{base}-{quote}",
+                    raw_symbol=raw_symbol,
+                    base_asset=base,
+                    quote_asset=quote,
+                )
+            )
+
+        return symbols
+
+    def _fetch_gate_symbols(self, proxies: dict) -> list[SymbolInfo]:
+        """Fetch symbols from Gate.io spot API."""
+        response = requests.get(self.GATE_API, proxies=proxies, timeout=15)
+        response.raise_for_status()
+        data = response.json()
+
+        symbols = []
+        for item in data:
+            pair_id = str(item.get("id", "")).upper()
+            if not pair_id or "_" not in pair_id:
+                continue
+
+            trade_status = str(item.get("trade_status", "tradable")).lower()
+            if trade_status not in {"tradable", "", "available"}:
+                continue
+
+            base = str(item.get("base", "")).upper()
+            quote = str(item.get("quote", "")).upper()
+            if not base or not quote:
+                parts = pair_id.split("_", 1)
+                if len(parts) != 2:
+                    continue
+                base, quote = parts[0], parts[1]
+
+            formatted = f"{base}-{quote}"
+            raw_symbol = f"{base}{quote}"
+
+            symbols.append(
+                SymbolInfo(
+                    symbol=formatted,
+                    raw_symbol=raw_symbol,
+                    base_asset=base,
+                    quote_asset=quote,
+                )
+            )
+
+        return symbols
+
+    def _fetch_gate_futures_symbols(self, proxies: dict) -> list[SymbolInfo]:
+        """Fetch futures contracts from Gate.io API."""
+        response = requests.get(self.GATE_FUTURES_API, proxies=proxies, timeout=15)
+        response.raise_for_status()
+        data = response.json()
+
+        symbols = []
+        for item in data:
+            if item.get("in_delisting"):
+                continue
+
+            contract = str(item.get("name", "")).upper()
+            if not contract:
+                continue
+
+            parts = contract.split("_", 1)
+            if len(parts) != 2:
+                continue
+
+            base, quote = parts[0], parts[1]
+            symbols.append(
+                SymbolInfo(
+                    symbol=f"{base}-{quote}",
+                    raw_symbol=contract,
+                    base_asset=base,
+                    quote_asset=quote,
+                )
+            )
 
         return symbols
 

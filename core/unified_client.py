@@ -3,6 +3,7 @@ from PyQt6.QtCore import QObject
 from core.base_client import BaseExchangeClient
 from core.binance_client import BinanceClient
 from core.dex_client import DexScreenerClient
+from core.gate_client import GateClient
 from core.okx_client import OkxClientManager
 
 
@@ -10,12 +11,17 @@ class UnifiedExchangeClient(BaseExchangeClient):
     def __init__(self, source: str, parent: QObject | None = None):
         super().__init__(parent)
 
+        source = source.upper()
+        market_type = "mark" if source.endswith("_MARK") else "spot"
+
         self._dex_client = DexScreenerClient(self)
 
-        if source.upper() == "BINANCE":
-            self._cex_client = BinanceClient(self)
+        if source in {"BINANCE", "BINANCE_MARK"}:
+            self._cex_client = BinanceClient(self, market_type=market_type)
+        elif source in {"GATE", "GATE_MARK"}:
+            self._cex_client = GateClient(self, market_type=market_type)
         else:
-            self._cex_client = OkxClientManager(self)
+            self._cex_client = OkxClientManager(self, market_type=market_type)
 
         self._connect_signals(self._dex_client)
         self._connect_signals(self._cex_client)

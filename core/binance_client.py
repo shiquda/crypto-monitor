@@ -1,4 +1,5 @@
 import asyncio
+import datetime
 import json
 import logging
 import time
@@ -24,6 +25,7 @@ class BinanceWebSocketWorker(BaseWebSocketWorker):
     """
 
     WS_URL = "wss://stream.binance.com:9443/ws"
+    FUTURES_WS_URL = "wss://fstream.binance.com/ws"
 
     def __init__(self, pairs: list[str], parent: QObject | None = None):
         super().__init__(pairs, parent)
@@ -32,6 +34,83 @@ class BinanceWebSocketWorker(BaseWebSocketWorker):
         self._session: aiohttp.ClientSession | None = None
         self._ws: aiohttp.ClientWebSocketResponse | None = None
         self._read_task: asyncio.Task | None = None
+        self._market_type = "spot"
+        self._mark_open_prices: dict[str, float] = {}
+        self._mark_ticker_cache: dict[str, dict[str, str]] = {}
+
+    def set_market_type(self, market_type: str):
+        self._market_type = market_type
+
+    def _ws_url(self) -> str:
+        return self.FUTURES_WS_URL if self._market_type == "mark" else self.WS_URL
+
+    @staticmethod
+    def _get_price_change_basis() -> str:
+        try:
+            return get_settings_manager().settings.price_change_basis
+        except Exception:
+            return "24h_rolling"
+
+    @staticmethod
+    def _utc8_day_start_ms() -> int:
+        tz = datetime.timezone(datetime.timedelta(hours=8))
+        now = datetime.datetime.now(tz)
+        day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        return int(day_start.timestamp() * 1000)
+
+    async def _prime_mark_open_prices(self, pairs: list[str]):
+        if self._market_type != "mark" or not pairs:
+            return
+
+        proxy_url = get_aiohttp_proxy_url()
+        url = "https://fapi.binance.com/fapi/v1/markPriceKlines"
+        basis = self._get_price_change_basis()
+
+        async with aiohttp.ClientSession(trust_env=True) as session:
+            for pair in pairs:
+                symbol = pair.replace("-", "").upper()
+                try:
+                    if basis == "utc_8":
+                        start_ms = self._utc8_day_start_ms()
+                        # Use startTime + limit to fetch the first available candle
+                        # after UTC+8 day start. A fixed 1-minute window can be empty.
+                        params_list = [
+                            {
+                                "symbol": symbol,
+                                "interval": "1m",
+                                "startTime": start_ms,
+                                "limit": 1,
+                            },
+                            {
+                                "symbol": symbol,
+                                "interval": "1h",
+                                "startTime": start_ms,
+                                "limit": 1,
+                            },
+                        ]
+                    else:
+                        params_list = [{"symbol": symbol, "interval": "1d", "limit": 2}]
+
+                    data = None
+                    for params in params_list:
+                        async with session.get(
+                            url, params=params, proxy=proxy_url
+                        ) as response:
+                            candidate = await response.json()
+
+                        if isinstance(candidate, list) and candidate:
+                            data = candidate
+                            break
+
+                    if not isinstance(data, list) or not data:
+                        continue
+
+                    latest = data[0] if basis == "utc_8" else data[-1]
+                    self._mark_open_prices[symbol.lower()] = float(latest[1])
+                except Exception as e:
+                    logger.debug(
+                        f"Failed to prime Binance mark open price for {symbol}: {e}"
+                    )
 
     async def _send_ping(self):
         """Send ping to Binance."""
@@ -55,8 +134,10 @@ class BinanceWebSocketWorker(BaseWebSocketWorker):
         proxy_url = get_aiohttp_proxy_url()
 
         self._session = aiohttp.ClientSession(trust_env=True)
-        self._ws = await self._session.ws_connect(self.WS_URL, proxy=proxy_url)
+        self._ws = await self._session.ws_connect(self._ws_url(), proxy=proxy_url)
         self._connection_start_time = time.time()
+
+        await self._prime_mark_open_prices(self.pairs)
 
         # Spawn read loop
         self._read_task = self._loop.create_task(self._read_loop())
@@ -66,18 +147,25 @@ class BinanceWebSocketWorker(BaseWebSocketWorker):
 
     async def fetch_klines_async(self, pair: str, interval: str, limit: int):
         symbol = pair.replace("-", "").upper()
-        url = "https://api.binance.com/api/v3/klines"
+        if self._market_type == "mark":
+            url = "https://fapi.binance.com/fapi/v1/markPriceKlines"
+        else:
+            url = "https://api.binance.com/api/v3/klines"
         params = {"symbol": symbol, "interval": interval, "limit": limit}
 
         try:
             proxy_url = get_aiohttp_proxy_url()
 
             if self._session and not self._session.closed:
-                async with self._session.get(url, params=params, proxy=proxy_url) as response:
+                async with self._session.get(
+                    url, params=params, proxy=proxy_url
+                ) as response:
                     data = await response.json()
             else:
                 async with aiohttp.ClientSession(trust_env=True) as session:
-                    async with session.get(url, params=params, proxy=proxy_url) as response:
+                    async with session.get(
+                        url, params=params, proxy=proxy_url
+                    ) as response:
                         data = await response.json()
 
             klines = []
@@ -135,10 +223,22 @@ class BinanceWebSocketWorker(BaseWebSocketWorker):
 
         # Subscribe to new
         if new_pairs:
-            settings = get_settings_manager().settings
-            basis = settings.price_change_basis
+            basis = self._get_price_change_basis()
 
-            if basis == "utc_0":
+            if self._market_type == "mark":
+                # markPrice event does not carry 24h high/low; pair it with ticker cache
+                streams_mark = [
+                    f"{p.replace('-', '').lower()}@markPrice@1s" for p in new_pairs
+                ]
+                streams_ticker = [
+                    f"{p.replace('-', '').lower()}@ticker" for p in new_pairs
+                ]
+                streams = streams_mark + streams_ticker
+            elif basis == "utc_8":
+                streams = [
+                    f"{p.replace('-', '').lower()}@kline_1d@+08:00" for p in new_pairs
+                ]
+            elif basis == "utc_0":
                 streams = [f"{p.replace('-', '').lower()}@kline_1d" for p in new_pairs]
             else:
                 streams = [f"{p.replace('-', '').lower()}@ticker" for p in new_pairs]
@@ -151,14 +251,31 @@ class BinanceWebSocketWorker(BaseWebSocketWorker):
                 }
                 await self._ws.send_json(subscribe_msg)
 
+            await self._prime_mark_open_prices(list(new_pairs))
+
         # Unsubscribe from removed
         if removed_pairs:
             # Unsubscribe blindly from both possible stream types to be safe
-            streams_ticker = [f"{p.replace('-', '').lower()}@ticker" for p in removed_pairs]
-            streams_kline = [f"{p.replace('-', '').lower()}@kline_1d" for p in removed_pairs]
-
-            # Combine unsub requests
-            streams = streams_ticker + streams_kline
+            if self._market_type == "mark":
+                streams_mark = [
+                    f"{p.replace('-', '').lower()}@markPrice@1s" for p in removed_pairs
+                ]
+                streams_ticker = [
+                    f"{p.replace('-', '').lower()}@ticker" for p in removed_pairs
+                ]
+                streams = streams_mark + streams_ticker
+            else:
+                streams_ticker = [
+                    f"{p.replace('-', '').lower()}@ticker" for p in removed_pairs
+                ]
+                streams_kline = [
+                    f"{p.replace('-', '').lower()}@kline_1d" for p in removed_pairs
+                ]
+                streams_kline_utc8 = [
+                    f"{p.replace('-', '').lower()}@kline_1d@+08:00"
+                    for p in removed_pairs
+                ]
+                streams = streams_ticker + streams_kline + streams_kline_utc8
 
             if streams:
                 unsubscribe_msg = {
@@ -180,8 +297,40 @@ class BinanceWebSocketWorker(BaseWebSocketWorker):
             data = json.loads(message)
 
             # Handle Ticker Event (24h Rolling)
-            if data.get("e") == "24hrTicker":
+            if data.get("e") == "markPriceUpdate":
                 symbol = data.get("s", "").lower()
+                price_str = data.get("p", "0")
+                try:
+                    current_price = float(price_str)
+                    open_price = self._mark_open_prices.get(symbol, 0.0)
+                    if open_price > 0:
+                        pct = (current_price - open_price) / open_price * 100
+                        percent_val = str(pct)
+                    else:
+                        percent_val = "0"
+                except Exception:
+                    percent_val = "0"
+
+                stats = self._mark_ticker_cache.get(symbol, {})
+                self._process_ticker_data(
+                    symbol,
+                    price_str,
+                    percent_val,
+                    stats.get("high_24h", "0"),
+                    stats.get("low_24h", "0"),
+                    stats.get("quote_volume", "0"),
+                )
+
+            elif data.get("e") == "24hrTicker":
+                symbol = data.get("s", "").lower()
+                if self._market_type == "mark":
+                    self._mark_ticker_cache[symbol] = {
+                        "high_24h": data.get("h", "0"),
+                        "low_24h": data.get("l", "0"),
+                        "quote_volume": data.get("q", "0"),
+                    }
+                    return
+
                 price_str = data.get("c", "0")
                 percent_val = data.get("P", "0")
                 high_24h = data.get("h", "0")
@@ -223,7 +372,9 @@ class BinanceWebSocketWorker(BaseWebSocketWorker):
         except Exception as e:
             self._last_error = f"Message error: {e}"
 
-    def _process_ticker_data(self, symbol, price_str, percent_val, high_24h, low_24h, quote_volume):
+    def _process_ticker_data(
+        self, symbol, price_str, percent_val, high_24h, low_24h, quote_volume
+    ):
         try:
             # Format price based on precision
             if symbol in self._precision_map:
@@ -278,11 +429,12 @@ class BinanceWebSocketWorker(BaseWebSocketWorker):
 class BinanceClient(BaseExchangeClient):
     """Binance Client implementation."""
 
-    def __init__(self, parent: QObject | None = None):
+    def __init__(self, parent: QObject | None = None, market_type: str = "spot"):
         super().__init__(parent)
         self._worker: BinanceWebSocketWorker | None = None
         self._pairs: list[str] = []
         self._precision_map: dict[str, int] = {}  # pair -> decimals
+        self._market_type = market_type
         self._fetch_precisions()
 
     def _fetch_precisions(self):
@@ -303,8 +455,14 @@ class BinanceClient(BaseExchangeClient):
                         proxy_url = settings.proxy.get_proxy_url()
                         proxies = {"http": proxy_url, "https": proxy_url}
 
+                info_url = (
+                    "https://fapi.binance.com/fapi/v1/exchangeInfo"
+                    if self._market_type == "mark"
+                    else "https://api.binance.com/api/v3/exchangeInfo"
+                )
+
                 response = requests.get(
-                    "https://api.binance.com/api/v3/exchangeInfo",
+                    info_url,
                     proxies=proxies,
                     timeout=10,
                 )
@@ -390,6 +548,7 @@ class BinanceClient(BaseExchangeClient):
 
         self._pairs = pairs
         self._worker = BinanceWebSocketWorker(pairs, self)
+        self._worker.set_market_type(self._market_type)
         self._worker.set_precisions(self._precision_map)
         self._worker.ticker_updated.connect(self.ticker_updated)
         self._worker.connection_status.connect(self.connection_status)
@@ -434,8 +593,10 @@ class BinanceClient(BaseExchangeClient):
         import requests
 
         symbol = pair.replace("-", "").upper()
-
-        url = "https://api.binance.com/api/v3/klines"
+        if self._market_type == "mark":
+            url = "https://fapi.binance.com/fapi/v1/markPriceKlines"
+        else:
+            url = "https://api.binance.com/api/v3/klines"
         params = {"symbol": symbol, "interval": interval, "limit": limit}
 
         try:
